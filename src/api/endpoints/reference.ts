@@ -1,0 +1,43 @@
+import { baseApi } from '@/api/baseApi';
+import type {
+  ComplaintCategoriesResponse,
+} from '@/api/types/complaint';
+import type {
+  EventCategoryListResponse,
+  EventCityListResponse,
+  SaudiRegionsResponse,
+} from '@/api/types/reference';
+
+/**
+ * Reference / taxonomy endpoints. These are the static-ish lookups the SPA
+ * uses to populate selects and filter chips. They are co-located in a single
+ * module so the front-end has one place to import all "lookup data" hooks
+ * from, even when the underlying URLs live on different backend modules.
+ */
+export const referenceApi = baseApi.injectEndpoints({
+  endpoints: (build) => ({
+    getEventCategories: build.query<EventCategoryListResponse, void>({
+      query: () => ({ url: '/events/categories' }),
+      providesTags: [{ type: 'EventTaxonomy', id: 'CATEGORIES' }],
+    }),
+    getEventCities: build.query<EventCityListResponse, void>({
+      query: () => ({ url: '/events/cities' }),
+      providesTags: [{ type: 'EventTaxonomy', id: 'CITIES' }],
+    }),
+    getSaudiRegions: build.query<SaudiRegionsResponse, void>({
+      query: () => ({ url: '/reference/saudi-regions' }),
+      providesTags: [{ type: 'SaudiRegion', id: 'LIST' }],
+    }),
+    getComplaintCategories: build.query<ComplaintCategoriesResponse, void>({
+      query: () => ({ url: '/complaints/categories' }),
+      providesTags: [{ type: 'ComplaintCategory', id: 'LIST' }],
+    }),
+  }),
+});
+
+export const {
+  useGetEventCategoriesQuery,
+  useGetEventCitiesQuery,
+  useGetSaudiRegionsQuery,
+  useGetComplaintCategoriesQuery,
+} = referenceApi;
