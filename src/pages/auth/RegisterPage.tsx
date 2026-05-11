@@ -29,9 +29,14 @@ import {
 } from '@/lib/onboardingValidation';
 import { isValidSaudiCityFlexible } from '@/lib/saudiLocations';
 import { getSafeRedirectPath } from '@/lib/navigation';
-import { authErrorMessage } from '@/lib/authErrors';
+import { authErrorMessage, toAuthApiError } from '@/lib/authErrors';
 import { basicRegistrationSchema, type BasicRegistrationSchema } from '@/schemas/auth';
 import { cn } from '@/lib/utils';
+import {
+  clearRegisterDraft,
+  readRegisterDraft,
+  writeRegisterDraft,
+} from '@/lib/formDraftStorage';
 import {
   useAddTalentMediaMutation,
   useAddVendorDocumentMutation,
@@ -57,19 +62,6 @@ import {
   runTalentRoleApplicationPipeline,
   runVendorRoleApplicationPipeline,
 } from '@/services/roleApplicationSubmit';
-
-function readApiErrorMessage(err: unknown, fallback: string): string {
-  if (err && typeof err === 'object') {
-    const candidate = (err as { data?: unknown }).data;
-    if (candidate && typeof candidate === 'object') {
-      const message = (candidate as { message?: unknown }).message;
-      if (typeof message === 'string' && message.trim().length > 0) return message;
-    }
-    const direct = (err as { message?: unknown }).message;
-    if (typeof direct === 'string' && direct.trim().length > 0) return direct;
-  }
-  return fallback;
-}
 
 type RegisterRole = 'guest' | 'talent' | 'organizer' | 'vendor';
 type RegisterStage = 'basic' | 'role-selection' | 'onboarding';
@@ -123,6 +115,57 @@ const ROLE_CARDS: RoleCard[] = [
   },
 ];
 
+const EMPTY_BASIC: BaseRegistrationFields = {
+  fullName: '',
+  email: '',
+  password: '',
+  contactPhone: '',
+  agreeTerms: false,
+};
+
+const EMPTY_TALENT_DRAFT: TalentOnboardingDraft = {
+  fullName: '',
+  contactEmail: '',
+  contactPhone: '',
+  profileImage: '',
+  bio: '',
+  saudiRegionId: '',
+  city: '',
+  travelReady: false,
+  locationPublic: false,
+  verificationMedia: [],
+  certificateName: '',
+  acceptedQualityDisclaimer: false,
+};
+
+const EMPTY_VENDOR_DRAFT: VendorOnboardingDraft = {
+  profileName: '',
+  contactEmail: '',
+  contactPhone: '',
+  bio: '',
+  serviceCategories: [],
+  verificationDocuments: [],
+  gallery: [],
+  city: '',
+  coverageArea: '',
+};
+
+const EMPTY_ORGANIZER_DRAFT: OrganizerOnboardingDraft = {
+  displayName: '',
+  profileImage: '',
+  bio: '',
+  email: '',
+  contactPhone: '',
+  location: '',
+  socialLinks: [],
+  optionalDocument: '',
+  isCompany: false,
+  companyName: '',
+  companyInfo: '',
+  ownerName: '',
+  ownerInfo: '',
+};
+
 export function RegisterPage() {
   const { signUp, signInWithOAuth, user } = useAuth();
   const navigate = useNavigate();
@@ -134,15 +177,14 @@ export function RegisterPage() {
   const [role, setRole] = useState<RegisterRole>('guest');
   const [wizardStep, setWizardStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [draftHydrated, setDraftHydrated] = useState(false);
+  const [loadedRegisterDraft, setLoadedRegisterDraft] = useState(false);
   const basicForm = useForm<BasicRegistrationSchema>({
     resolver: yupResolver(basicRegistrationSchema),
     mode: 'onTouched',
     defaultValues: {
-      fullName: '',
-      email: '',
-      contactPhone: '',
-      password: '',
-      agreeTerms: false,
+      ...EMPTY_BASIC,
     },
   });
   const basicValues = basicForm.watch();
@@ -160,46 +202,9 @@ export function RegisterPage() {
     if ('contactPhone' in patch) basicForm.setValue('contactPhone', patch.contactPhone ?? '', { shouldValidate: true, shouldTouch: true });
     if ('agreeTerms' in patch) basicForm.setValue('agreeTerms', Boolean(patch.agreeTerms), { shouldValidate: true, shouldTouch: true });
   };
-  const [talentDraft, setTalentDraft] = useState<TalentOnboardingDraft>({
-    fullName: '',
-    contactEmail: '',
-    contactPhone: '',
-    profileImage: '',
-    bio: '',
-    saudiRegionId: '',
-    city: '',
-    travelReady: false,
-    locationPublic: false,
-    verificationMedia: [],
-    certificateName: '',
-    acceptedQualityDisclaimer: false,
-  });
-  const [vendorDraft, setVendorDraft] = useState<VendorOnboardingDraft>({
-    profileName: '',
-    contactEmail: '',
-    contactPhone: '',
-    bio: '',
-    serviceCategories: [],
-    verificationDocuments: [],
-    gallery: [],
-    city: '',
-    coverageArea: '',
-  });
-  const [organizerDraft, setOrganizerDraft] = useState<OrganizerOnboardingDraft>({
-    displayName: '',
-    profileImage: '',
-    bio: '',
-    email: '',
-    contactPhone: '',
-    location: '',
-    socialLinks: [],
-    optionalDocument: '',
-    isCompany: false,
-    companyName: '',
-    companyInfo: '',
-    ownerName: '',
-    ownerInfo: '',
-  });
+  const [talentDraft, setTalentDraft] = useState<TalentOnboardingDraft>(EMPTY_TALENT_DRAFT);
+  const [vendorDraft, setVendorDraft] = useState<VendorOnboardingDraft>(EMPTY_VENDOR_DRAFT);
+  const [organizerDraft, setOrganizerDraft] = useState<OrganizerOnboardingDraft>(EMPTY_ORGANIZER_DRAFT);
   const [talentMediaInput, setTalentMediaInput] = useState('');
   const [vendorTempInput, setVendorTempInput] = useState('');
   const [organizerSocialInput, setOrganizerSocialInput] = useState('');
@@ -228,6 +233,47 @@ export function RegisterPage() {
   const [submitOrganizerApplication] = useSubmitOrganizerApplicationMutation();
   const [resubmitOrganizerApplication] = useResubmitOrganizerApplicationMutation();
 
+  function clearRegisterForm() {
+    clearRegisterDraft();
+    setStage('basic');
+    setRole('guest');
+    setWizardStep(0);
+    setError(null);
+    setSuccess(null);
+    setTalentDraft(EMPTY_TALENT_DRAFT);
+    setVendorDraft(EMPTY_VENDOR_DRAFT);
+    setOrganizerDraft(EMPTY_ORGANIZER_DRAFT);
+    basicForm.reset(EMPTY_BASIC);
+  }
+
+  useEffect(() => {
+    const stored = readRegisterDraft();
+    if (stored) {
+      setLoadedRegisterDraft(true);
+      setStage(stored.stage);
+      setRole(stored.role);
+      setWizardStep(stored.wizardStep);
+      setTalentDraft(stored.talentDraft);
+      setVendorDraft(stored.vendorDraft);
+      setOrganizerDraft(stored.organizerDraft);
+      basicForm.reset(stored.basic);
+    }
+    setDraftHydrated(true);
+  }, [basicForm]);
+
+  useEffect(() => {
+    if (!draftHydrated) return;
+    writeRegisterDraft({
+      stage,
+      role,
+      wizardStep,
+      basic,
+      talentDraft,
+      vendorDraft,
+      organizerDraft,
+    });
+  }, [basic, draftHydrated, organizerDraft, role, stage, talentDraft, vendorDraft, wizardStep]);
+
   useEffect(() => {
     const rp = searchParams.get('role');
     if (rp !== 'talent' && rp !== 'vendor' && rp !== 'organizer') return;
@@ -240,6 +286,7 @@ export function RegisterPage() {
 
   useEffect(() => {
     if (!user) return;
+    if (loadedRegisterDraft) return;
     basicForm.reset({
       fullName: user.name,
       email: user.email,
@@ -247,7 +294,7 @@ export function RegisterPage() {
       password: '',
       agreeTerms: true,
     });
-  }, [user, basicForm]);
+  }, [user, basicForm, loadedRegisterDraft]);
 
   const steps = useMemo(() => {
     if (role === 'talent') return ['Talent profile', 'Verification', 'Preferences'];
@@ -312,6 +359,7 @@ export function RegisterPage() {
 
   const continueAsGuest = basicForm.handleSubmit(async (values) => {
     setError(null);
+    setSuccess(null);
     setLoading(true);
     try {
       await signUp(values.fullName, values.email, values.password, values.contactPhone);
@@ -325,6 +373,7 @@ export function RegisterPage() {
 
   async function continueWithGoogle() {
     setError(null);
+    setSuccess(null);
     setLoading(true);
     try {
       await signInWithOAuth('google');
@@ -338,10 +387,13 @@ export function RegisterPage() {
 
   const handleBasicSubmit = basicForm.handleSubmit(() => {
     setError(null);
+    setSuccess(null);
     setStage('role-selection');
   });
 
   function selectRole(nextRole: RegisterRole) {
+    setError(null);
+    setSuccess(null);
     setRole(nextRole);
     if (nextRole === 'guest') return;
     if (nextRole === 'talent') {
@@ -379,6 +431,7 @@ export function RegisterPage() {
     if (role === 'guest') return;
     setLoading(true);
     setError(null);
+    setSuccess(null);
     try {
       if (!user) {
         await signUp(basic.fullName, basic.email, basic.password, basic.contactPhone);
@@ -488,9 +541,24 @@ export function RegisterPage() {
         );
       }
 
-      navigate(redirectAfterAuth ?? '/profile');
+      setStage('basic');
+      setWizardStep(0);
+      setSuccess('Application submitted successfully.');
+      if (typeof window !== 'undefined') {
+        window.alert('Application submitted successfully.');
+      }
+      navigate('/register', { replace: true });
     } catch (err) {
-      setError(readApiErrorMessage(err, 'Could not submit application.'));
+      const authErr = toAuthApiError(err, 'Could not submit application.');
+      const emailErr = authErr.fieldErrors.email?.[0];
+      const phoneErr = authErr.fieldErrors.phone?.[0];
+      const fullNameErr = authErr.fieldErrors.full_name?.[0] ?? authErr.fieldErrors.name?.[0];
+      if (emailErr) basicForm.setError('email', { type: 'server', message: emailErr });
+      if (phoneErr) basicForm.setError('contactPhone', { type: 'server', message: phoneErr });
+      if (fullNameErr) basicForm.setError('fullName', { type: 'server', message: fullNameErr });
+      setError(authErr.message);
+      setStage('basic');
+      setWizardStep(0);
     } finally {
       setLoading(false);
     }
@@ -516,6 +584,14 @@ export function RegisterPage() {
               className="mt-4 rounded-xl border border-coral/40 bg-coral/10 px-4 py-3 text-[13px] font-medium text-coral"
             >
               {error}
+            </div>
+          )}
+          {success && (
+            <div
+              role="status"
+              className="mt-4 rounded-xl border border-mint/50 bg-mint/20 px-4 py-3 text-[13px] font-medium text-ink"
+            >
+              {success}
             </div>
           )}
           <form onSubmit={handleBasicSubmit} className="mt-6 space-y-4" noValidate>
@@ -556,6 +632,9 @@ export function RegisterPage() {
             >
               Continue with Google
             </Button>
+            <Button type="button" variant="ghost" size="md" className="w-full" onClick={clearRegisterForm}>
+              Clear form
+            </Button>
           </form>
         </FormSectionCard>
       )}
@@ -566,6 +645,14 @@ export function RegisterPage() {
           title="Choose your role"
           description="Pick one role to continue. You can also skip onboarding and continue as Guest."
         >
+          {error && (
+            <div
+              role="alert"
+              className="mb-4 rounded-xl border border-coral/40 bg-coral/10 px-4 py-3 text-[13px] font-medium text-coral"
+            >
+              {error}
+            </div>
+          )}
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {ROLE_CARDS.map((card) => {
@@ -613,6 +700,9 @@ export function RegisterPage() {
               Continue as Guest
             </Button>
           </div>
+          <Button type="button" variant="ghost" size="md" className="mt-2 w-full" onClick={clearRegisterForm}>
+            Clear form
+          </Button>
         </FormSectionCard>
       )}
 
@@ -623,6 +713,14 @@ export function RegisterPage() {
           description="Complete the steps below. You can go back at any time."
           className="overflow-hidden p-6"
         >
+          {error && (
+            <div
+              role="alert"
+              className="mb-4 rounded-xl border border-coral/40 bg-coral/10 px-4 py-3 text-[13px] font-medium text-coral"
+            >
+              {error}
+            </div>
+          )}
           <OnboardingHeader
             title={steps[wizardStep] ?? 'Onboarding'}
             description={role === 'organizer' ? 'Build your public organizer profile (demo).' : undefined}
@@ -699,6 +797,9 @@ export function RegisterPage() {
               </Button>
             )}
           </div>
+          <Button type="button" variant="ghost" size="md" className="w-full" onClick={clearRegisterForm}>
+            Clear form
+          </Button>
           </form>
         </FormSectionCard>
       )}

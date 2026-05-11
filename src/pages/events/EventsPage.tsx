@@ -10,6 +10,11 @@ import {
 import type { EventLayoutType, EventListQuery } from '@/api/types/event';
 import { eventListItemToCardProps } from '@/lib/eventMappers';
 import { cn } from '@/lib/utils';
+import {
+  clearEventsFilterDraft,
+  readEventsFilterDraft,
+  writeEventsFilterDraft,
+} from '@/lib/formDraftStorage';
 
 const PER_PAGE = 12;
 
@@ -18,8 +23,10 @@ export function EventsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const featured = searchParams.get('featured') === 'true';
+  const keywordFromUrl = searchParams.get('keyword')?.trim() ?? '';
+  const [draftHydrated, setDraftHydrated] = useState(false);
 
-  const [keyword, setKeyword] = useState('');
+  const [keyword, setKeyword] = useState(keywordFromUrl);
   const [category, setCategory] = useState<string>(() => searchParams.get('category')?.trim() || 'all');
   const [city, setCity] = useState<string>('all');
   const [dateFrom, setDateFrom] = useState('');
@@ -30,6 +37,28 @@ export function EventsPage() {
   const [availabilityOnly, setAvailabilityOnly] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [page, setPage] = useState(1);
+
+  function clearAllFilters() {
+    setKeyword('');
+    setCategory('all');
+    setCity('all');
+    setDateFrom('');
+    setDateTo('');
+    setPriceMin('');
+    setPriceMax('');
+    setLayoutType('all');
+    setAvailabilityOnly(false);
+    setAdvancedOpen(false);
+    setPage(1);
+    clearEventsFilterDraft();
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('category');
+      next.delete('featured');
+      next.delete('keyword');
+      return next;
+    });
+  }
 
   const { data: categoriesResp } = useGetEventCategoriesQuery();
   const { data: citiesResp } = useGetEventCitiesQuery();
@@ -88,7 +117,55 @@ export function EventsPage() {
   useEffect(() => {
     const c = searchParams.get('category')?.trim();
     setCategory(c && c.length > 0 ? c : 'all');
+    setKeyword(searchParams.get('keyword')?.trim() ?? '');
   }, [searchParams]);
+
+  useEffect(() => {
+    const stored = readEventsFilterDraft();
+    if (stored) {
+      setKeyword(keywordFromUrl || stored.keyword);
+      setCategory(searchParams.get('category')?.trim() || stored.category || 'all');
+      setCity(stored.city);
+      setDateFrom(stored.dateFrom);
+      setDateTo(stored.dateTo);
+      setPriceMin(stored.priceMin);
+      setPriceMax(stored.priceMax);
+      setLayoutType(stored.layoutType);
+      setAvailabilityOnly(Boolean(stored.availabilityOnly));
+      setAdvancedOpen(Boolean(stored.advancedOpen));
+    }
+    setDraftHydrated(true);
+    // Mount hydration only: URL already seeds initial state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!draftHydrated) return;
+    writeEventsFilterDraft({
+      keyword,
+      category,
+      city,
+      dateFrom,
+      dateTo,
+      priceMin,
+      priceMax,
+      layoutType,
+      availabilityOnly,
+      advancedOpen,
+    });
+  }, [
+    advancedOpen,
+    availabilityOnly,
+    category,
+    city,
+    dateFrom,
+    dateTo,
+    draftHydrated,
+    keyword,
+    layoutType,
+    priceMax,
+    priceMin,
+  ]);
 
   return (
     <div className="bg-white">
@@ -117,7 +194,16 @@ export function EventsPage() {
                   type="search"
                   placeholder="Search title, description, artist…"
                   value={keyword}
-                  onChange={(e) => setKeyword(e.target.value)}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setKeyword(v);
+                    setSearchParams((prev) => {
+                      const next = new URLSearchParams(prev);
+                      if (v.trim()) next.set('keyword', v.trim());
+                      else next.delete('keyword');
+                      return next;
+                    });
+                  }}
                   className={cn(
                     'h-12 w-full rounded-full border-2 border-ink-10 bg-ink-5/70 pl-11 pr-4',
                     'text-[13px] font-medium text-ink placeholder:text-ink-40',
@@ -317,6 +403,13 @@ export function EventsPage() {
                 >
                   Clear featured filter
                 </button>
+              <button
+                type="button"
+                onClick={clearAllFilters}
+                className="inline-flex h-12 shrink-0 items-center justify-center rounded-full border-2 border-ink-10 bg-white px-5 text-[12px] font-semibold text-ink transition-colors duration-150 hover:border-ink/25 hover:bg-ink-5"
+              >
+                Clear all
+              </button>
               </div>
             )}
           </div>
@@ -339,7 +432,7 @@ export function EventsPage() {
                   <EventCard
                     key={e.id}
                     {...props}
-                    onClick={() => navigate(`/events/${e.slug}`)}
+                    onClick={() => navigate(`/events/${e.slug ?? e.code ?? e.id}`)}
                   />
                 );
               })}

@@ -28,7 +28,7 @@ export function FeaturedSection() {
                 <EventCard
                   {...props}
                   className="w-[280px]"
-                  onClick={() => navigate(`/events/${e.slug}`)}
+                  onClick={() => navigate(`/events/${e.slug ?? e.code ?? e.id}`)}
                 />
               </div>
             );

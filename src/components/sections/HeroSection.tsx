@@ -1,8 +1,23 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { MagnifyingGlass, ArrowRight } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/Button';
 import { PhotoCluster } from '@/components/shapes/PhotoCluster';
 
 export function HeroSection() {
+  const navigate = useNavigate();
+  const [keyword, setKeyword] = useState('');
+
+  function onSearchSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const q = keyword.trim();
+    if (!q) {
+      navigate('/events');
+      return;
+    }
+    navigate(`/events?keyword=${encodeURIComponent(q)}`);
+  }
+
   return (
     <section className="bg-[#F7F6F2] px-6 lg:px-8 py-12 lg:py-20 relative overflow-hidden">
       <div className="max-w-[1280px] mx-auto w-full flex flex-col md:flex-row md:items-center md:justify-between gap-10 lg:gap-6 relative z-10">
@@ -26,19 +41,24 @@ export function HeroSection() {
           </p>
 
           {/* Search Bar */}
-          <div className="flex items-center w-full max-w-[480px] bg-white rounded-full p-1.5 mt-2 shadow-card-md border border-ink-10 focus-within:border-ink-20 transition-colors">
+          <form
+            onSubmit={onSearchSubmit}
+            className="flex items-center w-full max-w-[480px] bg-white rounded-full p-1.5 mt-2 shadow-card-md border border-ink-10 focus-within:border-ink-20 transition-colors"
+          >
             <div className="flex items-center flex-1 gap-3 px-4">
               <MagnifyingGlass size={18} weight="bold" className="text-ink-40 flex-shrink-0" />
               <input
                 type="text"
                 placeholder="Search events, artists, venues..."
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
                 className="bg-transparent text-ink text-[14px] placeholder:text-ink-40 outline-none w-full py-2"
               />
             </div>
-            <Button variant="primary" size="md" icon={ArrowRight} className="flex-shrink-0">
+            <Button type="submit" variant="primary" size="md" icon={ArrowRight} className="flex-shrink-0">
               Search
             </Button>
-          </div>
+          </form>
 
           <p className="text-[13px] text-ink-40 mt-1">
             Already have an account?{' '}

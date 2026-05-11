@@ -9,7 +9,8 @@ const password = yup
 const optionalPhone = yup
   .string()
   .trim()
-  .matches(/^\+?[0-9 ()-]{6,20}$/i, 'Enter a valid phone number.')
+  .transform((value) => (value === '' ? undefined : value))
+  .matches(/^\+?[0-9 ()-]{6,20}$/i, { message: 'Enter a valid phone number.', excludeEmptyString: true })
   .notRequired();
 
 export const loginSchema = yup
@@ -67,7 +68,7 @@ export const basicRegistrationSchema = yup
     contactPhone: yup
       .string()
       .trim()
-      .matches(/^\+?[0-9 ()-]{6,20}$/i, 'Enter a valid phone number.')
+      .matches(/^\+966\d{10}$/i, 'Enter a valid Saudi phone number (10 digits).')
       .required('Phone number is required.'),
     password: password,
     agreeTerms: yup

@@ -29,22 +29,32 @@ export interface EventVendorSummary {
 
 export interface EventListItem {
   id: Id;
-  slug: Slug;
+  slug?: Slug;
+  code?: string;
   title: string;
   excerpt?: string | null;
   cover_image_url?: string | null;
   city?: string | null;
+  city_name?: string | null;
+  city_id?: Id | null;
   venue?: string | null;
+  venue_name?: string | null;
   category?: string | null;
+  category_name?: string | null;
+  category_id?: Id | null;
   date_start: Iso8601;
+  starts_at?: Iso8601 | null;
   date_end?: Iso8601 | null;
+  ends_at?: Iso8601 | null;
   price_min?: Money | null;
   price_max?: Money | null;
   tickets_left?: number | null;
   layout_type?: EventLayoutType;
   featured?: boolean;
+  is_featured?: boolean;
   rating_average?: number | null;
   ratings_count?: number;
+  rating_count?: number;
   [key: string]: unknown;
 }
 
@@ -60,6 +70,8 @@ export interface EventDetail extends EventListItem {
   venue_images?: string[];
   lat?: number | null;
   lng?: number | null;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
   video_url?: string | null;
   organizer_notes?: string | null;
   [key: string]: unknown;

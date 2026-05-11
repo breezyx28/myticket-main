@@ -58,8 +58,10 @@ export function UpcomingSection() {
   const { data: paginated, isFetching, isError } = useListEventsQuery(query);
   const events = useMemo(() => {
     const list = paginated?.data ?? [];
-    // Defensive sort by date_start ascending in case the API doesn't guarantee ordering.
-    return [...list].sort((a, b) => a.date_start.localeCompare(b.date_start));
+    // Defensive sort by start date ascending in case the API doesn't guarantee ordering.
+    const startKey = (s: { date_start?: string | null; starts_at?: string | null }) =>
+      s.date_start ?? s.starts_at ?? '';
+    return [...list].sort((a, b) => startKey(a).localeCompare(startKey(b)));
   }, [paginated]);
 
   return (
@@ -107,7 +109,7 @@ export function UpcomingSection() {
                   key={e.id}
                   {...props}
                   className="w-full"
-                  onClick={() => navigate(`/events/${e.slug}`)}
+                  onClick={() => navigate(`/events/${e.slug ?? e.code ?? e.id}`)}
                 />
               );
             })}

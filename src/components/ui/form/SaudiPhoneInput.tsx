@@ -1,6 +1,7 @@
 import { cn } from '@/lib/utils';
 
 const SAUDI_CODE = '+966';
+const MAX_LOCAL_DIGITS = 10;
 
 function normalizeToLocalDigits(value: string) {
   const trimmed = value.trim();
@@ -39,8 +40,9 @@ export function SaudiPhoneInput({
         type="tel"
         autoComplete="tel-national"
         value={local}
+        maxLength={MAX_LOCAL_DIGITS}
         onChange={(e) => {
-          const digits = e.target.value.replace(/[^\d]/g, '');
+          const digits = e.target.value.replace(/[^\d]/g, '').slice(0, MAX_LOCAL_DIGITS);
           onChange(digits ? `${SAUDI_CODE}${digits}` : '');
         }}
         placeholder={placeholder}

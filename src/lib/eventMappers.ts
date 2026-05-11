@@ -49,21 +49,27 @@ export function formatCardDateTime(iso: string): { date: string; time: string } 
  * is treated as a slug end-to-end in Phase 3.
  */
 export function eventListItemToCardProps(e: EventListItem): EventCardProps {
-  const { date, time } = formatCardDateTime(e.date_start);
+  const startAt = e.date_start ?? e.starts_at ?? '';
+  const { date, time } = formatCardDateTime(startAt);
   const priceFrom = typeof e.price_min === 'number' ? e.price_min : 0;
+  const eventKey = e.slug ?? e.code ?? String(e.id);
+  const categoryLabel = e.category ?? e.category_name ?? 'Event';
+  const venueLabel = e.venue ?? e.venue_name ?? '';
+  const cityLabel = e.city ?? e.city_name ?? '';
+  const featured = typeof e.featured === 'boolean' ? e.featured : Boolean(e.is_featured);
   return {
-    eventId: e.slug,
+    eventId: eventKey,
     title: e.title,
-    category: e.category ?? 'Event',
-    accentColor: accentForCategory(e.category),
+    category: categoryLabel,
+    accentColor: accentForCategory(categoryLabel),
     image: e.cover_image_url ?? '',
     date,
     time,
-    venue: e.venue ?? '',
-    city: e.city ?? '',
+    venue: venueLabel,
+    city: cityLabel,
     priceFrom,
     rating: typeof e.rating_average === 'number' ? e.rating_average : null,
-    isFeatured: Boolean(e.featured),
+    isFeatured: featured,
     isSoldOut: typeof e.tickets_left === 'number' ? e.tickets_left === 0 : false,
   };
 }
@@ -79,6 +85,11 @@ export function eventListItemToCardProps(e: EventListItem): EventCardProps {
  * waitlist, tickets) keyed by the URL param continue to resolve consistently.
  */
 export function eventDetailToMockEvent(detail: EventDetail, fallback?: MockEvent | null): MockEvent {
+  const startAt = detail.date_start ?? detail.starts_at ?? fallback?.dateStart ?? '';
+  const endAt = detail.date_end ?? detail.ends_at ?? startAt;
+  const categoryLabel = detail.category ?? detail.category_name ?? fallback?.category ?? 'Event';
+  const cityLabel = detail.city ?? detail.city_name ?? fallback?.city ?? '';
+  const venueLabel = detail.venue ?? detail.venue_name ?? fallback?.venue ?? '';
   const layoutType: LayoutType = detail.layout_type === 'seated' ? 'seated' : 'free';
   const ticketsLeft =
     typeof detail.tickets_left === 'number'
@@ -87,21 +98,21 @@ export function eventDetailToMockEvent(detail: EventDetail, fallback?: MockEvent
   const priceMin = typeof detail.price_min === 'number' ? detail.price_min : (fallback?.priceMin ?? 0);
   const priceMax = typeof detail.price_max === 'number' ? detail.price_max : (fallback?.priceMax ?? priceMin);
   return {
-    id: detail.slug,
+    id: detail.slug ?? detail.code ?? String(detail.id),
     title: detail.title,
     excerpt: detail.excerpt ?? fallback?.excerpt ?? '',
     description: detail.description ?? fallback?.description ?? '',
     coverImage: detail.cover_image_url ?? fallback?.coverImage ?? '',
-    city: detail.city ?? fallback?.city ?? '',
-    venue: detail.venue ?? fallback?.venue ?? '',
-    category: detail.category ?? fallback?.category ?? 'Event',
-    dateStart: detail.date_start,
-    dateEnd: detail.date_end ?? detail.date_start,
+    city: cityLabel,
+    venue: venueLabel,
+    category: categoryLabel,
+    dateStart: startAt,
+    dateEnd: endAt,
     priceMin,
     priceMax,
     ticketsLeft,
     layoutType,
-    featured: Boolean(detail.featured),
+    featured: typeof detail.featured === 'boolean' ? detail.featured : Boolean(detail.is_featured),
     organizer: {
       id: String(detail.organizer?.id ?? fallback?.organizer.id ?? ''),
       name: detail.organizer?.display_name ?? fallback?.organizer.name ?? '',
@@ -127,7 +138,9 @@ export function eventDetailToMockEvent(detail: EventDetail, fallback?: MockEvent
     ratingCount:
       typeof detail.ratings_count === 'number'
         ? detail.ratings_count
-        : (fallback?.ratingCount ?? undefined),
+        : typeof detail.rating_count === 'number'
+          ? detail.rating_count
+          : (fallback?.ratingCount ?? undefined),
     attendingCount: fallback?.attendingCount,
     attendeeAvatars: fallback?.attendeeAvatars,
     gallery: detail.gallery ?? fallback?.gallery ?? [],
@@ -137,8 +150,14 @@ export function eventDetailToMockEvent(detail: EventDetail, fallback?: MockEvent
       price: typeof t.price === 'number' ? t.price : Number(t.price),
       remaining: t.remaining,
     })),
-    lat: detail.lat ?? fallback?.lat,
-    lng: detail.lng ?? fallback?.lng,
+    lat:
+      detail.lat ??
+      (detail.latitude != null && detail.latitude !== '' ? Number(detail.latitude) : undefined) ??
+      fallback?.lat,
+    lng:
+      detail.lng ??
+      (detail.longitude != null && detail.longitude !== '' ? Number(detail.longitude) : undefined) ??
+      fallback?.lng,
     videoUrl: detail.video_url ?? fallback?.videoUrl,
     organizerNotes: detail.organizer_notes ?? fallback?.organizerNotes,
     venueImages: detail.venue_images ?? fallback?.venueImages,

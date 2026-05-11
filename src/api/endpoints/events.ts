@@ -1,5 +1,5 @@
 import { baseApi } from '@/api/baseApi';
-import type { Paginated, PaginationQuery, Slug } from '@/api/types/common';
+import type { Paginated, PaginationQuery, ResourceEnvelope, Slug } from '@/api/types/common';
 import type {
   EventDetail,
   EventGalleryItem,
@@ -30,6 +30,10 @@ export const eventsApi = baseApi.injectEndpoints({
     }),
     getEventBySlug: build.query<EventDetail, { slug: Slug }>({
       query: ({ slug }) => ({ url: `/events/${encodeURIComponent(slug)}` }),
+      transformResponse: (response: unknown) => {
+        const maybeEnvelope = response as ResourceEnvelope<EventDetail>;
+        return maybeEnvelope?.data ? maybeEnvelope.data : (response as EventDetail);
+      },
       providesTags: (_res, _err, arg) => [{ type: 'Event', id: arg.slug }],
     }),
     getEventRatings: build.query<EventRatingsSummary, { slug: Slug }>({

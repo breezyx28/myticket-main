@@ -12,7 +12,6 @@ export const STAT_SHAPE_FILES = [
   '000359.svg',
   '000441.svg',
   '000451.svg',
-  '001126.svg',
 ] as const;
 
 export function statShapeUrl(file: (typeof STAT_SHAPE_FILES)[number]) {
