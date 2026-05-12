@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
@@ -10,7 +10,6 @@ import { FormSectionCard } from '@/components/ui/form/FormSectionCard';
 import { Field } from '@/components/ui/form/Field';
 import { TextInput } from '@/components/ui/form/inputs';
 import { loginSchema } from '@/schemas/auth';
-import { clearLoginDraft, readLoginDraft, writeLoginDraft } from '@/lib/formDraftStorage';
 
 export function LoginPage() {
   const { signIn, signInWithOtp, signInWithOAuth } = useAuth();
@@ -80,23 +79,6 @@ export function LoginPage() {
 
   const submitDisabled = isSubmitting || oauthLoading;
 
-  useEffect(() => {
-    const stored = readLoginDraft();
-    if (!stored) return;
-    form.setValue('email', stored.email, { shouldValidate: false });
-    form.setValue('password', stored.password, { shouldValidate: false });
-  }, [form]);
-
-  useEffect(() => {
-    const sub = form.watch((values) => {
-      writeLoginDraft({
-        email: values.email ?? '',
-        password: values.password ?? '',
-      });
-    });
-    return () => sub.unsubscribe();
-  }, [form]);
-
   return (
     <FormSectionCard
       eyebrow={challengeToken ? 'Two-factor required' : 'Welcome back'}
@@ -155,20 +137,6 @@ export function LoginPage() {
             </div>
             <Button type="submit" variant="dark" size="md" className="w-full" loading={isSubmitting} disabled={submitDisabled}>
               Sign in
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="md"
-              className="w-full"
-              onClick={() => {
-                form.reset({ email: '', password: '', otp: '' });
-                clearLoginDraft();
-                setError(null);
-                setChallengeToken(null);
-              }}
-            >
-              Clear form
             </Button>
           </>
         ) : (

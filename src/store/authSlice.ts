@@ -1,12 +1,6 @@
 import { createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
-import {
-  clearTokens,
-  getRefreshToken,
-  getToken,
-  setRefreshToken,
-  setToken,
-} from '@/api/authToken';
+import { clearTokens, getRefreshToken, getToken, persistAuthCookies, saveRefreshTokenOnly } from '@/api/authToken';
 import type { UserMe } from '@/api/types/user';
 
 export interface AuthState {
@@ -25,6 +19,8 @@ interface CredentialsPayload {
   token: string;
   refreshToken?: string | null;
   user?: UserMe | null;
+  expiresAt?: string | null;
+  sessionUser?: UserMe | null;
 }
 
 const authSlice = createSlice({
@@ -33,17 +29,23 @@ const authSlice = createSlice({
   reducers: {
     setCredentials(state, action: PayloadAction<CredentialsPayload>) {
       state.token = action.payload.token;
-      state.refreshToken = action.payload.refreshToken ?? state.refreshToken;
+      if (action.payload.refreshToken !== undefined) {
+        state.refreshToken = action.payload.refreshToken;
+      }
       state.user = action.payload.user ?? state.user;
-      setToken(state.token);
-      setRefreshToken(state.refreshToken);
+      persistAuthCookies({
+        accessToken: state.token,
+        refreshToken: state.refreshToken,
+        expiresAt: action.payload.expiresAt,
+        userSnapshot: action.payload.sessionUser ?? null,
+      });
     },
     setUser(state, action: PayloadAction<UserMe | null>) {
       state.user = action.payload;
     },
     setRefresh(state, action: PayloadAction<string | null>) {
       state.refreshToken = action.payload;
-      setRefreshToken(action.payload);
+      saveRefreshTokenOnly(action.payload);
     },
     logout(state) {
       state.token = null;

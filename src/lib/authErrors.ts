@@ -44,7 +44,7 @@ export class AuthApiError extends Error {
 
 interface FetchErrorWithData {
   status: number;
-  data?: { message?: string; errors?: Record<string, string[]> } | string | undefined;
+  data?: { message?: unknown; errors?: Record<string, string[]> } | string | undefined;
 }
 
 function isFetchBaseQueryError(value: unknown): value is FetchBaseQueryError {
@@ -72,8 +72,16 @@ export function toAuthApiError(value: unknown, fallback = 'Something went wrong.
     const err = value as FetchErrorWithData;
     if (typeof err.status === 'number') {
       const data = typeof err.data === 'object' && err.data ? err.data : undefined;
+      const rawMessage: unknown = data?.message;
+      let normalizedMessage: string | undefined;
+      if (typeof rawMessage === 'string') normalizedMessage = rawMessage;
+      else if (Array.isArray(rawMessage)) {
+        normalizedMessage = rawMessage
+          .filter((m: unknown): m is string => typeof m === 'string')
+          .join(' ');
+      } else if (rawMessage != null) normalizedMessage = String(rawMessage);
       const message =
-        data?.message ??
+        normalizedMessage ??
         (err.status === 401
           ? 'Invalid credentials. Please try again.'
           : err.status === 422

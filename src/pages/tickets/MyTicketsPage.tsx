@@ -27,10 +27,13 @@ function readApiErrorMessage(err: unknown): string | null {
 }
 
 function formatDateTime(iso: string): string {
+  if (!iso.trim()) return 'Date TBC';
   try {
+    const t = new Date(iso).getTime();
+    if (Number.isNaN(t)) return 'Date TBC';
     return new Date(iso).toLocaleString();
   } catch {
-    return iso;
+    return 'Date TBC';
   }
 }
 
@@ -195,13 +198,18 @@ export function MyTicketsPage() {
                         className="flex flex-col gap-3 rounded-2xl border border-ink-10 bg-ink-5/30 p-5 transition-colors hover:border-coral sm:flex-row sm:items-center sm:justify-between"
                       >
                         <div>
-                          <p className="font-extrabold text-ink">{t.eventTitle}</p>
+                          <p className="font-extrabold text-ink">{t.eventTitle || 'Event'}</p>
                           <p className="mt-1 text-[13px] text-ink-60">
-                            {t.city} · {formatDateTime(t.dateStart)}
+                            {[t.city, t.venue].filter(Boolean).join(' · ') || 'Venue TBC'}
+                            {t.dateStart ? ` · ${formatDateTime(t.dateStart)}` : ''}
                           </p>
+                          {t.ticketCode && (
+                            <p className="mt-1 font-mono text-[12px] font-semibold text-ink-50">{t.ticketCode}</p>
+                          )}
                           <p className="mt-1 text-[12px] text-ink-40">
-                            {t.typeName}
+                            {t.typeName || 'Ticket'}
                             {t.seatLabel ? ` · ${t.seatLabel}` : ''}
+                            {t.orderRef ? ` · ${t.orderRef}` : ''}
                           </p>
                         </div>
                         <div className="flex items-center gap-3">

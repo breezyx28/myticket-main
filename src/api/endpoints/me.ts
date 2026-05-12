@@ -1,6 +1,6 @@
 import { baseApi } from '@/api/baseApi';
 import type { AcknowledgementResponse } from '@/api/types/auth';
-import type { Id } from '@/api/types/common';
+import type { Id, ResourceEnvelope } from '@/api/types/common';
 import type {
   DeleteAccountRequest,
   DeleteAccountResponse,
@@ -21,14 +21,24 @@ import type {
   VendorProfileMe,
 } from '@/api/types/user';
 
+function unwrapUserMeResponse(response: unknown): UserMe {
+  const maybe = response as ResourceEnvelope<UserMe> | UserMe;
+  if (maybe && typeof maybe === 'object' && 'data' in maybe && (maybe as ResourceEnvelope<UserMe>).data != null) {
+    return (maybe as ResourceEnvelope<UserMe>).data;
+  }
+  return maybe as UserMe;
+}
+
 export const meApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
     getMe: build.query<UserMe, void>({
       query: () => ({ url: '/me' }),
+      transformResponse: (response: unknown) => unwrapUserMeResponse(response),
       providesTags: ['Me'],
     }),
     updateMe: build.mutation<UserMe, UpdateMeRequest>({
       query: (body) => ({ url: '/me', method: 'PATCH', body }),
+      transformResponse: (response: unknown) => unwrapUserMeResponse(response),
       invalidatesTags: ['Me'],
     }),
     deleteMe: build.mutation<DeleteAccountResponse, DeleteAccountRequest>({
@@ -53,6 +63,11 @@ export const meApi = baseApi.injectEndpoints({
     }),
     listSessions: build.query<UserSession[], void>({
       query: () => ({ url: '/me/sessions' }),
+      transformResponse: (raw: UserSession[] | { data?: UserSession[] } | null | undefined) => {
+        if (Array.isArray(raw)) return raw;
+        if (raw && typeof raw === 'object' && Array.isArray(raw.data)) return raw.data;
+        return [];
+      },
       providesTags: ['Session'],
     }),
     revokeSession: build.mutation<AcknowledgementResponse, { id: Id }>({

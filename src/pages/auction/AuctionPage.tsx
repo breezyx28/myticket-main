@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Clock } from '@phosphor-icons/react';
 import { useGetAuctionStatsQuery, useListAuctionsQuery } from '@/api/endpoints';
+import { apiAuctionToMockAuctionListing } from '@/lib/auctionMappers';
 import { PLATFORM_AUCTION_COMMISSION_PCT } from '@/lib/constants';
 
 function formatRemaining(ms: number) {
@@ -71,14 +72,15 @@ export function AuctionPage() {
     const apiListings = listingsPaged?.data ?? [];
     if (apiListings.length === 0) return [];
     const map = new Map<string, EventCardData>();
-    for (const l of apiListings) {
-      const eventId = String(l.event_id);
+    for (const raw of apiListings) {
+      const l = apiAuctionToMockAuctionListing(raw);
+      const eventId = String(l.eventId);
       if (map.has(eventId)) continue;
       map.set(eventId, {
         eventId,
-        title: l.event_title ?? 'Event',
-        city: l.city ?? '',
-        venue: l.venue ?? '',
+        title: l.eventTitle || 'Event',
+        city: l.city,
+        venue: l.venue,
       });
     }
     const items = [...map.values()];

@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, Navigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { DownloadSimple, Gift, Gavel, Star, Wallet, XCircle } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/Button';
+import { TicketSummaryCard } from '@/components/tickets/TicketSummaryCard';
+import { TicketQrPanel } from '@/components/tickets/TicketQrPanel';
 import {
   useCancelAuctionMutation,
   useCancelTicketMutation,
@@ -13,7 +15,9 @@ import type { CancelTicketResponse } from '@/api/types/ticket';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { apiTicketToMockTicket } from '@/lib/ticketMappers';
+import { downloadTicketPdf } from '@/lib/ticketPdfDownload';
 import { uiSeatIdToApi } from '@/lib/seatMappers';
+import { useTicketQrDataUrl } from '@/lib/ticketQr';
 import { listForAuctionSchema } from '@/schemas/auction';
 import { cn } from '@/lib/utils';
 
@@ -31,16 +35,27 @@ function readApiErrorMessage(err: unknown): string | null {
 
 export function TicketDetailPage() {
   const { ticketId } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { pushNotification } = useNotifications();
+
+  const ticketQueryId = ticketId ? uiSeatIdToApi(ticketId) : '';
 
   const {
     data: apiTicket,
     isLoading,
     isError,
-  } = useGetMyTicketQuery({ id: ticketId ?? '' }, { skip: !ticketId || !user });
+    refetch,
+  } = useGetMyTicketQuery({ id: ticketQueryId }, { skip: !ticketId || !user });
 
   const ticket = useMemo(() => (apiTicket ? apiTicketToMockTicket(apiTicket) : null), [apiTicket]);
+
+  const signedQrSource =
+    apiTicket?.signed_qr_payload != null && String(apiTicket.signed_qr_payload).trim()
+      ? String(apiTicket.signed_qr_payload).trim()
+      : ticket?.signedQrPayload?.trim() ?? null;
+
+  const qr = useTicketQrDataUrl(signedQrSource);
 
   const [giftTicket, { isLoading: gifting }] = useGiftTicketMutation();
   const [cancelTicket, { isLoading: cancelling }] = useCancelTicketMutation();
@@ -56,9 +71,9 @@ export function TicketDetailPage() {
   const [cancelReason, setCancelReason] = useState('');
   const [refundRequested, setRefundRequested] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [giftDone, setGiftDone] = useState(false);
   const [cancelSummary, setCancelSummary] = useState<CancelTicketResponse['refund'] | null>(null);
   const [walletHint, setWalletHint] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   useEffect(() => {
     setError(null);
@@ -93,7 +108,7 @@ export function TicketDetailPage() {
     }
     try {
       await giftTicket({
-        id: ticket.id,
+        id: uiSeatIdToApi(ticket.id),
         body: { recipient: recipientTrim, message: giftMessage.trim() || undefined },
       }).unwrap();
       pushNotification({
@@ -102,10 +117,10 @@ export function TicketDetailPage() {
         kind: 'gift',
         href: '/my-tickets',
       });
-      setGiftDone(true);
       setGiftOpen(false);
       setRecipient('');
       setGiftMessage('');
+      navigate('/my-tickets');
     } catch (err) {
       setError(readApiErrorMessage(err) ?? 'Could not send gift. Please try again.');
     }
@@ -117,7 +132,7 @@ export function TicketDetailPage() {
     setError(null);
     try {
       const res = await cancelTicket({
-        id: ticket.id,
+        id: uiSeatIdToApi(ticket.id),
         body: {
           reason: cancelReason.trim() || undefined,
           refund_requested: refundRequested,
@@ -131,28 +146,40 @@ export function TicketDetailPage() {
         href: '/my-tickets',
       });
       setCancelOpen(false);
+      void refetch();
     } catch (err) {
       setError(readApiErrorMessage(err) ?? 'Could not cancel this ticket. Please try again.');
     }
   }
 
-  function downloadTicketMock() {
+  async function onDownloadPdf() {
     if (!ticket) return;
-    const lines = [
-      'MyTicket — demo receipt',
-      `Order: ${ticket.orderRef}`,
-      `Event: ${ticket.eventTitle}`,
-      `${ticket.venue}, ${ticket.city}`,
-      `Starts: ${ticket.dateStart}`,
-      `${ticket.typeName}${ticket.seatLabel ? ` · ${ticket.seatLabel}` : ''}`,
-    ];
-    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `myticket-${ticket.orderRef.replace(/[^\w-]+/g, '')}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    setError(null);
+    setPdfLoading(true);
+    try {
+      const dateRangeLabel = ticket.dateStart
+        ? `${new Date(ticket.dateStart).toLocaleString()} — ${new Date(ticket.dateEnd || ticket.dateStart).toLocaleString()}`
+        : 'Event schedule TBC';
+      await downloadTicketPdf({
+        signedPayload: signedQrSource,
+        dataUrl: qr.dataUrl,
+        meta: {
+          eventTitle: ticket.eventTitle || 'Event',
+          ticketCode: ticket.ticketCode,
+          orderRef: ticket.orderRef,
+          typeName: ticket.typeName || 'Ticket',
+          seatLabel: ticket.seatLabel,
+          venue: ticket.venue,
+          city: ticket.city,
+          dateRangeLabel,
+          pricePaid: ticket.pricePaid,
+        },
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not build PDF. Try again.');
+    } finally {
+      setPdfLoading(false);
+    }
   }
 
   async function onConfirmAuction(e: React.FormEvent) {
@@ -177,6 +204,7 @@ export function TicketDetailPage() {
         ends_at: endsAt,
       }).unwrap();
       setAuctionOpen(false);
+      void refetch();
     } catch (err) {
       setError(readApiErrorMessage(err) ?? 'Could not list this ticket for auction.');
     }
@@ -187,6 +215,7 @@ export function TicketDetailPage() {
     setError(null);
     try {
       await cancelAuction({ id: uiSeatIdToApi(ticket.listedAuctionId) }).unwrap();
+      void refetch();
     } catch (err) {
       setError(readApiErrorMessage(err) ?? 'Could not cancel this listing.');
     }
@@ -199,12 +228,17 @@ export function TicketDetailPage() {
           ← My tickets
         </Link>
 
-        <h1 className="mt-6 text-2xl font-extrabold text-ink">{ticket.eventTitle}</h1>
+        <h1 className="mt-6 text-2xl font-extrabold text-ink">{ticket.eventTitle || 'Event'}</h1>
+        {ticket.ticketCode && (
+          <p className="mt-2 font-mono text-[14px] font-semibold text-ink-60">{ticket.ticketCode}</p>
+        )}
         <p className="mt-1 text-[14px] text-ink-60">
-          {ticket.venue}, {ticket.city}
+          {[ticket.venue, ticket.city].filter(Boolean).join(', ') || 'Venue TBC'}
         </p>
         <p className="mt-1 text-[13px] text-ink-40">
-          {new Date(ticket.dateStart).toLocaleString()} — {new Date(ticket.dateEnd).toLocaleString()}
+          {ticket.dateStart
+            ? `${new Date(ticket.dateStart).toLocaleString()} — ${new Date(ticket.dateEnd || ticket.dateStart).toLocaleString()}`
+            : 'Event schedule TBC'}
         </p>
 
         {ticket.status === 'active' && (
@@ -217,12 +251,6 @@ export function TicketDetailPage() {
         {walletHint && (
           <p className="mt-4 rounded-lg bg-sky/20 px-4 py-2 text-[13px] text-ink">
             Would open Apple Wallet / Google Wallet with a pass for this ticket (demo).
-          </p>
-        )}
-
-        {giftDone && (
-          <p className="mt-4 rounded-lg bg-mint/20 px-4 py-2 text-[13px] text-ink">
-            Gift sent — recipient has been notified.
           </p>
         )}
 
@@ -251,7 +279,7 @@ export function TicketDetailPage() {
           <p className="mt-1 font-mono text-lg font-bold text-ink">{ticket.orderRef}</p>
           <p className="mt-4 text-[11px] font-semibold uppercase tracking-wide text-ink-40">Ticket</p>
           <p className="mt-1 font-semibold text-ink">
-            {ticket.typeName}
+            {ticket.typeName || 'General admission'}
             {ticket.seatLabel ? ` · ${ticket.seatLabel}` : ''}
           </p>
         </div>
@@ -259,34 +287,35 @@ export function TicketDetailPage() {
         <div className="mt-6 rounded-2xl border border-ink-10 p-6">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-40">Payment summary</p>
           <div className="mt-2 flex justify-between text-[14px]">
-            <span className="text-ink-60">Ticket</span>
+            <span className="text-ink-60">Ticket price</span>
             <span className="font-mono font-semibold text-ink">{ticket.pricePaid} SAR</span>
           </div>
-          <div className="mt-2 flex justify-between text-[12px] text-ink-40">
-            <span>Fees (included in demo)</span>
-            <span>—</span>
-          </div>
+          {apiTicket?.order_id != null && (
+            <div className="mt-2 flex justify-between text-[12px] text-ink-40">
+              <span className="font-mono">order_id</span>
+              <span className="font-mono text-ink">{String(apiTicket.order_id)}</span>
+            </div>
+          )}
           <div className="mt-3 flex justify-between border-t border-ink-10 pt-3 text-[14px] font-bold">
             <span>Total paid</span>
             <span className="font-mono">{ticket.pricePaid} SAR</span>
           </div>
-          <p className="mt-2 text-[12px] text-ink-40">Payment method: mock card (demo)</p>
+          <p className="mt-2 text-[12px] text-ink-40">
+            Per-ticket amount from <span className="font-mono">price_paid</span>. Fees may be included in the order
+            total on the server.
+          </p>
         </div>
 
-        <div className="mt-8 flex justify-center">
-          <div className="flex h-44 w-44 items-center justify-center rounded-2xl border-2 border-dashed border-ink-20 bg-white">
-            <div className="text-center text-[11px] text-ink-40">
-              QR preview
-              <div
-                className="mx-auto mt-2 h-24 w-24 bg-ink-5"
-                style={{
-                  backgroundImage:
-                    'repeating-linear-gradient(45deg, #ccc 0, #ccc 2px, transparent 2px, transparent 6px)',
-                }}
-              />
-            </div>
-          </div>
+        <div className="mt-8">
+          <TicketQrPanel
+            dataUrl={qr.dataUrl}
+            loading={qr.loading}
+            error={qr.error}
+            hasPayload={Boolean(signedQrSource)}
+          />
         </div>
+
+        {apiTicket && <TicketSummaryCard ticket={apiTicket} />}
 
         {ticket.status === 'used' && (
           <div className="mt-8 rounded-2xl border border-lemon bg-lemon/15 p-6">
@@ -328,8 +357,9 @@ export function TicketDetailPage() {
             variant="outline"
             size="md"
             icon={DownloadSimple}
-            disabled={!canAct}
-            onClick={() => downloadTicketMock()}
+            disabled={!canAct || pdfLoading || !signedQrSource}
+            loading={pdfLoading}
+            onClick={() => void onDownloadPdf()}
           >
             Download PDF
           </Button>
@@ -338,6 +368,7 @@ export function TicketDetailPage() {
             size="md"
             icon={Wallet}
             disabled={!canAct}
+            title="Wallet passes are not available in the app yet."
             onClick={() => setWalletHint(true)}
           >
             Add to Wallet

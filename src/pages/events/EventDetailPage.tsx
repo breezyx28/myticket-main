@@ -29,6 +29,7 @@ import { useNotifications } from '@/contexts/NotificationContext';
 import { formatAttendingLabel } from '@/lib/attendingFormat';
 import {
   useGetEventBySlugQuery,
+  useGetEventTicketTypesQuery,
   useJoinWaitlistMutation,
   useListAuctionsQuery,
   useListEventsQuery,
@@ -37,7 +38,7 @@ import {
   useListMyWaitlistQuery,
   useSubmitRatingMutation,
 } from '@/api/endpoints';
-import { eventDetailToMockEvent, eventListItemToCardProps } from '@/lib/eventMappers';
+import { mergeEventTicketTypes, eventListItemToCardProps } from '@/lib/eventMappers';
 import { apiAuctionToMockAuctionListing } from '@/lib/auctionMappers';
 import type { MockAuctionListing, MockEvent } from '@/types/domain';
 import { cn } from '@/lib/utils';
@@ -163,6 +164,11 @@ export function EventDetailPage() {
     skip: !eventId,
   });
 
+  const { data: ticketTypesList } = useGetEventTicketTypesQuery(
+    { slug: eventId ?? '' },
+    { skip: !eventId },
+  );
+
   const { data: myRatingsData } = useListMyRatingsQuery(
     detail ? { subject_type: 'event', subject_id: detail.id } : { subject_type: 'event', subject_id: '' },
     { skip: !detail || !user }
@@ -188,8 +194,8 @@ export function EventDetailPage() {
     if (detailLoading && !detail) return undefined;
     if (detailError) return null;
     if (!detail) return undefined;
-    return eventDetailToMockEvent(detail);
-  }, [eventId, detail, detailLoading, detailError]);
+    return mergeEventTicketTypes(detail, ticketTypesList);
+  }, [eventId, detail, detailLoading, detailError, ticketTypesList]);
 
   const { data: relatedPaginated } = useListEventsQuery(
     detail ? { category: detail.category ?? undefined, page: 1, per_page: 4 } : { page: 1, per_page: 4 },
@@ -646,13 +652,22 @@ export function EventDetailPage() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-semibold text-ink">{listing.seatLabel ?? 'General admission'}</p>
+                        {listing.listingCode && (
+                          <p className="font-mono text-[11px] font-semibold text-ink-50">{listing.listingCode}</p>
+                        )}
+                        <p className="font-semibold text-ink">
+                          {listing.seatLabel ?? listing.ticketTypeLabel ?? 'General admission'}
+                        </p>
                         <p className="mt-1 text-[12px] text-ink-40">Seller: {listing.sellerLabel}</p>
                       </div>
                       <div className="text-right">
-                        <p className="font-mono text-[17px] font-black text-ink">{listing.price} SAR</p>
+                        <p className="font-mono text-[17px] font-black text-ink">
+                          {listing.price} {listing.currency ?? 'SAR'}
+                        </p>
                         {listing.originalPrice > listing.price && (
-                          <p className="text-[12px] text-ink-40 line-through">{listing.originalPrice} SAR</p>
+                          <p className="text-[12px] text-ink-40 line-through">
+                            {listing.originalPrice} {listing.currency ?? 'SAR'}
+                          </p>
                         )}
                       </div>
                     </div>
@@ -722,7 +737,7 @@ export function EventDetailPage() {
                 ? 'There is no primary inventory left — try the waitlist or verified resale.'
                 : event.layoutType === 'seated'
                   ? 'Choose your seats on the next screen, then pay on checkout.'
-                  : 'Pick a ticket type and quantity on checkout — no seat map for this event.'}
+                  : 'Start a short ticket hold on the next screen (no seat map), then complete payment on checkout.'}
             </p>
             <ul className="mt-4 space-y-3">
               {event.ticketTypes.map((tt) => (
@@ -740,10 +755,22 @@ export function EventDetailPage() {
             </ul>
             {event.ticketsLeft > 0 ? (
               <Link
-                to={event.layoutType === 'seated' ? `/checkout/${event.id}/seats` : `/checkout/${event.id}`}
+                to={
+                  event.layoutType === 'seated'
+                    ? `/checkout/${event.id}/seats`
+                    : `/checkout/${event.id}`
+                }
+                state={
+                  event.layoutType === 'free'
+                    ? {
+                        selectedTicketTypeId: event.ticketTypes[0]?.id,
+                        generalAdmissionQuantity: 1,
+                      }
+                    : undefined
+                }
                 className="mt-6 flex h-12 w-full items-center justify-center rounded-full bg-ink text-[14px] font-semibold text-white transition-colors hover:bg-ink-80"
               >
-                {event.layoutType === 'seated' ? 'Choose seats' : 'Proceed to checkout'}
+                {event.layoutType === 'seated' ? 'Choose seats' : 'Continue to checkout'}
               </Link>
             ) : (
               <div className="mt-6 space-y-3">

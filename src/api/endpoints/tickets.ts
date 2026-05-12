@@ -11,6 +11,31 @@ import type {
   Ticket,
 } from '@/api/types/ticket';
 
+/** Laravel may wrap a single ticket as `{ data: Ticket }`. */
+function unwrapTicketResponse(raw: unknown): Ticket {
+  let payload: unknown = raw;
+  if (payload && typeof payload === 'object' && 'data' in payload) {
+    const inner = (payload as { data: unknown }).data;
+    if (inner != null && typeof inner === 'object') payload = inner;
+  }
+  return payload as Ticket;
+}
+
+function unwrapDataKey<T>(raw: unknown): T {
+  if (raw && typeof raw === 'object' && 'data' in raw) {
+    return (raw as { data: T }).data;
+  }
+  return raw as T;
+}
+
+function unwrapCancelTicketResponse(raw: unknown): CancelTicketResponse {
+  const r = unwrapDataKey<CancelTicketResponse>(raw);
+  return {
+    ...r,
+    ticket: r.ticket ? unwrapTicketResponse(r.ticket as unknown) : r.ticket,
+  };
+}
+
 export const ticketsApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
     listMyTickets: build.query<Paginated<Ticket>, PaginationQuery | void>({
@@ -25,6 +50,7 @@ export const ticketsApi = baseApi.injectEndpoints({
     }),
     getMyTicket: build.query<Ticket, { id: Id }>({
       query: ({ id }) => ({ url: `/me/tickets/${id}` }),
+      transformResponse: unwrapTicketResponse,
       providesTags: (_res, _err, arg) => [{ type: 'Ticket', id: arg.id }],
     }),
     giftTicket: build.mutation<AcknowledgementResponse, { id: Id; body: GiftTicketRequest }>({
@@ -33,6 +59,7 @@ export const ticketsApi = baseApi.injectEndpoints({
         method: 'POST',
         body,
       }),
+      transformResponse: (raw: unknown) => unwrapDataKey<AcknowledgementResponse>(raw),
       invalidatesTags: (_res, _err, arg) => [
         { type: 'Ticket', id: arg.id },
         { type: 'Ticket', id: 'LIST' },
@@ -69,6 +96,7 @@ export const ticketsApi = baseApi.injectEndpoints({
         method: 'POST',
         body: body ?? undefined,
       }),
+      transformResponse: unwrapCancelTicketResponse,
       invalidatesTags: (_res, _err, arg) => [
         { type: 'Ticket', id: arg.id },
         { type: 'Ticket', id: 'LIST' },

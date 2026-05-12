@@ -1,4 +1,7 @@
 import * as yup from 'yup';
+import type { PaymentFormState } from '@/lib/cardPayment';
+import { onlyDigits } from '@/lib/cardPaymentValidation';
+import { cardPaymentSchema } from '@/schemas/payment';
 
 /**
  * `price <= original_purchase_price` is enforced because the existing mock at
@@ -53,5 +56,22 @@ export const buyNowSchema = yup
   .object({
     payment_method: yup.string().oneOf(['visa', 'mastercard', 'mada']).notRequired(),
     saved_card_id: yup.mixed<string | number>().nullable().notRequired(),
+    cardholder: yup.string().notRequired(),
+    card_number: yup.string().notRequired(),
+    expiry: yup.string().notRequired(),
+    cvv: yup.string().notRequired(),
+    save_card: yup.boolean().notRequired(),
   })
   .strict();
+
+/** Same rules as checkout `cardPaymentSchema` / `validatePaymentForm`, for buy-now without a saved card. */
+export function validateBuyNowNewCardForm(form: PaymentFormState) {
+  return cardPaymentSchema.validate({
+    method: form.method,
+    cardholder: form.cardholder.trim(),
+    card_number: onlyDigits(form.cardNumber),
+    expiry: form.expiry,
+    cvv: form.cvv,
+    save_card: form.saveCard,
+  });
+}

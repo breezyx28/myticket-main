@@ -21,7 +21,8 @@ export interface LoginRequest {
 export interface AuthSuccessResponse {
   token: string;
   refresh_token: string | null;
-  expires_at: Iso8601;
+  /** When present, drives cookie `Max-Age` so the session expires with the token. */
+  expires_at?: Iso8601 | null;
   user: UserMe;
   [key: string]: unknown;
 }

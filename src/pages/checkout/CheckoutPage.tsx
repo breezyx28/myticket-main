@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { CheckCircle, Warning } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -6,7 +6,11 @@ import {
   useCheckTicketOverlapMutation,
   useConfirmOrderPaymentMutation,
   useCreateOrderMutation,
+  useCreateSeatLockMutation,
+  useGetCurrentSeatLockQuery,
   useGetEventBySlugQuery,
+  useGetEventSeatsQuery,
+  useGetEventTicketTypesQuery,
   useListSavedCardsQuery,
 } from '@/api/endpoints';
 import type { Id } from '@/api/types/common';
@@ -14,15 +18,16 @@ import type {
   ConfirmOrderPaymentRequest,
   CreateOrderRequest,
   Order,
-  TicketTypeQuantity,
 } from '@/api/types/order';
 import type { SavedCard } from '@/api/types/savedCard';
+import type { SeatLockRequest } from '@/api/types/seat';
 import { Button } from '@/components/ui/Button';
 import { PaymentMethodCard } from '@/components/checkout/PaymentMethodCard';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
-import { eventDetailToMockEvent } from '@/lib/eventMappers';
-import { uiSeatIdToApi } from '@/lib/seatMappers';
+import { mergeEventTicketTypes } from '@/lib/eventMappers';
+import { apiSeatsToSeatRecords, uiSeatIdToApi } from '@/lib/seatMappers';
+import { isSeatSelectable } from '@/lib/seating';
 import {
   brandToMethod,
   CARD_PAYMENT_METHODS,
@@ -42,6 +47,8 @@ type CheckoutLocationState = {
   selectedSeats?: SelectedSeat[];
   selectedTicketTypeId?: string;
   lockId?: Id | null;
+  /** GA / free-layout quantity (from event detail or checkout step 1). */
+  generalAdmissionQuantity?: number;
 };
 
 type ApiError = { data?: { message?: string; errors?: Record<string, string[]> }; status?: number };
@@ -57,6 +64,7 @@ function readApiErrorMessage(err: unknown): string | null {
   return null;
 }
 
+const FREE_LOCK_TTL_SECONDS = 180;
 
 export function CheckoutPage() {
   const { eventId } = useParams();
@@ -73,9 +81,11 @@ export function CheckoutPage() {
     isError: eventError,
   } = useGetEventBySlugQuery({ slug }, { skip: !slug });
 
+  const { data: ticketTypesList } = useGetEventTicketTypesQuery({ slug }, { skip: !slug });
+
   const event = useMemo(
-    () => (detail ? eventDetailToMockEvent(detail) : null),
-    [detail]
+    () => (detail ? mergeEventTicketTypes(detail, ticketTypesList) : null),
+    [detail, ticketTypesList]
   );
 
   const [step, setStep] = useState<Step>(1);
@@ -100,7 +110,7 @@ export function CheckoutPage() {
   const [savedCardAutoSelected, setSavedCardAutoSelected] = useState(false);
 
   const selectedSeats = useMemo(() => locationState.selectedSeats ?? [], [locationState.selectedSeats]);
-  const lockId = locationState.lockId ?? null;
+  const stateLockId = locationState.lockId ?? null;
 
   const [createOrder, { isLoading: creatingOrder }] = useCreateOrderMutation();
   const [confirmOrderPayment, { isLoading: confirmingPayment }] = useConfirmOrderPaymentMutation();
@@ -144,10 +154,98 @@ export function CheckoutPage() {
   }, [event, locationState.selectedTicketTypeId]);
 
   useEffect(() => {
+    const g = locationState.generalAdmissionQuantity;
+    if (typeof g === 'number' && g > 0) setQtyInput(g);
+  }, [locationState.generalAdmissionQuantity]);
+
+  useEffect(() => {
     if (event?.layoutType === 'seated' && step === 1) {
       setStep(2);
     }
   }, [event, step]);
+
+  const { data: currentLockEnvelope, isFetching: currentLockFetching } = useGetCurrentSeatLockQuery(
+    { slug },
+    { skip: !slug || !user || event?.layoutType !== 'free' },
+  );
+
+  const serverLockId = useMemo(() => {
+    if (event?.layoutType !== 'free') return null;
+    if (currentLockEnvelope && 'data' in currentLockEnvelope) return currentLockEnvelope.data.id;
+    return null;
+  }, [event?.layoutType, currentLockEnvelope]);
+
+  const lockId = useMemo(() => stateLockId ?? serverLockId, [stateLockId, serverLockId]);
+
+  const { data: freeSeatMap, isFetching: freeSeatsFetching } = useGetEventSeatsQuery(
+    { slug },
+    { skip: !slug || event?.layoutType !== 'free' || lockId != null },
+  );
+
+  const [createFreeSeatLock, { isLoading: acquiringFreeLock }] = useCreateSeatLockMutation();
+  const [freeLockError, setFreeLockError] = useState<string | null>(null);
+  const [freeLockRetry, setFreeLockRetry] = useState(0);
+  const freeLockInFlightRef = useRef(false);
+  const locationRef = useRef(location);
+  locationRef.current = location;
+
+  useEffect(() => {
+    if (lockId != null) freeLockInFlightRef.current = false;
+  }, [lockId]);
+
+  useLayoutEffect(() => {
+    if (event?.layoutType !== 'free' || !user || !slug) return;
+    if (lockId != null) return;
+    if (freeLockError != null) return;
+    if (currentLockFetching) return;
+    if (freeSeatsFetching) return;
+    if (!ticketTypeId) return;
+    if (freeLockInFlightRef.current) return;
+
+    const body: SeatLockRequest = {
+      ticket_type_id: uiSeatIdToApi(ticketTypeId),
+      ttl_seconds: FREE_LOCK_TTL_SECONDS,
+    };
+    const inv = apiSeatsToSeatRecords(freeSeatMap?.seats);
+    const firstSeat = inv.find(
+      (s) => String(s.ticketTypeId) === String(ticketTypeId) && isSeatSelectable(s),
+    );
+    if (firstSeat) body.seat_ids = [uiSeatIdToApi(firstSeat.id)];
+
+    freeLockInFlightRef.current = true;
+    void createFreeSeatLock({ slug, body })
+      .unwrap()
+      .then((lock) => {
+        const prev = (locationRef.current.state as CheckoutLocationState | null) ?? {};
+        navigate(`/checkout/${slug}`, {
+          replace: true,
+          state: {
+            ...prev,
+            lockId: lock.id,
+            selectedTicketTypeId: ticketTypeId,
+            generalAdmissionQuantity: Math.min(20, Math.max(1, Math.floor(qtyInput))),
+          },
+        });
+      })
+      .catch((err) => {
+        setFreeLockError(readApiErrorMessage(err) ?? 'Could not start your ticket hold.');
+        freeLockInFlightRef.current = false;
+      });
+  }, [
+    event?.layoutType,
+    user,
+    slug,
+    lockId,
+    freeLockError,
+    currentLockFetching,
+    freeSeatsFetching,
+    ticketTypeId,
+    freeSeatMap?.seats,
+    createFreeSeatLock,
+    navigate,
+    qtyInput,
+    freeLockRetry,
+  ]);
 
   const seatedTicketTypeId = selectedSeats[0]?.ticketTypeId;
   const effectiveTicketTypeId =
@@ -176,13 +274,22 @@ export function CheckoutPage() {
       setPaymentErrorMessage('Please sign in to complete your purchase.');
       return;
     }
+    if (lockId == null) {
+      if (event.layoutType === 'seated') {
+        setPaymentErrorMessage('Your seat hold is missing or expired. Return to seat selection to continue.');
+        navigate(`/checkout/${event.id}/seats`, { state: locationState });
+      } else {
+        setPaymentErrorMessage('Your ticket hold is not ready yet. Wait a moment and try again.');
+      }
+      return;
+    }
     if (!overlapDismissed) {
       try {
         const overlap = await checkOverlap({
           event_id: detail.id,
           ticket_type_id: uiSeatIdToApi(selectedType.id),
-          date_start: event.dateStart,
-          date_end: event.dateEnd,
+          event_start: event.dateStart,
+          event_end: event.dateEnd,
         }).unwrap();
         if (overlap.has_overlap) {
           setOverlapConflictTitle(overlap.conflicts[0]?.event_title ?? null);
@@ -198,21 +305,29 @@ export function CheckoutPage() {
 
   async function completePurchase() {
     if (!event || !selectedType || !detail) return;
+    if (lockId == null) {
+      if (event.layoutType === 'seated') {
+        setPaymentErrorMessage('Your seat hold is missing or expired. Return to seat selection to continue.');
+        navigate(`/checkout/${event.id}/seats`, { replace: false, state: locationState });
+      } else {
+        setPaymentErrorMessage('Your ticket hold is not ready yet. Wait a moment and try again.');
+      }
+      return;
+    }
     setOverlapOpen(false);
     setOverlapDismissed(true);
     setPaymentErrorMessage(null);
 
-    const ticketTypeQuantities: TicketTypeQuantity[] = [
-      { ticket_type_id: uiSeatIdToApi(selectedType.id), quantity: qty },
-    ];
+    const typeIdKey = String(uiSeatIdToApi(selectedType.id));
+    const ticket_type_quantities: CreateOrderRequest['ticket_type_quantities'] = {
+      [typeIdKey]: qty,
+    };
     const orderBody: CreateOrderRequest = {
       event_id: detail.id,
-      ticket_type_quantities: ticketTypeQuantities,
+      lock_id: lockId,
+      ticket_type_quantities,
       payment_method: paymentForm.method,
     };
-    if (event.layoutType === 'seated' && lockId != null) {
-      orderBody.lock_id = lockId;
-    }
     if (selectedSavedCardId !== null) {
       orderBody.saved_card_id = selectedSavedCardId;
     }
@@ -227,6 +342,15 @@ export function CheckoutPage() {
       return;
     }
 
+    const orderId = order.id ?? (order as { order_id?: Id }).order_id;
+    if (orderId == null) {
+      setPaymentErrorMessage(
+        'The server returned an order without an id, so payment could not continue. Please try again or contact support.',
+      );
+      setPayFailOpen(true);
+      return;
+    }
+
     try {
       const confirmBody: ConfirmOrderPaymentRequest = {};
       if (order.payment_intent_id) {
@@ -235,7 +359,10 @@ export function CheckoutPage() {
       if (selectedSavedCardId !== null) {
         confirmBody.saved_card_id = selectedSavedCardId;
       }
-      await confirmOrderPayment({ id: order.id, body: confirmBody }).unwrap();
+      if (paymentForm.saveCard && !usingSavedCard) {
+        confirmBody.save_card = true;
+      }
+      await confirmOrderPayment({ id: orderId, body: confirmBody }).unwrap();
     } catch (err) {
       const message =
         readApiErrorMessage(err) ?? 'Payment was declined or interrupted. Seat holds will release shortly.';
@@ -244,7 +371,7 @@ export function CheckoutPage() {
       return;
     }
 
-    const orderRef = order.reference ?? `ORD-${String(order.id)}`;
+    const orderRef = order.reference ?? `ORD-${String(orderId)}`;
     setSuccess({ orderRef });
     pushNotification({
       kind: 'order',
@@ -272,7 +399,44 @@ export function CheckoutPage() {
   if (eventError || !event || event.ticketsLeft <= 0) {
     return <Navigate to={`/events/${eventId}`} replace />;
   }
-  if (event.layoutType === 'seated' && (selectedSeats.length < 1 || lockId == null)) {
+
+  const needsFreeTicketLock = event.layoutType === 'free' && !!user && lockId == null;
+  if (needsFreeTicketLock) {
+    if (freeLockError != null && !acquiringFreeLock) {
+      return (
+        <div className="bg-ink-5/40 pb-20 pt-10">
+          <div className="mx-auto max-w-lg px-6">
+            <Link to={`/events/${event.id}`} className="text-[13px] font-semibold text-coral hover:underline">
+              ← Back to event
+            </Link>
+            <h1 className="mt-4 text-2xl font-extrabold text-ink">Could not start hold</h1>
+            <p className="mt-2 text-[14px] text-coral">{freeLockError}</p>
+            <Button
+              variant="dark"
+              size="md"
+              className="mt-6"
+              onClick={() => {
+                setFreeLockError(null);
+                setFreeLockRetry((n) => n + 1);
+              }}
+            >
+              Try again
+            </Button>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="px-6 py-24 text-center text-[14px] text-ink-60">
+        Preparing your ticket hold…
+      </div>
+    );
+  }
+
+  if (event.layoutType === 'seated' && lockId == null) {
+    return <Navigate to={`/checkout/${event.id}/seats`} replace />;
+  }
+  if (event.layoutType === 'seated' && selectedSeats.length < 1) {
     return <Navigate to={`/checkout/${event.id}/seats`} replace />;
   }
 
@@ -576,15 +740,21 @@ export function CheckoutPage() {
                       )}
                     </label>
                   </div>
-                  <label className="mt-3 inline-flex items-center gap-2 text-[12px] text-ink-60">
-                    <input
-                      type="checkbox"
-                      checked={paymentForm.saveCard}
-                      onChange={(e) => setPaymentForm((prev) => ({ ...prev, saveCard: e.target.checked }))}
-                      className="h-4 w-4 rounded border-ink-20"
-                    />
-                    Save card for future purchases
-                  </label>
+                  <div className="mt-3 space-y-1">
+                    <label className="inline-flex items-center gap-2 text-[12px] text-ink-60">
+                      <input
+                        type="checkbox"
+                        checked={paymentForm.saveCard}
+                        onChange={(e) => setPaymentForm((prev) => ({ ...prev, saveCard: e.target.checked }))}
+                        className="h-4 w-4 rounded border-ink-20"
+                      />
+                      Save card for future purchases
+                    </label>
+                    <p className="text-[11px] leading-relaxed text-ink-40">
+                      Your card is only stored if payment completes successfully, in the same request that confirms
+                      your order. Checking this box does not call the server by itself.
+                    </p>
+                  </div>
                 </div>
               )}
 

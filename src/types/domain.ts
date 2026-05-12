@@ -132,6 +132,14 @@ export interface MockAuctionListing {
   layoutType: LayoutType;
   highestBid?: number;
   bidsCount?: number;
+  /** Listing code from API (`code`). */
+  listingCode?: string;
+  currency?: string;
+  commissionPct?: number;
+  ticketTypeLabel?: string;
+  startsAt?: string;
+  /** Listing lifecycle: `active`, `sold`, `cancelled`, `expired`, … */
+  listingStatus?: string;
 }
 
 export type TicketStatus =
@@ -145,6 +153,8 @@ export type TicketStatus =
 
 export interface MockTicket {
   id: string;
+  /** Public ticket code from API (`code`), when present. */
+  ticketCode?: string;
   eventId: string;
   eventTitle: string;
   venue: string;
@@ -156,6 +166,8 @@ export interface MockTicket {
   seatLabel?: string;
   orderRef: string;
   qrPayload?: string;
+  /** Gate QR content from `signed_qr_payload` when present. */
+  signedQrPayload?: string;
   pricePaid: number;
   /** If true, overlap check uses this when booking another event same time */
   countsForOverlap?: boolean;

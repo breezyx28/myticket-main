@@ -17,6 +17,7 @@ import { apiStatusToOnboardingStatus, apiTalentDetailToDraft } from '@/lib/roleA
 import { runTalentRoleApplicationPipeline } from '@/services/roleApplicationSubmit';
 import { isOrganizerUser } from '@/lib/organizerPortal';
 import type { RoleApplicationSummary } from '@/api/types/roleApplication';
+import type { UserSession } from '@/api/types/user';
 import {
   useAddTalentMediaMutation,
   useCreateTalentApplicationMutation,
@@ -141,6 +142,14 @@ export function ProfilePage() {
 
   const { data: prefsFromApi } = useGetPreferencesQuery(undefined, { skip: !user });
   const { data: sessions = [], isFetching: sessionsLoading } = useListSessionsQuery(undefined, { skip: !user });
+  const sessionRows: UserSession[] = useMemo(() => {
+    if (!sessions) return [];
+    if (Array.isArray(sessions)) return sessions;
+    if (typeof sessions === 'object' && 'data' in sessions && Array.isArray((sessions as { data?: unknown }).data)) {
+      return (sessions as { data: UserSession[] }).data;
+    }
+    return [];
+  }, [sessions]);
   const { data: devices = [], isFetching: devicesLoading } = useListDevicesQuery(undefined, { skip: !user });
   const [revokeSession, { isLoading: revokingSession }] = useRevokeSessionMutation();
   const [removeDevice, { isLoading: removingDevice }] = useRemoveDeviceMutation();
@@ -1061,7 +1070,7 @@ export function ProfilePage() {
               <p className="mt-1 text-[12px] text-ink-40">Revoke access on devices you no longer use.</p>
               {sessionsLoading ? (
                 <p className="mt-4 text-[13px] text-ink-40">Loading sessions…</p>
-              ) : sessions.length === 0 ? (
+              ) : sessionRows.length === 0 ? (
                 <p className="mt-4 text-[13px] text-ink-40">No sessions returned.</p>
               ) : (
                 <div className="mt-4 overflow-x-auto">
@@ -1075,7 +1084,7 @@ export function ProfilePage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {sessions.map((s) => (
+                      {sessionRows.map((s) => (
                         <tr key={String(s.id)} className="border-b border-ink-10/60 text-ink-60">
                           <td className="py-2 pr-2 align-top">
                             <span className="font-semibold text-ink">{s.device_label ?? 'Unknown device'}</span>

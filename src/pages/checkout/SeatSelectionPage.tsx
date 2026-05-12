@@ -6,6 +6,7 @@ import {
   useGetCurrentSeatLockQuery,
   useGetEventBySlugQuery,
   useGetEventSeatsQuery,
+  useGetEventTicketTypesQuery,
 } from '@/api/endpoints';
 import type { Id } from '@/api/types/common';
 import { Button } from '@/components/ui/Button';
@@ -13,7 +14,7 @@ import { SeatGridRaw } from '@/components/seats/SeatGridRaw';
 import { SeatLegend } from '@/components/seats/SeatLegend';
 import { SeatScene3D } from '@/components/seats/SeatScene3D';
 import { useAuth } from '@/contexts/AuthContext';
-import { eventDetailToMockEvent } from '@/lib/eventMappers';
+import { mergeEventTicketTypes } from '@/lib/eventMappers';
 import { apiSeatsToSeatRecords, uiSeatIdToApi } from '@/lib/seatMappers';
 import { getSeatInventoryStats, isSeatSelectable, toSelectedSeat } from '@/lib/seating';
 import type { SeatRecord, SeatViewMode } from '@/types/seating';
@@ -30,6 +31,7 @@ type CheckoutSeatNavigationState = {
   }[];
   selectedTicketTypeId?: string;
   lockId?: Id | null;
+  generalAdmissionQuantity?: number;
 };
 
 function formatCountdown(secondsLeft: number): string {
@@ -52,9 +54,11 @@ export function SeatSelectionPage() {
     isError: eventError,
   } = useGetEventBySlugQuery({ slug }, { skip: !slug });
 
+  const { data: ticketTypesList } = useGetEventTicketTypesQuery({ slug }, { skip: !slug });
+
   const event = useMemo(
-    () => (detail ? eventDetailToMockEvent(detail) : null),
-    [detail]
+    () => (detail ? mergeEventTicketTypes(detail, ticketTypesList) : null),
+    [detail, ticketTypesList]
   );
 
   const isSeated = event?.layoutType === 'seated';
@@ -66,7 +70,7 @@ export function SeatSelectionPage() {
 
   const { data: currentLock } = useGetCurrentSeatLockQuery(
     { slug },
-    { skip: !slug || !user || !isSeated }
+    { skip: !slug || !user || !isSeated },
   );
 
   const [viewMode, setViewMode] = useState<SeatViewMode>('blueprint');
@@ -89,7 +93,7 @@ export function SeatSelectionPage() {
       setActiveLockId(lockData.id);
       setLockExpiresAt(lockData.expires_at);
       setSelectedTicketTypeId(String(lockData.ticket_type_id));
-      setSelectedSeatIds(lockData.seat_ids.map(String));
+      setSelectedSeatIds((lockData.seat_ids ?? []).map(String));
       setHydrated(true);
       return;
     }
@@ -105,6 +109,13 @@ export function SeatSelectionPage() {
     incomingState.selectedSeats,
     incomingState.lockId,
   ]);
+
+  useEffect(() => {
+    if (!event || !hydrated) return;
+    if (selectedTicketTypeId) return;
+    const first = event.ticketTypes[0]?.id;
+    if (first) setSelectedTicketTypeId(first);
+  }, [event, hydrated, selectedTicketTypeId]);
 
   useEffect(() => {
     if (!lockExpiresAt) return;
@@ -199,11 +210,22 @@ export function SeatSelectionPage() {
   if (eventError || !event) {
     return <Navigate to="/events" replace />;
   }
-  if (event.layoutType !== 'seated') {
-    return <Navigate to={`/checkout/${event.id}`} replace />;
-  }
   if (event.ticketsLeft <= 0) {
     return <Navigate to={`/events/${event.id}`} replace />;
+  }
+
+  if (!isSeated) {
+    return (
+      <Navigate
+        to={`/checkout/${event.id}`}
+        replace
+        state={{
+          selectedTicketTypeId: incomingState.selectedTicketTypeId ?? event.ticketTypes[0]?.id,
+          generalAdmissionQuantity: incomingState.generalAdmissionQuantity ?? 1,
+          lockId: incomingState.lockId,
+        }}
+      />
+    );
   }
 
   const lowTime = secondsLeft != null && secondsLeft <= LOW_TIME_WARNING_SECONDS;
@@ -217,7 +239,7 @@ export function SeatSelectionPage() {
         </Link>
         <h1 className="mt-4 text-2xl font-extrabold text-ink">Select your seats</h1>
         <p className="mt-1 text-[14px] text-ink-60">
-          {event.title} · Choose one or more seats, then continue to checkout.
+          {event.title} · Mapped seating: choose one or more seats on the map, then continue to checkout.
         </p>
 
         <div className="mt-4 rounded-xl border border-ink-10 bg-white/90 px-4 py-3 text-[13px] text-ink-60 shadow-sm">

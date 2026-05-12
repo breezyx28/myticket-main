@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
+import * as yup from 'yup';
 import { Clock, MapPin } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -11,14 +12,26 @@ import {
 import type { Id } from '@/api/types/common';
 import type { BuyNowRequest, PlaceBidRequest } from '@/api/types/auction';
 import type { SavedCard } from '@/api/types/savedCard';
+import { PaymentMethodCard } from '@/components/checkout/PaymentMethodCard';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
-import { brandToMethod, formatCardBrand, formatSavedCardExpiry } from '@/lib/cardPayment';
+import {
+  brandToMethod,
+  CARD_PAYMENT_METHODS,
+  formatCardBrand,
+  formatCardNumber,
+  formatCvv,
+  formatExpiry,
+  formatSavedCardExpiry,
+  type PaymentFormState,
+  validatePaymentForm,
+} from '@/lib/cardPayment';
 import { PLATFORM_AUCTION_COMMISSION_PCT } from '@/lib/constants';
 import { apiAuctionToMockAuctionListing } from '@/lib/auctionMappers';
+import { uiSeatIdToApi } from '@/lib/seatMappers';
 import { cn } from '@/lib/utils';
-import { placeBidSchema } from '@/schemas/auction';
+import { placeBidSchema, validateBuyNowNewCardForm } from '@/schemas/auction';
 import type { MockAuctionListing } from '@/types/domain';
 
 function formatRemaining(ms: number) {
@@ -84,6 +97,12 @@ type DialogState =
   | { kind: 'buy'; listingId: string }
   | null;
 
+/** How the buy dialog picks a saved card (`auto` follows default / first once `savedCards` is known). */
+type BuySavedCardPick =
+  | { kind: 'auto' }
+  | { kind: 'new' }
+  | { kind: 'saved'; id: Id };
+
 export function AuctionEventPage() {
   const { eventId } = useParams();
   const now = useNow();
@@ -96,7 +115,11 @@ export function AuctionEventPage() {
     isError,
   } = useListAuctionsQuery({ event_id: eventId ?? '', per_page: 100 }, { skip: !eventId });
 
-  const { data: savedCardsRaw } = useListSavedCardsQuery(undefined, { skip: !user });
+  const {
+    data: savedCardsRaw,
+    isLoading: savedCardsLoading,
+    isError: savedCardsError,
+  } = useListSavedCardsQuery(undefined, { skip: !user });
   const savedCards: SavedCard[] = useMemo(() => {
     if (!savedCardsRaw) return [];
     if (Array.isArray(savedCardsRaw)) return savedCardsRaw;
@@ -109,14 +132,27 @@ export function AuctionEventPage() {
   const [dialog, setDialog] = useState<DialogState>(null);
   const [bidAmount, setBidAmount] = useState<string>('');
   const [bidError, setBidError] = useState<string | null>(null);
-  const [selectedSavedCardId, setSelectedSavedCardId] = useState<Id | null>(null);
-  const [savedCardAutoSelected, setSavedCardAutoSelected] = useState(false);
+  const [buySavedCardPick, setBuySavedCardPick] = useState<BuySavedCardPick>({ kind: 'auto' });
+  const [paymentForm, setPaymentForm] = useState<PaymentFormState>({
+    method: 'visa',
+    cardholder: '',
+    cardNumber: '',
+    expiry: '',
+    cvv: '',
+    saveCard: false,
+  });
+  const [paymentTouched, setPaymentTouched] = useState(false);
   const [buyError, setBuyError] = useState<string | null>(null);
   const [successCopy, setSuccessCopy] = useState<string | null>(null);
 
   const listings = useMemo(() => {
     return (listingsPaged?.data ?? []).map(apiAuctionToMockAuctionListing);
   }, [listingsPaged]);
+
+  const commissionHint = useMemo(() => {
+    const hit = listings.find((x) => x.commissionPct != null);
+    return hit?.commissionPct != null ? `${hit.commissionPct}%` : `${PLATFORM_AUCTION_COMMISSION_PCT}%`;
+  }, [listings]);
 
   const header = useMemo(() => {
     const first = listings[0];
@@ -129,24 +165,32 @@ export function AuctionEventPage() {
     return listings.find((l) => l.id === dialog.listingId) ?? null;
   }, [dialog, listings]);
 
-  useEffect(() => {
-    if (savedCardAutoSelected || savedCards.length === 0) return;
-    const fallback = savedCards.find((card) => card.is_default) ?? savedCards[0]!;
-    setSelectedSavedCardId(fallback.id);
-    setSavedCardAutoSelected(true);
-  }, [savedCardAutoSelected, savedCards]);
+  const effectiveBuySavedCardId = useMemo(() => {
+    if (dialog?.kind !== 'buy') return null;
+    if (buySavedCardPick.kind === 'new') return null;
+    if (buySavedCardPick.kind === 'saved') return buySavedCardPick.id;
+    if (savedCards.length === 0) return null;
+    return (savedCards.find((c) => c.is_default) ?? savedCards[0]!).id;
+  }, [dialog?.kind, buySavedCardPick, savedCards]);
 
-  useEffect(() => {
-    if (dialog?.kind !== 'bid' || !activeListing) return;
-    const min = minimumBidFor(activeListing);
-    setBidAmount(String(min + 1));
-    setBidError(null);
-  }, [dialog, activeListing]);
+  const selectedSavedCard = useMemo(
+    () => savedCards.find((card) => String(card.id) === String(effectiveBuySavedCardId)) ?? null,
+    [savedCards, effectiveBuySavedCardId],
+  );
 
-  useEffect(() => {
-    if (dialog?.kind !== 'buy') return;
-    setBuyError(null);
-  }, [dialog]);
+  const selectedMethodConfig = useMemo(
+    () => CARD_PAYMENT_METHODS.find((m) => m.id === paymentForm.method) ?? CARD_PAYMENT_METHODS[0]!,
+    [paymentForm.method],
+  );
+
+  const paymentValidation = useMemo(() => validatePaymentForm(paymentForm), [paymentForm]);
+  const usingSavedCard = effectiveBuySavedCardId != null;
+  const buyCardsSettled = !user || !savedCardsLoading;
+  const canSubmitBuy =
+    buyCardsSettled &&
+    !!user &&
+    !buyingNow &&
+    (usingSavedCard ? selectedSavedCard != null : paymentValidation.isValid);
 
   if (!eventId) {
     return <Navigate to="/auction" replace />;
@@ -175,6 +219,51 @@ export function AuctionEventPage() {
     setDialog(null);
     setBidError(null);
     setBuyError(null);
+    setPaymentTouched(false);
+    setBuySavedCardPick({ kind: 'auto' });
+    setPaymentForm({
+      method: 'visa',
+      cardholder: '',
+      cardNumber: '',
+      expiry: '',
+      cvv: '',
+      saveCard: false,
+    });
+  }
+
+  function openBidDialog(listingId: string) {
+    const listing = listings.find((l) => l.id === listingId);
+    if (!listing) return;
+    setDialog({ kind: 'bid', listingId });
+    setBidAmount(String(minimumBidFor(listing) + 1));
+    setBidError(null);
+  }
+
+  function openBuyDialog(listingId: string) {
+    setDialog({ kind: 'buy', listingId });
+    setBuyError(null);
+    setPaymentTouched(false);
+    setBuySavedCardPick({ kind: 'auto' });
+    setPaymentForm({
+      method: 'visa',
+      cardholder: '',
+      cardNumber: '',
+      expiry: '',
+      cvv: '',
+      saveCard: false,
+    });
+  }
+
+  function onBuyPaymentFieldChange(
+    field: keyof Pick<PaymentFormState, 'cardholder' | 'cardNumber' | 'expiry' | 'cvv'>,
+    value: string,
+  ) {
+    setPaymentForm((prev) => {
+      if (field === 'cardNumber') return { ...prev, cardNumber: formatCardNumber(value, prev.method) };
+      if (field === 'expiry') return { ...prev, expiry: formatExpiry(value) };
+      if (field === 'cvv') return { ...prev, cvv: formatCvv(value) };
+      return { ...prev, cardholder: value };
+    });
   }
 
   async function submitBid(listing: MockAuctionListing) {
@@ -189,44 +278,77 @@ export function AuctionEventPage() {
     }
     const body: PlaceBidRequest = { amount };
     try {
-      await placeBid({ id: listing.id, body }).unwrap();
+      await placeBid({ id: uiSeatIdToApi(listing.id), body }).unwrap();
     } catch (err) {
       setBidError(readApiErrorMessage(err) ?? 'We could not place that bid. Try again.');
       return;
     }
     closeDialog();
-    setSuccessCopy(`Bid placed: ${amount} SAR on ${listing.eventTitle || 'this listing'}.`);
+    const cur = listing.currency ?? 'SAR';
+    setSuccessCopy(`Bid placed: ${amount} ${cur} on ${listing.eventTitle || 'this listing'}.`);
     pushNotification({
       kind: 'general',
       title: 'Bid placed',
-      body: `${amount} SAR on ${listing.eventTitle || 'auction listing'}`,
-      href: `/auction/${listing.eventId}`,
+      body: `${amount} ${cur} on ${listing.eventTitle || 'auction listing'}`,
+      href: `/auction/events/${listing.eventId}`,
     });
   }
 
   async function submitBuyNow(listing: MockAuctionListing) {
     setBuyError(null);
-    const card = savedCards.find((c) => String(c.id) === String(selectedSavedCardId));
-    if (!card) {
-      setBuyError('Add a card from checkout first to use Buy now.');
-      return;
-    }
-    const body: BuyNowRequest = {
-      payment_method: brandToMethod(card.brand),
-      saved_card_id: card.id,
-    };
-    try {
-      await buyNow({ id: listing.id, body }).unwrap();
-    } catch (err) {
-      setBuyError(readApiErrorMessage(err) ?? 'Payment was declined or interrupted. Please try again.');
-      return;
+    if (usingSavedCard) {
+      const card = savedCards.find((c) => String(c.id) === String(effectiveBuySavedCardId));
+      if (!card) {
+        setBuyError('That saved card is no longer available. Choose another card or use a new card.');
+        return;
+      }
+      const body: BuyNowRequest = {
+        payment_method: brandToMethod(card.brand),
+        saved_card_id: card.id,
+      };
+      try {
+        await buyNow({ id: uiSeatIdToApi(listing.id), body }).unwrap();
+      } catch (err) {
+        setBuyError(readApiErrorMessage(err) ?? 'Payment was declined or interrupted. Please try again.');
+        return;
+      }
+    } else {
+      setPaymentTouched(true);
+      try {
+        await validateBuyNowNewCardForm(paymentForm);
+      } catch (err) {
+        const msg =
+          err instanceof yup.ValidationError
+            ? err.errors[0] ?? 'Please fix the highlighted card fields.'
+            : 'Please fix the highlighted card fields.';
+        setBuyError(msg);
+        return;
+      }
+      const digits = paymentForm.cardNumber.replace(/\D/g, '');
+      const body: BuyNowRequest = {
+        payment_method: paymentForm.method,
+        saved_card_id: null,
+        cardholder: paymentForm.cardholder.trim(),
+        card_number: digits,
+        expiry: paymentForm.expiry.trim(),
+        cvv: paymentForm.cvv,
+        save_card: paymentForm.saveCard,
+      };
+      try {
+        await buyNow({ id: uiSeatIdToApi(listing.id), body }).unwrap();
+      } catch (err) {
+        setBuyError(readApiErrorMessage(err) ?? 'Payment was declined or interrupted. Please try again.');
+        return;
+      }
     }
     closeDialog();
-    setSuccessCopy(`Auction won: ${listing.eventTitle || 'listing'} for ${listing.price} SAR.`);
+    setSuccessCopy(
+      `Auction won: ${listing.eventTitle || 'listing'} for ${listing.price} ${listing.currency ?? 'SAR'}.`,
+    );
     pushNotification({
       kind: 'order',
       title: 'Auction won',
-      body: `${listing.eventTitle || 'Auction listing'} · ${listing.price} SAR`,
+      body: `${listing.eventTitle || 'Auction listing'} · ${listing.price} ${listing.currency ?? 'SAR'}`,
       href: '/my-tickets',
     });
   }
@@ -252,8 +374,8 @@ export function AuctionEventPage() {
               </p>
             )}
             <p className="mt-2 text-[13px] text-ink-40">
-              {listings.length} resale listing{listings.length === 1 ? '' : 's'} · original price or less ·{' '}
-              {PLATFORM_AUCTION_COMMISSION_PCT}% platform commission on successful sales (demo)
+              {listings.length} resale listing{listings.length === 1 ? '' : 's'} · original price or less · listing
+              commission when shown: <strong className="text-ink">{commissionHint}</strong>
             </p>
             <Link
               to={`/events/${eventId}`}
@@ -274,6 +396,9 @@ export function AuctionEventPage() {
           {listings.map((l) => {
             const ms = new Date(l.endsAt).getTime() - now;
             const ended = ms <= 0;
+            const cur = l.currency ?? 'SAR';
+            const listingActive = (l.listingStatus ?? 'active').toLowerCase() === 'active';
+            const canInteract = !ended && listingActive;
             return (
               <li
                 key={l.id}
@@ -281,15 +406,27 @@ export function AuctionEventPage() {
               >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="font-mono text-lg font-bold text-ink">{l.price} SAR</p>
-                    <p className="text-[12px] text-ink-40">was {l.originalPrice} SAR max allowed</p>
-                    {l.seatLabel && (
-                      <p className="mt-2 text-[13px] font-medium text-ink-60">{l.seatLabel}</p>
+                    {l.listingCode && (
+                      <p className="font-mono text-[12px] font-semibold text-ink-50">{l.listingCode}</p>
+                    )}
+                    <p className="font-mono text-lg font-bold text-ink">
+                      {l.price} {cur}
+                    </p>
+                    <p className="text-[12px] text-ink-40">Listed at up to {l.originalPrice} {cur}</p>
+                    {(l.ticketTypeLabel || l.seatLabel) && (
+                      <p className="mt-2 text-[13px] font-medium text-ink-60">
+                        {[l.ticketTypeLabel, l.seatLabel].filter(Boolean).join(' · ')}
+                      </p>
                     )}
                     <p className="mt-1 text-[12px] text-ink-40">Seller: {l.sellerLabel}</p>
+                    {!listingActive && (
+                      <p className="mt-1 text-[12px] font-semibold uppercase tracking-wide text-amber">
+                        Listing {l.listingStatus ?? 'inactive'}
+                      </p>
+                    )}
                     {(l.highestBid != null || (l.bidsCount ?? 0) > 0) && (
                       <p className="mt-1 text-[12px] text-ink-60">
-                        Highest bid: {l.highestBid != null ? `${l.highestBid} SAR` : '—'} ·{' '}
+                        Highest bid: {l.highestBid != null ? `${l.highestBid} ${cur}` : '—'} ·{' '}
                         {l.bidsCount ?? 0} bid{(l.bidsCount ?? 0) === 1 ? '' : 's'}
                       </p>
                     )}
@@ -300,11 +437,11 @@ export function AuctionEventPage() {
                   </div>
                 </div>
 
-                {!ended && (
+                {canInteract && (
                   <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                     {!user ? (
                       <Link
-                        to={`/login?next=${encodeURIComponent(`/auction/${eventId}`)}`}
+                        to={`/login?next=${encodeURIComponent(`/auction/events/${eventId}`)}`}
                         className="inline-flex items-center justify-center rounded-full border border-ink-10 px-4 py-2 text-[13px] font-semibold text-coral hover:underline"
                       >
                         Sign in to bid or buy
@@ -316,7 +453,7 @@ export function AuctionEventPage() {
                           size="md"
                           className="sm:flex-1"
                           disabled={placingBid || buyingNow}
-                          onClick={() => setDialog({ kind: 'bid', listingId: l.id })}
+                          onClick={() => openBidDialog(l.id)}
                         >
                           Place bid
                         </Button>
@@ -325,9 +462,9 @@ export function AuctionEventPage() {
                           size="md"
                           className="sm:flex-1"
                           disabled={placingBid || buyingNow}
-                          onClick={() => setDialog({ kind: 'buy', listingId: l.id })}
+                          onClick={() => openBuyDialog(l.id)}
                         >
-                          Buy now {l.price} SAR
+                          Buy now {l.price} {cur}
                         </Button>
                       </>
                     )}
@@ -367,15 +504,22 @@ export function AuctionEventPage() {
             >
               <h2 className="text-lg font-extrabold text-ink">Place a bid</h2>
               <p className="mt-2 text-[13px] text-ink-60">
-                Current ask: <strong className="font-mono text-ink">{activeListing.price} SAR</strong> · Highest
-                bid:{' '}
+                Current ask:{' '}
                 <strong className="font-mono text-ink">
-                  {activeListing.highestBid != null ? `${activeListing.highestBid} SAR` : '—'}
+                  {activeListing.price} {activeListing.currency ?? 'SAR'}
+                </strong>{' '}
+                · Highest bid:{' '}
+                <strong className="font-mono text-ink">
+                  {activeListing.highestBid != null
+                    ? `${activeListing.highestBid} ${activeListing.currency ?? 'SAR'}`
+                    : '—'}
                 </strong>{' '}
                 · {activeListing.bidsCount ?? 0} bid{(activeListing.bidsCount ?? 0) === 1 ? '' : 's'}
               </p>
               <label className="mt-4 block">
-                <span className="text-[12px] font-semibold text-ink-60">Your bid (SAR)</span>
+                <span className="text-[12px] font-semibold text-ink-60">
+                  Your bid ({activeListing.currency ?? 'SAR'})
+                </span>
                 <input
                   type="number"
                   inputMode="numeric"
@@ -430,32 +574,62 @@ export function AuctionEventPage() {
               initial={{ scale: 0.96, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.96, opacity: 0 }}
-              className="max-w-md rounded-2xl bg-white p-6 shadow-card-lg"
+              className="max-h-[90vh] max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-card-lg"
             >
               <h2 className="text-lg font-extrabold text-ink">Buy now</h2>
               <p className="mt-2 text-[14px] leading-relaxed text-ink-60">
                 Buy this listing for{' '}
-                <strong className="font-mono text-ink">{activeListing.price} SAR</strong>? Tickets transfer
+                <strong className="font-mono text-ink">
+                  {activeListing.price} {activeListing.currency ?? 'SAR'}
+                </strong>? Tickets transfer
                 immediately on payment.
               </p>
 
-              {savedCards.length > 0 ? (
+              <div className="mt-4 flex items-center justify-between gap-2">
+                <p className="text-[12px] font-semibold text-ink-60">Payment</p>
+                <span className="rounded-full bg-ink-5 px-2.5 py-1 text-[11px] font-semibold text-ink-60">
+                  Secure checkout
+                </span>
+              </div>
+              <p className="mt-1 text-[13px] text-ink-60">
+                Use a saved card or enter a new card. Your card is charged when you confirm.
+              </p>
+
+              {user && savedCardsLoading && (
+                <div className="mt-4 flex flex-wrap gap-2" aria-hidden>
+                  {[0, 1].map((i) => (
+                    <div
+                      key={i}
+                      className="h-[58px] w-[180px] animate-pulse rounded-xl border border-ink-10 bg-ink-5/60"
+                    />
+                  ))}
+                </div>
+              )}
+
+              {user && !savedCardsLoading && savedCardsError && (
+                <p className="mt-4 rounded-lg border border-amber/40 bg-amber/10 px-3 py-2 text-[12px] text-ink">
+                  Saved cards could not be loaded. You can still pay with a new card below.
+                </p>
+              )}
+
+              {user && !savedCardsLoading && !savedCardsError && savedCards.length > 0 && (
                 <div className="mt-4 space-y-2">
-                  <p className="text-[12px] font-semibold text-ink-60">Pay with</p>
+                  <p className="text-[12px] font-semibold text-ink-60">Use a saved card</p>
                   <div className="flex flex-wrap gap-2">
                     {savedCards.map((card) => {
                       const cardId = card.id;
-                      const isSelected = String(selectedSavedCardId) === String(cardId);
+                      const isSelected =
+                        usingSavedCard && String(effectiveBuySavedCardId) === String(cardId);
                       return (
                         <button
                           key={String(cardId)}
                           type="button"
-                          onClick={() => setSelectedSavedCardId(cardId)}
+                          onClick={() => setBuySavedCardPick({ kind: 'saved', id: cardId })}
                           className={cn(
                             'rounded-xl border px-3 py-2 text-left transition-colors',
                             isSelected
                               ? 'border-ink bg-ink-5'
-                              : 'border-ink-10 bg-white hover:border-ink-30'
+                              : 'border-ink-10 bg-white hover:border-ink-30',
                           )}
                           aria-pressed={isSelected}
                         >
@@ -470,12 +644,121 @@ export function AuctionEventPage() {
                         </button>
                       );
                     })}
+                    <button
+                      type="button"
+                      onClick={() => setBuySavedCardPick({ kind: 'new' })}
+                      className={cn(
+                        'rounded-xl border px-3 py-2 text-left transition-colors',
+                        !usingSavedCard ? 'border-ink bg-ink-5' : 'border-ink-10 bg-white hover:border-ink-30',
+                      )}
+                      aria-pressed={!usingSavedCard}
+                    >
+                      <p className="text-[13px] font-bold text-ink">Use a new card</p>
+                      <p className="mt-0.5 text-[11px] text-ink-60">Enter card details below</p>
+                    </button>
                   </div>
                 </div>
-              ) : (
-                <p className="mt-4 rounded-lg border border-amber/40 bg-amber/10 px-3 py-2 text-[12px] text-ink">
-                  Add a card from checkout first to use Buy now. New-card entry isn&apos;t available in this
-                  dialog yet.
+              )}
+
+              {!usingSavedCard && (
+                <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                  {CARD_PAYMENT_METHODS.map((method) => (
+                    <PaymentMethodCard
+                      key={method.id}
+                      id={method.id}
+                      label={method.label}
+                      helper={method.helper}
+                      selected={paymentForm.method === method.id}
+                      onSelect={(selectedMethod) =>
+                        setPaymentForm((prev) => ({ ...prev, method: selectedMethod }))
+                      }
+                    />
+                  ))}
+                </div>
+              )}
+
+              {!usingSavedCard && (
+                <div className="mt-4 rounded-xl border border-ink-10 bg-ink-5/50 p-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="block sm:col-span-2">
+                      <span className="text-[12px] font-semibold text-ink-60">Cardholder name</span>
+                      <input
+                        value={paymentForm.cardholder}
+                        onChange={(e) => onBuyPaymentFieldChange('cardholder', e.target.value)}
+                        placeholder={selectedMethodConfig.cardholderPlaceholder}
+                        className="mt-1.5 w-full rounded-xl border border-ink-10 px-4 py-3 text-[14px]"
+                      />
+                      {paymentTouched && paymentValidation.errors.cardholder && (
+                        <p className="mt-1 text-[11px] text-coral">{paymentValidation.errors.cardholder}</p>
+                      )}
+                    </label>
+                    <label className="block sm:col-span-2">
+                      <span className="text-[12px] font-semibold text-ink-60">Card number</span>
+                      <input
+                        value={paymentForm.cardNumber}
+                        onChange={(e) => onBuyPaymentFieldChange('cardNumber', e.target.value)}
+                        placeholder={selectedMethodConfig.numberPlaceholder}
+                        inputMode="numeric"
+                        className="mt-1.5 w-full rounded-xl border border-ink-10 px-4 py-3 text-[14px] font-mono"
+                      />
+                      {paymentValidation.detectedMethod && (
+                        <p className="mt-1 text-[11px] text-ink-40">
+                          Detected network: {paymentValidation.detectedMethod.toUpperCase()}
+                        </p>
+                      )}
+                      {paymentTouched && paymentValidation.errors.cardNumber && (
+                        <p className="mt-1 text-[11px] text-coral">{paymentValidation.errors.cardNumber}</p>
+                      )}
+                    </label>
+                    <label className="block">
+                      <span className="text-[12px] font-semibold text-ink-60">Expiry</span>
+                      <input
+                        value={paymentForm.expiry}
+                        onChange={(e) => onBuyPaymentFieldChange('expiry', e.target.value)}
+                        placeholder="MM/YY"
+                        inputMode="numeric"
+                        className="mt-1.5 w-full rounded-xl border border-ink-10 px-4 py-3 text-[14px] font-mono"
+                      />
+                      {paymentTouched && paymentValidation.errors.expiry && (
+                        <p className="mt-1 text-[11px] text-coral">{paymentValidation.errors.expiry}</p>
+                      )}
+                    </label>
+                    <label className="block">
+                      <span className="text-[12px] font-semibold text-ink-60">{selectedMethodConfig.cvvLabel}</span>
+                      <input
+                        value={paymentForm.cvv}
+                        onChange={(e) => onBuyPaymentFieldChange('cvv', e.target.value)}
+                        placeholder={selectedMethodConfig.cvvPlaceholder}
+                        inputMode="numeric"
+                        className="mt-1.5 w-full rounded-xl border border-ink-10 px-4 py-3 text-[14px] font-mono"
+                      />
+                      {paymentTouched && paymentValidation.errors.cvv && (
+                        <p className="mt-1 text-[11px] text-coral">{paymentValidation.errors.cvv}</p>
+                      )}
+                    </label>
+                  </div>
+                  <div className="mt-3 space-y-1">
+                    <label className="inline-flex items-center gap-2 text-[12px] text-ink-60">
+                      <input
+                        type="checkbox"
+                        checked={paymentForm.saveCard}
+                        onChange={(e) => setPaymentForm((prev) => ({ ...prev, saveCard: e.target.checked }))}
+                        className="h-4 w-4 rounded border-ink-20"
+                      />
+                      Save card for future purchases
+                    </label>
+                    <p className="text-[11px] leading-relaxed text-ink-40">
+                      Your card is only stored if payment completes successfully. Checking this box does not call the
+                      server by itself.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {usingSavedCard && selectedSavedCard && (
+                <p className="mt-4 rounded-lg border border-ink-10 bg-ink-5/40 px-3 py-2 text-[12px] text-ink-60">
+                  Paying with {formatCardBrand(selectedSavedCard.brand)} ending in •••• {selectedSavedCard.last4}. No
+                  card details required.
                 </p>
               )}
 
@@ -491,7 +774,7 @@ export function AuctionEventPage() {
                   size="md"
                   className="w-full sm:flex-1"
                   loading={buyingNow}
-                  disabled={buyingNow || savedCards.length === 0 || selectedSavedCardId == null}
+                  disabled={!canSubmitBuy}
                   onClick={() => void submitBuyNow(activeListing)}
                 >
                   Confirm purchase

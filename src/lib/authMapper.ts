@@ -10,9 +10,17 @@ import { TwoFactorRequiredError } from '@/lib/authErrors';
 
 const VALID_ROLES: readonly UserRole[] = ['guest', 'talent', 'vendor', 'organizer'];
 
-function pickRole(roles: string[] | undefined, prev?: UserRole | null): UserRole {
+function pickRole(
+  roles: string[] | undefined,
+  singleRole: string | undefined | null,
+  prev?: UserRole | null,
+): UserRole {
+  if (typeof singleRole === 'string') {
+    const r = singleRole.trim().toLowerCase();
+    if (VALID_ROLES.includes(r as UserRole)) return r as UserRole;
+  }
   if (Array.isArray(roles) && roles.length > 0) {
-    const match = roles.find((r): r is UserRole => VALID_ROLES.includes(r as UserRole));
+    const match = roles.find((role): role is UserRole => VALID_ROLES.includes(role as UserRole));
     if (match) return match;
   }
   return prev ?? 'guest';
@@ -28,23 +36,26 @@ function pickRole(roles: string[] | undefined, prev?: UserRole | null): UserRole
  */
 export function mapUserMeToMockUser(me: UserMe, prev?: MockUser | null): MockUser {
   const fallback = (prev ?? null) as MockUser | null;
-  const name = me.full_name?.trim() || me.display_name?.trim() || fallback?.name || (me.email.split('@')[0] ?? 'User');
+  const emailLocal =
+    typeof me.email === 'string' && me.email.includes('@') ? me.email.split('@')[0] : undefined;
+  const name =
+    me.full_name?.trim() || me.display_name?.trim() || fallback?.name || emailLocal || 'User';
 
-  const role = pickRole(me.roles, fallback?.role);
+  const role = pickRole(me.roles, me.role ?? null, fallback?.role);
 
   const apiPrefs = me.preferences;
   const lastPasswordChangedAt =
     fallback?.security.lastPasswordChangedAt ?? me.updated_at ?? me.created_at ?? new Date().toISOString();
 
   return {
-    email: me.email,
+    email: typeof me.email === 'string' ? me.email : (fallback?.email ?? ''),
     name,
     role,
     phone: me.phone ?? fallback?.phone ?? '',
     city: typeof me['city'] === 'string' ? (me['city'] as string) : (fallback?.city ?? ''),
     region: typeof me['region'] === 'string' ? (me['region'] as string) : (fallback?.region ?? ''),
     bio: me.bio ?? fallback?.bio ?? '',
-    profileImage: me.avatar_url ?? fallback?.profileImage ?? '',
+    profileImage: me.avatar_url ?? me.profile_image_url ?? fallback?.profileImage ?? '',
     preferences: {
       language: fallback?.preferences.language ?? 'en',
       theme: fallback?.preferences.theme ?? 'system',
@@ -91,7 +102,7 @@ function isAuthSuccess(data: Record<string, unknown>): data is AuthSuccessRespon
 export function parseAuthResponse(
   response: LoginResponse | AuthSuccessResponse | undefined | null,
 ):
-  | { token: string; refresh_token: string | null; user: UserMe | null }
+  | { token: string; refresh_token: string | null; user: UserMe | null; expires_at: string | null }
   | { twoFactor: TwoFactorRequiredError } {
   const data = (response ?? {}) as Record<string, unknown>;
 
@@ -100,6 +111,9 @@ export function parseAuthResponse(
   }
 
   if (isAuthSuccess(data)) {
+    const expiresRaw = data.expires_at;
+    const expires_at =
+      typeof expiresRaw === 'string' && expiresRaw.length > 0 ? expiresRaw : null;
     return {
       token: data.token,
       refresh_token:
@@ -107,6 +121,7 @@ export function parseAuthResponse(
           ? data.refresh_token
           : null,
       user: (data.user as UserMe | undefined) ?? null,
+      expires_at,
     };
   }
 

@@ -35,11 +35,11 @@ export const overlapCheckSchema = yup
   .object({
     event_id: yup.mixed<number | string>().required('Event id is required.'),
     ticket_type_id: yup.mixed<number | string>().notRequired(),
-    date_start: yup
+    event_start: yup
       .string()
       .trim()
-      .required('Start date is required.'),
-    date_end: yup.string().trim().notRequired(),
+      .required('Event start is required.'),
+    event_end: yup.string().trim().notRequired(),
   })
   .strict();
 

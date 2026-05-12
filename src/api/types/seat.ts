@@ -2,7 +2,8 @@ import type { Id, Iso8601 } from '@/api/types/common';
 
 export interface SeatLockRequest {
   ticket_type_id: Id;
-  seat_ids: Id[];
+  /** For GA/free layouts the API may omit this or accept a single placeholder seat id from inventory. */
+  seat_ids?: Id[];
   ttl_seconds?: number;
 }
 

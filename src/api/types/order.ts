@@ -9,15 +9,19 @@ export type OrderStatus =
   | 'refunded'
   | string;
 
+/** @deprecated Prefer `TicketTypeQuantitiesMap` for `POST /orders`. */
 export interface TicketTypeQuantity {
   ticket_type_id: Id;
   quantity: number;
 }
 
+/** Main API: keys are `event_ticket_types.id`, values are quantities (integers). */
+export type TicketTypeQuantitiesMap = Record<string, number>;
+
 export interface CreateOrderRequest {
   event_id: Id;
-  lock_id?: Id | null;
-  ticket_type_quantities: TicketTypeQuantity[] | number[];
+  lock_id: Id;
+  ticket_type_quantities: TicketTypeQuantitiesMap;
   payment_method: PaymentMethod;
   saved_card_id?: Id | null;
   [key: string]: unknown;
@@ -55,6 +59,7 @@ export interface ConfirmOrderPaymentRequest {
   payment_intent_id?: string;
   three_ds_token?: string;
   saved_card_id?: Id;
+  save_card?: boolean;
   [key: string]: unknown;
 }
 

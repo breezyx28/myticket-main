@@ -119,6 +119,8 @@ export interface EventLineupItem {
 
 export interface TicketType {
   id: Id;
+  /** Human-readable SKU from the API (e.g. `TKT-1-STD`). */
+  code?: string | null;
   name: string;
   price: Money;
   remaining: number;

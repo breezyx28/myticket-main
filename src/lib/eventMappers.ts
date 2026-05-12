@@ -1,6 +1,18 @@
-import type { EventDetail, EventListItem } from '@/api/types/event';
+import type { EventDetail, EventListItem, TicketType } from '@/api/types/event';
 import type { EventCardProps } from '@/components/cards/EventCard';
+import { priceFromTicketApi, remainingFromTicketApiRow } from '@/lib/ticketTypeFromApi';
 import type { LayoutType, MockEvent } from '@/types/domain';
+
+/**
+ * Maps API `layout_type` onto the binary `MockEvent.layoutType`.
+ * Only `free` uses general admission (empty `seat_ids` on lock). All other
+ * API values (`seated`, `grid`, `section`, unknown) use the seat map and
+ * non-empty `seat_ids`, matching MainSeatingController validation.
+ */
+export function apiLayoutTypeToMockLayout(layoutType: string | null | undefined): LayoutType {
+  const raw = layoutType != null && layoutType !== '' ? String(layoutType).trim().toLowerCase() : '';
+  return raw === 'free' ? 'free' : 'seated';
+}
 
 /**
  * Tailwind background tokens for the colored panel inside `EventCard`.
@@ -90,7 +102,7 @@ export function eventDetailToMockEvent(detail: EventDetail, fallback?: MockEvent
   const categoryLabel = detail.category ?? detail.category_name ?? fallback?.category ?? 'Event';
   const cityLabel = detail.city ?? detail.city_name ?? fallback?.city ?? '';
   const venueLabel = detail.venue ?? detail.venue_name ?? fallback?.venue ?? '';
-  const layoutType: LayoutType = detail.layout_type === 'seated' ? 'seated' : 'free';
+  const layoutType = apiLayoutTypeToMockLayout(detail.layout_type);
   const ticketsLeft =
     typeof detail.tickets_left === 'number'
       ? detail.tickets_left
@@ -144,12 +156,17 @@ export function eventDetailToMockEvent(detail: EventDetail, fallback?: MockEvent
     attendingCount: fallback?.attendingCount,
     attendeeAvatars: fallback?.attendeeAvatars,
     gallery: detail.gallery ?? fallback?.gallery ?? [],
-    ticketTypes: (detail.ticket_types ?? fallback?.ticketTypes ?? []).map((t) => ({
-      id: String(t.id),
-      name: t.name,
-      price: typeof t.price === 'number' ? t.price : Number(t.price),
-      remaining: t.remaining,
-    })),
+    ticketTypes: (detail.ticket_types ?? fallback?.ticketTypes ?? [])
+      .filter((t) => (t as Record<string, unknown>).is_active !== false)
+      .map((t) => {
+        const r = t as TicketType & Record<string, unknown>;
+        return {
+          id: String(t.id),
+          name: t.name,
+          price: priceFromTicketApi(r.price),
+          remaining: remainingFromTicketApiRow(r as Record<string, unknown>),
+        };
+      }),
     lat:
       detail.lat ??
       (detail.latitude != null && detail.latitude !== '' ? Number(detail.latitude) : undefined) ??
@@ -162,4 +179,30 @@ export function eventDetailToMockEvent(detail: EventDetail, fallback?: MockEvent
     organizerNotes: detail.organizer_notes ?? fallback?.organizerNotes,
     venueImages: detail.venue_images ?? fallback?.venueImages,
   };
+}
+
+/** Maps `GET /events/{slug}/ticket-types` rows onto the `MockEvent.ticketTypes` UI shape. */
+export function ticketTypesToMockShape(types: TicketType[]): MockEvent['ticketTypes'] {
+  return types.map((t) => ({
+    id: String(t.id),
+    name: t.name,
+    price: typeof t.price === 'number' ? t.price : Number(t.price),
+    remaining: typeof t.remaining === 'number' ? t.remaining : Number(t.remaining),
+  }));
+}
+
+/**
+ * Prefer active ticket types from `GET /events/{slug}/ticket-types` when the list is non-empty;
+ * otherwise keep types embedded on `EventDetail` (if any).
+ */
+export function mergeEventTicketTypes(
+  detail: EventDetail,
+  fromEndpoint: TicketType[] | undefined,
+  fallback?: MockEvent | null,
+): MockEvent {
+  const base = eventDetailToMockEvent(detail, fallback);
+  if (fromEndpoint && fromEndpoint.length > 0) {
+    return { ...base, ticketTypes: ticketTypesToMockShape(fromEndpoint) };
+  }
+  return base;
 }

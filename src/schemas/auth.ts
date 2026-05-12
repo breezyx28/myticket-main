@@ -29,7 +29,8 @@ export const loginSchema = yup
     otp: yup
       .string()
       .trim()
-      .matches(/^[0-9]{6}$/, 'OTP must be 6 digits.')
+      .transform((value) => (value === '' ? undefined : value))
+      .matches(/^[0-9]{6}$/, { message: 'OTP must be 6 digits.', excludeEmptyString: true })
       .notRequired(),
   })
   .strict();

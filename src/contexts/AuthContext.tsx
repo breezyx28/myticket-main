@@ -6,6 +6,7 @@ import type {
   UpdateMeRequest,
   UpdateTalentAvailabilityRequest,
   UpdateUserPreferencesRequest,
+  UserMe,
   UserPreferences,
 } from '@/api/types/user';
 import {
@@ -25,7 +26,13 @@ import {
   useUpdateMeMutation,
   useUpdatePreferencesMutation,
 } from '@/api/endpoints';
-import { getToken } from '@/api/authToken';
+import {
+  getRefreshToken,
+  getSessionUserFromMeta,
+  getStoredAuthMeta,
+  getToken,
+  persistAuthCookies,
+} from '@/api/authToken';
 import { logout as logoutAction, setCredentials } from '@/store/authSlice';
 import { useAppDispatch } from '@/store/hooks';
 import { mapUserMeToMockUser, parseAuthResponse } from '@/lib/authMapper';
@@ -126,8 +133,15 @@ try {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function readMockUserFromSessionCookies(): MockUser | null {
+  if (typeof window === 'undefined') return null;
+  if (!getToken()) return null;
+  const u = getSessionUserFromMeta();
+  return u ? mapUserMeToMockUser(u, null) : null;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<MockUser | null>(null);
+  const [user, setUser] = useState<MockUser | null>(() => readMockUserFromSessionCookies());
   const [isHydrating, setIsHydrating] = useState<boolean>(() => Boolean(getToken()));
   const dispatch = useAppDispatch();
   const userRef = useRef<MockUser | null>(user);
@@ -150,42 +164,79 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [setTalentAvailabilityMutation] = useSetTalentAvailabilityMutation();
 
   /**
-   * Persist {token, refreshToken} into the Redux auth slice (which writes to
-   * localStorage), then call `GET /me` and project the response onto the
-   * MockUser shape so existing consumers see the same fields they always have.
+   * Persist credentials into Redux and **secure cookies** (`SameSite=Lax`, `Secure` on HTTPS),
+   * then call `GET /me` and refresh the cookie profile snapshot from the live profile.
    */
   const persistCredentialsAndHydrate = useCallback(
-    async (token: string, refreshToken: string | null) => {
-      dispatch(setCredentials({ token, refreshToken: refreshToken ?? null, user: null }));
+    async (
+      token: string,
+      refreshToken: string | null,
+      bootstrapUser?: UserMe | null,
+      expiresAt?: string | null,
+    ) => {
+      dispatch(
+        setCredentials({
+          token,
+          refreshToken: refreshToken ?? null,
+          user: null,
+          expiresAt: expiresAt ?? null,
+          sessionUser: bootstrapUser ?? null,
+        }),
+      );
+      if (bootstrapUser) {
+        setUser(mapUserMeToMockUser(bootstrapUser, userRef.current));
+      }
       try {
         const me = await triggerGetMe(undefined, false).unwrap();
         const next = mapUserMeToMockUser(me, userRef.current);
         setUser(next);
+        const at = getToken();
+        if (at) {
+          persistAuthCookies({
+            accessToken: at,
+            refreshToken: getRefreshToken(),
+            expiresAt: getStoredAuthMeta()?.expires_at ?? expiresAt ?? null,
+            userSnapshot: me,
+          });
+        }
       } catch (error) {
-        // Token was accepted but /me failed; keep token but surface the error.
+        // Drop optimistic session mirror; token stays until the user signs out or retries.
+        setUser(null);
         throw toAuthApiError(error, 'Failed to load your profile.');
       }
     },
     [dispatch, triggerGetMe]
   );
 
-  /** Hydrate `user` from `/me` on mount when a bearer token exists. */
+  /**
+   * Hydrate `user` from `/me` on mount when a bearer token exists.
+   *
+   * If an older `/me` request finishes after a new login has replaced the token,
+   * ignore its outcome so we do not clear the fresh session (logout + setUser(null)).
+   */
   useEffect(() => {
     const token = getToken();
     if (!token) {
       setIsHydrating(false);
       return;
     }
+    const fromCookie = getSessionUserFromMeta();
+    if (fromCookie) {
+      setUser(mapUserMeToMockUser(fromCookie, userRef.current));
+    }
+    const tokenAtStart = token;
     let cancelled = false;
     triggerGetMe(undefined, false)
       .unwrap()
       .then((me) => {
         if (cancelled) return;
+        if (getToken() !== tokenAtStart) return;
         const next = mapUserMeToMockUser(me, userRef.current);
         setUser(next);
       })
       .catch(() => {
         if (cancelled) return;
+        if (getToken() !== tokenAtStart) return;
         dispatch(logoutAction());
         setUser(null);
       })
@@ -204,7 +255,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const response = await loginMutation({ email, password }).unwrap();
         const parsed = parseAuthResponse(response);
         if ('twoFactor' in parsed) throw parsed.twoFactor;
-        await persistCredentialsAndHydrate(parsed.token, parsed.refresh_token);
+        await persistCredentialsAndHydrate(
+          parsed.token,
+          parsed.refresh_token,
+          parsed.user,
+          parsed.expires_at,
+        );
       } catch (error) {
         if (error instanceof TwoFactorRequiredError) throw error;
         throw toAuthApiError(error, 'Sign-in failed.');
@@ -222,7 +278,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }).unwrap();
         const parsed = parseAuthResponse(response);
         if ('twoFactor' in parsed) throw parsed.twoFactor;
-        await persistCredentialsAndHydrate(parsed.token, parsed.refresh_token);
+        await persistCredentialsAndHydrate(
+          parsed.token,
+          parsed.refresh_token,
+          parsed.user,
+          parsed.expires_at,
+        );
       } catch (error) {
         if (error instanceof TwoFactorRequiredError) throw error;
         throw toAuthApiError(error, 'OTP verification failed.');
@@ -267,7 +328,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }).unwrap();
         const parsed = parseAuthResponse(response);
         if ('twoFactor' in parsed) throw parsed.twoFactor;
-        await persistCredentialsAndHydrate(parsed.token, parsed.refresh_token);
+        await persistCredentialsAndHydrate(
+          parsed.token,
+          parsed.refresh_token,
+          parsed.user,
+          parsed.expires_at,
+        );
       } catch (error) {
         if (error instanceof TwoFactorRequiredError) throw error;
         throw toAuthApiError(error, 'OAuth sign-in failed.');
@@ -301,7 +367,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signUp = useCallback(
     async (name: string, email: string, password: string, phone?: string) => {
       try {
-        const trimmed = name.trim() || (email.split('@')[0] ?? 'User');
+        const trimmed =
+          name.trim() ||
+          (typeof email === 'string' && email.includes('@') ? email.split('@')[0] : undefined) ||
+          'User';
         const response = await registerMutation({
           full_name: trimmed,
           email,
@@ -310,7 +379,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }).unwrap();
         const parsed = parseAuthResponse(response);
         if ('twoFactor' in parsed) throw parsed.twoFactor;
-        await persistCredentialsAndHydrate(parsed.token, parsed.refresh_token);
+        await persistCredentialsAndHydrate(
+          parsed.token,
+          parsed.refresh_token,
+          parsed.user,
+          parsed.expires_at,
+        );
       } catch (error) {
         if (error instanceof TwoFactorRequiredError) throw error;
         throw toAuthApiError(error, 'Sign-up failed.');

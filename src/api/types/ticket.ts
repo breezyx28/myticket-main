@@ -10,24 +10,54 @@ export type TicketStatus =
   | 'refunded'
   | string;
 
+/**
+ * Main API ticket row (`GET /me/tickets`, `GET /me/tickets/{id}`).
+ * List responses often use denormalized `*_cache` columns instead of `event_title` / `date_start`.
+ */
 export interface Ticket {
   id: Id;
+  /** Public ticket code, e.g. `TIC-…`. */
+  code?: string | null;
+  order_id?: Id;
+  order_item_id?: Id;
+  order_reference?: string | null;
+  holder_user_id?: Id;
   event_id: Id;
-  event_title: string;
-  venue?: string | null;
-  city?: string | null;
-  date_start: Iso8601;
-  date_end?: Iso8601 | null;
-  status: TicketStatus;
+  occurrence_id?: Id | null;
   ticket_type_id: Id;
-  ticket_type_name?: string;
+  seat_id?: Id | null;
+  event_title?: string | null;
+  event_title_cache?: string | null;
+  venue?: string | null;
+  venue_cache?: string | null;
+  city?: string | null;
+  city_cache?: string | null;
+  date_start?: Iso8601 | null;
+  starts_at_cache?: Iso8601 | null;
+  date_end?: Iso8601 | null;
+  ends_at_cache?: Iso8601 | null;
+  status: TicketStatus;
+  ticket_type_name?: string | null;
+  type_name_cache?: string | null;
   seat_label?: string | null;
-  order_reference?: string;
+  seat_label_cache?: string | null;
   qr_payload?: string | null;
+  qr_payload_hash?: string | null;
+  qr_secret_hash?: string | null;
+  qr_rotation_count?: number;
+  /** Laravel-encrypted payload for gate scanners; encode in QR on detail view. */
+  signed_qr_payload?: string | null;
   price_paid: Money;
-  received_as_gift?: boolean;
-  from_auction?: boolean;
+  /** API may send `0` / `1`. */
+  counts_for_overlap?: number | boolean;
+  received_as_gift?: boolean | number;
+  from_auction?: boolean | number;
   listed_auction_id?: Id | null;
+  used_at?: Iso8601 | null;
+  expired_at?: Iso8601 | null;
+  cancelled_at?: Iso8601 | null;
+  created_at?: Iso8601;
+  updated_at?: Iso8601;
   [key: string]: unknown;
 }
 
@@ -48,8 +78,8 @@ export interface RefundTicketRequest {
 export interface OverlapCheckRequest {
   event_id: Id;
   ticket_type_id?: Id;
-  date_start: Iso8601;
-  date_end?: Iso8601;
+  event_start: Iso8601;
+  event_end?: Iso8601;
 }
 
 export interface OverlapCheckHit {

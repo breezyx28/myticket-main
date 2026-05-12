@@ -7,10 +7,14 @@ export interface UserMe {
   full_name: string;
   display_name?: string | null;
   bio?: string | null;
+  /** Some API versions use `profile_image_url` instead of `avatar_url`. */
+  profile_image_url?: string | null;
   avatar_url?: string | null;
   email_verified_at?: Iso8601 | null;
   phone_verified_at?: Iso8601 | null;
   two_factor_enabled?: boolean;
+  /** Primary role string when the API does not return `roles[]`. */
+  role?: string | null;
   roles?: string[];
   preferences?: NotificationPreferences;
   created_at?: Iso8601;

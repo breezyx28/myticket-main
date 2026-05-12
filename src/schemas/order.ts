@@ -15,14 +15,32 @@ export const ticketTypeQuantitySchema = yup
   })
   .strict();
 
+const ticketTypeQuantitiesMapSchema = yup
+  .object()
+  .test(
+    'non-empty-quantities',
+    'Add at least one ticket with quantity ≥ 1.',
+    (value) =>
+      !!value &&
+      typeof value === 'object' &&
+      Object.values(value as Record<string, unknown>).some((q) => typeof q === 'number' && q > 0),
+  )
+  .test(
+    'integer-values',
+    'Each quantity must be a non-negative integer.',
+    (value) => {
+      if (!value || typeof value !== 'object') return false;
+      return Object.values(value as Record<string, unknown>).every(
+        (q) => typeof q === 'number' && Number.isInteger(q) && q >= 0,
+      );
+    },
+  );
+
 export const createOrderSchema = yup
   .object({
     event_id: idSchema,
-    lock_id: yup.mixed<string | number>().nullable().notRequired(),
-    ticket_type_quantities: yup
-      .array(ticketTypeQuantitySchema)
-      .min(1, 'Add at least one ticket selection.')
-      .required('Ticket selection is required.'),
+    lock_id: idSchema,
+    ticket_type_quantities: ticketTypeQuantitiesMapSchema.required('Ticket selection is required.'),
     payment_method: yup
       .string()
       .oneOf(['visa', 'mastercard', 'mada'], 'Select a payment method.')
