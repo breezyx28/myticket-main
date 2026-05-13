@@ -38,6 +38,7 @@ import {
   useListMyWaitlistQuery,
   useSubmitRatingMutation,
 } from '@/api/endpoints';
+import type { EventListQuery } from '@/api/types/event';
 import { mergeEventTicketTypes, eventListItemPublicPathSegment, eventListItemToCardProps } from '@/lib/eventMappers';
 import { apiAuctionToMockAuctionListing } from '@/lib/auctionMappers';
 import type { MockAuctionListing, MockEvent } from '@/types/domain';
@@ -253,21 +254,22 @@ function ShareRow({ title, url }: { title: string; url: string }) {
 export function EventDetailPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
+  const slugParam = (eventId ?? '').trim();
   const { user } = useAuth();
   const { pushNotification } = useNotifications();
   const showMarketplaceLinks = canBrowseMarketplace(user);
 
   const {
     data: detail,
-    isFetching: detailLoading,
+    isLoading: detailIsLoading,
     isError: detailError,
-  } = useGetEventBySlugQuery(eventId ? { slug: eventId } : { slug: '' }, {
-    skip: !eventId,
+  } = useGetEventBySlugQuery(slugParam ? { slug: slugParam } : { slug: '' }, {
+    skip: !slugParam,
   });
 
   const { data: ticketTypesList } = useGetEventTicketTypesQuery(
-    { slug: eventId ?? '' },
-    { skip: !eventId },
+    { slug: slugParam },
+    { skip: !slugParam },
   );
 
   const { data: myRatingsData } = useListMyRatingsQuery(
@@ -290,20 +292,30 @@ export function EventDetailPage() {
   const [joinWaitlistMutation, { isLoading: joiningWaitlist }] = useJoinWaitlistMutation();
 
   const event: MockEvent | null | undefined = useMemo(() => {
-    if (!eventId) return null;
-    if (detailLoading && !detail) return undefined;
+    if (!slugParam) return null;
     if (detailError) return null;
-    if (!detail) return undefined;
+    if (!detail) return detailIsLoading ? undefined : null;
     return mergeEventTicketTypes(detail, ticketTypesList);
-  }, [eventId, detail, detailLoading, detailError, ticketTypesList]);
+  }, [slugParam, detailIsLoading, detailError, detail, ticketTypesList]);
 
-  const { data: relatedPaginated } = useListEventsQuery(
-    detail ? { category: detail.category ?? undefined, page: 1, per_page: 4 } : { page: 1, per_page: 4 },
-    { skip: !detail }
-  );
+  const relatedListQuery = useMemo((): EventListQuery => {
+    const base: EventListQuery = { page: 1, per_page: 4 };
+    if (!detail) return base;
+    const r = detail as Record<string, unknown>;
+    const cid = detail.category_id ?? r.category_id;
+    if (cid != null && /^\d+$/.test(String(cid).trim())) {
+      return { ...base, category: String(cid).trim() };
+    }
+    if (typeof detail.category === 'string' && /^\d+$/.test(detail.category.trim())) {
+      return { ...base, category: detail.category.trim() };
+    }
+    return base;
+  }, [detail]);
+
+  const { data: relatedPaginated } = useListEventsQuery(relatedListQuery, { skip: !detail });
   const relatedEvents = useMemo(() => {
     if (!detail || !relatedPaginated?.data) return [];
-    return relatedPaginated.data.filter((re) => re.slug !== detail.slug).slice(0, 3);
+    return relatedPaginated.data.filter((re) => String(re.id) !== String(detail.id)).slice(0, 3);
   }, [detail, relatedPaginated]);
 
   const { data: myTicketsPaged } = useListMyTicketsQuery(undefined, { skip: !user });
@@ -342,13 +354,30 @@ export function EventDetailPage() {
     [auctionListingsPaged]
   );
 
+  if (!slugParam) {
+    return <Navigate to="/events" replace />;
+  }
+
   if (event === undefined) {
     return (
       <div className="px-6 py-24 text-center text-[14px] text-ink-40">Loading…</div>
     );
   }
   if (!event) {
-    return <Navigate to="/events" replace />;
+    return (
+      <div className="mx-auto max-w-lg px-6 py-24 text-center">
+        <p className="text-[16px] font-extrabold text-ink">This event could not be loaded</p>
+        <p className="mt-2 text-[13px] leading-relaxed text-ink-60">
+          The link may be incorrect or the event is no longer available.
+        </p>
+        <Link
+          to="/events"
+          className="mt-8 inline-flex h-11 items-center justify-center rounded-full bg-ink px-6 text-[13px] font-semibold text-white transition-colors hover:bg-ink-80"
+        >
+          Back to events
+        </Link>
+      </div>
+    );
   }
 
   const url = typeof window !== 'undefined' ? window.location.href : '';
@@ -862,7 +891,7 @@ export function EventDetailPage() {
                   <EventWaitlistCta
                     key={String(detail.id)}
                     joinedFromApi={waitlistJoinedFromApi}
-                    eventSlugForApi={String(eventId ?? detail.slug ?? '')}
+                    eventSlugForApi={String(detail.slug ?? slugParam)}
                     joiningWaitlist={joiningWaitlist}
                     joinWaitlist={joinWaitlistMutation}
                     onJoined={() => {
@@ -870,7 +899,7 @@ export function EventDetailPage() {
                         title: "You're on the waitlist",
                         body: `We'll notify you if tickets return for ${event.title}.`,
                         kind: 'waitlist',
-                        href: `/events/${eventId}`,
+                        href: `/events/${encodeURIComponent(String(detail.slug ?? slugParam))}`,
                       });
                     }}
                   />

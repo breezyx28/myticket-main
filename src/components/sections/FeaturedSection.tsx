@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { EventCard } from '@/components/cards/EventCard';
 import { Carousel } from '@/components/ui/Carousel';
 import { useGetFeaturedEventsQuery } from '@/api/endpoints';
-import { eventListItemPublicPathSegment, eventListItemToCardProps } from '@/lib/eventMappers';
+import { eventListItemToCardProps } from '@/lib/eventMappers';
 
 export function FeaturedSection() {
   const navigate = useNavigate();
@@ -28,9 +28,11 @@ export function FeaturedSection() {
                 <EventCard
                   {...props}
                   className="w-[280px]"
-                  onClick={() =>
-                    navigate(`/events/${encodeURIComponent(eventListItemPublicPathSegment(e))}`)
-                  }
+                  onClick={() => {
+                    const seg = props.detailPathSegment?.trim();
+                    if (!seg) return;
+                    void navigate(`/events/${encodeURIComponent(seg)}`);
+                  }}
                 />
               </div>
             );

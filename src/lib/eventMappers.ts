@@ -52,20 +52,40 @@ export function formatCardDateTime(iso: string): { date: string; time: string } 
 }
 
 /**
- * First non-empty slug/code (trimmed), else numeric id — use as `/events/{segment}`
- * for `useGetEventBySlugQuery` (the route param is the public slug).
+ * First usable public identifier for `GET /events/{slug}`.
+ * The main API resolves **slug** (or sometimes `code`), not numeric `id` alone.
+ * Also reads JSON:API-style `attributes.slug` when present.
  */
 export function eventListItemPublicPathSegment(e: EventListItem): string {
   const r = e as Record<string, unknown>;
-  const slug = typeof e.slug === 'string' && e.slug.trim() !== '' ? e.slug.trim() : null;
-  if (slug) return slug;
-  const code = typeof e.code === 'string' && e.code.trim() !== '' ? e.code.trim() : null;
-  if (code) return code;
-  for (const key of ['event_slug', 'public_slug'] as const) {
-    const v = r[key];
-    if (typeof v === 'string' && v.trim() !== '') return v.trim();
+  const attrs =
+    r.attributes && typeof r.attributes === 'object'
+      ? (r.attributes as Record<string, unknown>)
+      : null;
+
+  const pick = (v: unknown): string | null => {
+    if (v == null || typeof v === 'object') return null;
+    const s = String(v).trim();
+    return s.length > 0 ? s : null;
+  };
+
+  const candidates: unknown[] = [
+    e.slug,
+    attrs?.slug,
+    e.code,
+    r.event_slug,
+    r.public_slug,
+    r.url_slug,
+    r.canonical_slug,
+    r.handle,
+  ];
+
+  for (const v of candidates) {
+    const s = pick(v);
+    if (s) return s;
   }
-  return String(e.id);
+
+  return pick(e.id) ?? '';
 }
 
 function minPriceFromListTicketTypes(r: Record<string, unknown>): number | null {
