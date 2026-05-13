@@ -1,12 +1,13 @@
 import type { Id } from '@/api/types/common';
 
-/** `GET /events/categories`. */
+/** `GET /events/categories` — reduced DTO (active categories, ordered server-side). */
 export interface EventCategoryRef {
   id: Id;
   slug: string;
   name: string;
   name_ar?: string | null;
-  icon?: string | null;
+  /** Published events with this category (`deleted_at` null). */
+  events_count?: number | string | null;
   [key: string]: unknown;
 }
 

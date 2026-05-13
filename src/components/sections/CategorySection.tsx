@@ -1,43 +1,6 @@
-import {
-  MusicNote,
-  Trophy,
-  Palette,
-  Smiley,
-  Monitor,
-  Users,
-  ForkKnife,
-  TShirt,
-  Cpu,
-  Microphone,
-  Tag,
-  type Icon,
-} from '@phosphor-icons/react';
 import { CategoryTile } from '@/components/cards/CategoryTile';
 import { useGetEventCategoriesQuery } from '@/api/endpoints';
-
-type CategoryStyle = { icon: Icon; color: string };
-
-/**
- * Category presentation by slug. Backend slugs are kebab-case; we fall back
- * to a generic style when an unknown slug arrives so the section never
- * empties.
- */
-const STYLE_BY_SLUG: Record<string, CategoryStyle> = {
-  music: { icon: MusicNote, color: 'bg-coral text-white' },
-  sports: { icon: Trophy, color: 'bg-lime text-ink' },
-  arts: { icon: Palette, color: 'bg-sky text-ink' },
-  'arts-and-culture': { icon: Palette, color: 'bg-sky text-ink' },
-  comedy: { icon: Smiley, color: 'bg-lemon text-ink' },
-  online: { icon: Monitor, color: 'bg-mint text-ink' },
-  family: { icon: Users, color: 'bg-teal text-ink' },
-  food: { icon: ForkKnife, color: 'bg-amber text-ink' },
-  'food-and-drink': { icon: ForkKnife, color: 'bg-amber text-ink' },
-  fashion: { icon: TShirt, color: 'bg-blush text-ink' },
-  tech: { icon: Cpu, color: 'bg-indigo text-white' },
-  theatre: { icon: Microphone, color: 'bg-lavender text-ink' },
-};
-
-const DEFAULT_STYLE: CategoryStyle = { icon: Tag, color: 'bg-ink-10 text-ink' };
+import { categoryTileVisualForSlug, parseCategoryEventsCount } from '@/lib/eventCategoryUi';
 
 export function CategorySection() {
   const { data, isFetching, isError } = useGetEventCategoriesQuery();
@@ -60,16 +23,16 @@ export function CategorySection() {
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
           {categories.map((cat) => {
-            const style = STYLE_BY_SLUG[cat.slug.toLowerCase()] ?? DEFAULT_STYLE;
-            const count = typeof cat.events_count === 'number' ? cat.events_count : undefined;
+            const style = categoryTileVisualForSlug(cat.slug);
+            const count = parseCategoryEventsCount(cat.events_count);
             return (
               <CategoryTile
-                key={cat.slug}
+                key={String(cat.id)}
                 label={cat.name}
                 icon={style.icon}
                 color={style.color}
                 count={count}
-                to={`/events?category=${encodeURIComponent(cat.slug)}`}
+                to={`/events?category=${encodeURIComponent(String(cat.id))}`}
               />
             );
           })}

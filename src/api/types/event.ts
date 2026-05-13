@@ -5,8 +5,14 @@ export type EventLayoutType = 'seated' | 'free' | string;
 export interface EventOrganizerSummary {
   id: Id;
   slug?: Slug;
-  display_name: string;
+  /** Some API payloads use `name` instead of or alongside `display_name`. */
+  name?: string;
+  display_name?: string;
   logo_url?: string | null;
+  code?: string | null;
+  events_count?: number | string | null;
+  bio?: string | null;
+  description?: string | null;
   [key: string]: unknown;
 }
 
@@ -79,6 +85,7 @@ export interface EventDetail extends EventListItem {
 
 export interface EventListQuery {
   keyword?: string;
+  /** Numeric `event_categories.id` (stringified in the query string). */
   category?: string;
   city?: string;
   date_from?: string;

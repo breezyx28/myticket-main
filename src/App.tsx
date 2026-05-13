@@ -36,8 +36,10 @@ const VendorProfilePage = lazy(() =>
     default: m.VendorProfilePage,
   })),
 );
-const AuctionPage = lazy(() =>
-  import('@/pages/auction/AuctionPage').then((m) => ({ default: m.AuctionPage })),
+const OrganizerProfilePage = lazy(() =>
+  import('@/pages/organizers/OrganizerProfilePage').then((m) => ({
+    default: m.OrganizerProfilePage,
+  })),
 );
 const AuctionEventPage = lazy(() =>
   import('@/pages/auction/AuctionEventPage').then((m) => ({ default: m.AuctionEventPage })),
@@ -87,6 +89,7 @@ export function App() {
         <Route element={<MainLayout />}>
           <Route path="/events" element={<EventsPage />} />
           <Route path="/events/:eventId" element={<EventDetailPage />} />
+          <Route path="/organizers/:slug" element={<OrganizerProfilePage />} />
           <Route element={<RequireMarketplaceBrowse />}>
             <Route path="/marketplace" element={<MarketplacePage />} />
             <Route path="/marketplace/talent/:id" element={<TalentProfilePage />} />

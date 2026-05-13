@@ -1,3 +1,4 @@
+import type { OrganizerRatingsSummary } from '@/api/types/organizer';
 import type { Talent, TalentRatingsSummary } from '@/api/types/talent';
 import type { Vendor, VendorRatingsSummary } from '@/api/types/vendor';
 import type { MarketplaceTalent, MarketplaceVendor, TalentAvailability } from '@/types/domain';
@@ -43,8 +44,8 @@ export function vendorToMarketplaceVendor(v: Vendor, fallback?: MarketplaceVendo
 
 /** Pick the top N most recent items from a ratings summary, defensive when absent. */
 export function pickRecentRatings(
-  summary: TalentRatingsSummary | VendorRatingsSummary | undefined,
-  limit = 3
+  summary: TalentRatingsSummary | VendorRatingsSummary | OrganizerRatingsSummary | undefined,
+  limit = 3,
 ) {
   return (summary?.ratings ?? []).slice(0, limit);
 }

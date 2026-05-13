@@ -4,9 +4,24 @@ import type {
 } from '@/api/types/complaint';
 import type {
   EventCategoryListResponse,
+  EventCategoryRef,
   EventCityListResponse,
   SaudiRegionsResponse,
 } from '@/api/types/reference';
+
+function normalizeEventCategoriesResponse(response: unknown): EventCategoryListResponse {
+  if (Array.isArray(response)) {
+    return { data: response as EventCategoryRef[] };
+  }
+  if (
+    response &&
+    typeof response === 'object' &&
+    Array.isArray((response as EventCategoryListResponse).data)
+  ) {
+    return response as EventCategoryListResponse;
+  }
+  return { data: [] };
+}
 
 /**
  * Reference / taxonomy endpoints. These are the static-ish lookups the SPA
@@ -18,6 +33,7 @@ export const referenceApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
     getEventCategories: build.query<EventCategoryListResponse, void>({
       query: () => ({ url: '/events/categories' }),
+      transformResponse: (response: unknown) => normalizeEventCategoriesResponse(response),
       providesTags: [{ type: 'EventTaxonomy', id: 'CATEGORIES' }],
     }),
     getEventCities: build.query<EventCityListResponse, void>({

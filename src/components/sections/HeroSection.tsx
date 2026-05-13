@@ -55,7 +55,7 @@ export function HeroSection() {
                 className="bg-transparent text-ink text-[14px] placeholder:text-ink-40 outline-none w-full py-2"
               />
             </div>
-            <Button type="submit" variant="primary" size="md" icon={ArrowRight} className="flex-shrink-0">
+            <Button type="submit" variant="primary" size="md" icon={ArrowRight} className="flex-shrink-0 rounded-full">
               Search
             </Button>
           </form>

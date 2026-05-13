@@ -45,6 +45,110 @@ import { cn } from '@/lib/utils';
 import { canBrowseMarketplace } from '@/lib/marketplaceAccess';
 import type { UseEmblaCarouselType } from 'embla-carousel-react';
 
+function EventCoverSlider({ slides }: { slides: string[] }) {
+  const [activeCoverIdx, setActiveCoverIdx] = useState(0);
+  const [coverApi, setCoverApi] = useState<NonNullable<UseEmblaCarouselType[1]>>();
+
+  useEffect(() => {
+    if (!coverApi) return;
+    const onSelect = () => setActiveCoverIdx(coverApi.selectedScrollSnap());
+    queueMicrotask(onSelect);
+    coverApi.on('select', onSelect);
+    coverApi.on('reInit', onSelect);
+    return () => {
+      coverApi.off('select', onSelect);
+      coverApi.off('reInit', onSelect);
+    };
+  }, [coverApi]);
+
+  if (slides.length === 0) return null;
+
+  return (
+    <div className="mt-4">
+      <ShadcnCarousel opts={{ loop: true }} setApi={setCoverApi} className="w-full">
+        <ShadcnCarouselContent>
+          {slides.map((src) => (
+            <ShadcnCarouselItem key={src} className="basis-full">
+              <div className="overflow-hidden rounded-3xl border border-ink-10 bg-ink-5">
+                <img src={src} alt="" className="aspect-[16/9] w-full object-cover" />
+              </div>
+            </ShadcnCarouselItem>
+          ))}
+        </ShadcnCarouselContent>
+        {slides.length > 1 && (
+          <>
+            <ShadcnCarouselPrevious />
+            <ShadcnCarouselNext />
+          </>
+        )}
+      </ShadcnCarousel>
+      {slides.length > 1 && (
+        <div className="mt-3 flex items-center gap-2">
+          {slides.map((_, idx) => (
+            <button
+              key={`dot-${idx}`}
+              type="button"
+              onClick={() => coverApi?.scrollTo(idx)}
+              className={cn(
+                'h-2.5 w-2.5 rounded-full transition-all',
+                idx === activeCoverIdx ? 'w-6 bg-coral' : 'bg-ink-20 hover:bg-ink-40',
+              )}
+              aria-label={`Show image ${idx + 1}`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+type EventWaitlistCtaProps = {
+  joinedFromApi: boolean;
+  eventSlugForApi: string;
+  joiningWaitlist: boolean;
+  joinWaitlist: ReturnType<typeof useJoinWaitlistMutation>[0];
+  onJoined: () => void;
+};
+
+function EventWaitlistCta({
+  joinedFromApi,
+  eventSlugForApi,
+  joiningWaitlist,
+  joinWaitlist,
+  onJoined,
+}: EventWaitlistCtaProps) {
+  const [optimisticJoined, setOptimisticJoined] = useState(false);
+  const waitlistJoined = optimisticJoined || joinedFromApi;
+
+  async function onJoinWaitlist() {
+    if (waitlistJoined || joiningWaitlist) return;
+    try {
+      await joinWaitlist({ slug: eventSlugForApi }).unwrap();
+      setOptimisticJoined(true);
+      onJoined();
+    } catch {
+      /* keep button live so the user can retry */
+    }
+  }
+
+  return (
+    <>
+      {waitlistJoined ? (
+        <p className="text-center text-[12px] text-ink-60">You&apos;re on the waitlist — we&apos;ll notify you if tickets return.</p>
+      ) : (
+        <button
+          type="button"
+          onClick={() => void onJoinWaitlist()}
+          disabled={joiningWaitlist}
+          className="flex h-12 w-full items-center justify-center rounded-full border-2 border-ink bg-white text-[14px] font-semibold text-ink hover:bg-ink-5 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {joiningWaitlist ? 'Joining…' : 'Join waitlist'}
+        </button>
+      )}
+    </>
+  );
+}
+
 function formatRange(start: string, end: string) {
   const a = new Date(start);
   const b = new Date(end);
@@ -152,9 +256,6 @@ export function EventDetailPage() {
   const { user } = useAuth();
   const { pushNotification } = useNotifications();
   const showMarketplaceLinks = canBrowseMarketplace(user);
-  const [activeCoverIdx, setActiveCoverIdx] = useState(0);
-  const [coverApi, setCoverApi] = useState<NonNullable<UseEmblaCarouselType[1]>>();
-  const [optimisticJoined, setOptimisticJoined] = useState(false);
 
   const {
     data: detail,
@@ -186,7 +287,6 @@ export function EventDetailPage() {
     if (!detail) return false;
     return myWaitlistEntries.some((e) => String(e.event_id) === String(detail.id));
   }, [detail, myWaitlistEntries]);
-  const waitlistJoined = optimisticJoined || waitlistJoinedFromApi;
   const [joinWaitlistMutation, { isLoading: joiningWaitlist }] = useJoinWaitlistMutation();
 
   const event: MockEvent | null | undefined = useMemo(() => {
@@ -206,18 +306,6 @@ export function EventDetailPage() {
     return relatedPaginated.data.filter((re) => re.slug !== detail.slug).slice(0, 3);
   }, [detail, relatedPaginated]);
 
-  useEffect(() => {
-    setActiveCoverIdx(0);
-  }, [event?.id]);
-
-  useEffect(() => {
-    if (!coverApi) return;
-    const onSelect = () => setActiveCoverIdx(coverApi.selectedScrollSnap());
-    onSelect();
-    coverApi.on('select', onSelect);
-    coverApi.on('reInit', onSelect);
-  }, [coverApi]);
-
   const { data: myTicketsPaged } = useListMyTicketsQuery(undefined, { skip: !user });
   const hasUsedTicket = useMemo(() => {
     if (!user || !detail) return false;
@@ -226,10 +314,6 @@ export function EventDetailPage() {
       (t) => String(t.event_id) === String(detail.id) && t.status === 'used',
     );
   }, [user, detail, myTicketsPaged]);
-
-  useEffect(() => {
-    setOptimisticJoined(false);
-  }, [detail?.id]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || window.location.hash !== '#rate') return;
@@ -273,6 +357,8 @@ export function EventDetailPage() {
   const boughtLabel = formatAttendingLabel(event.attendingCount ?? Math.max(450, event.ticketsLeft * 12));
   const mapEmbedUrl = buildMapEmbedUrl(event);
   const mapOpenUrl = buildMapOpenUrl(event);
+  const org = event.organizer;
+  const showOrganizerBlock = Boolean(org.id || org.name);
 
   async function onRate(stars: number) {
     if (!user || !detail) return;
@@ -281,23 +367,6 @@ export function EventDetailPage() {
       await submitRating({ subject_type: 'event', subject_id: detail.id, stars }).unwrap();
     } catch {
       /* The mutation invalidates rating tags; if it fails the UI stays unchanged. */
-    }
-  }
-
-  async function onJoinWaitlist() {
-    if (!eventId || !event || !detail) return;
-    if (waitlistJoined || joiningWaitlist) return;
-    try {
-      await joinWaitlistMutation({ slug: eventId ?? detail.slug }).unwrap();
-      setOptimisticJoined(true);
-      pushNotification({
-        title: "You're on the waitlist",
-        body: `We'll notify you if tickets return for ${event.title}.`,
-        kind: 'waitlist',
-        href: `/events/${eventId}`,
-      });
-    } catch {
-      /* keep button live so the user can retry */
     }
   }
 
@@ -382,43 +451,7 @@ export function EventDetailPage() {
                 <h2 className="mt-1 text-lg font-extrabold text-ink">Event cover slider</h2>
               </div>
             </div>
-            {gallerySlides.length > 0 && (
-              <div className="mt-4">
-                <ShadcnCarousel opts={{ loop: true }} setApi={setCoverApi} className="w-full">
-                  <ShadcnCarouselContent>
-                    {gallerySlides.map((src) => (
-                      <ShadcnCarouselItem key={src} className="basis-full">
-                        <div className="overflow-hidden rounded-3xl border border-ink-10 bg-ink-5">
-                          <img src={src} alt="" className="aspect-[16/9] w-full object-cover" />
-                        </div>
-                      </ShadcnCarouselItem>
-                    ))}
-                  </ShadcnCarouselContent>
-                  {gallerySlides.length > 1 && (
-                    <>
-                      <ShadcnCarouselPrevious />
-                      <ShadcnCarouselNext />
-                    </>
-                  )}
-                </ShadcnCarousel>
-                {gallerySlides.length > 1 && (
-                  <div className="mt-3 flex items-center gap-2">
-                    {gallerySlides.map((_, idx) => (
-                      <button
-                        key={`dot-${idx}`}
-                        type="button"
-                        onClick={() => coverApi?.scrollTo(idx)}
-                        className={cn(
-                          'h-2.5 w-2.5 rounded-full transition-all',
-                          idx === activeCoverIdx ? 'w-6 bg-coral' : 'bg-ink-20 hover:bg-ink-40'
-                        )}
-                        aria-label={`Show image ${idx + 1}`}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+            {gallerySlides.length > 0 && <EventCoverSlider key={event.id} slides={gallerySlides} />}
             {event.videoUrl && (
               <div className="mt-4 aspect-video w-full overflow-hidden rounded-3xl border border-ink-10 bg-black">
                 <iframe
@@ -555,24 +588,72 @@ export function EventDetailPage() {
             )}
           </div>
 
-          <div className="mt-10 rounded-3xl border border-ink-10 bg-ink-5/40 p-6">
-            <h2 className="text-lg font-extrabold text-ink">Organizer profile</h2>
-            <div className="mt-4 flex gap-4">
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-lemon text-[18px] font-extrabold text-ink">
-                {event.organizer.name.charAt(0)}
-              </div>
-              <div>
-                <p className="font-bold text-ink">{event.organizer.name}</p>
-                <p className="mt-1 text-[14px] leading-relaxed text-ink-60">{event.organizer.bio}</p>
-                <Link
-                  to={`/events?keyword=${encodeURIComponent(event.organizer.name)}`}
-                  className="mt-2 inline-block text-[13px] font-semibold text-coral hover:underline"
-                >
-                  More events from this organizer
-                </Link>
+          {showOrganizerBlock && (
+            <div className="mt-10 rounded-3xl border border-ink-10 bg-ink-5/40 p-6">
+              <h2 className="text-lg font-extrabold text-ink">Organizer profile</h2>
+              <div className="mt-4 flex gap-4">
+                {org.logo ? (
+                  <img
+                    src={org.logo}
+                    alt=""
+                    className="h-14 w-14 shrink-0 rounded-xl border border-ink-10 bg-white object-cover"
+                  />
+                ) : (
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-lemon text-[18px] font-extrabold text-ink">
+                    {(org.name || org.code || '?').charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-ink">{org.name || 'Organizer'}</p>
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] text-ink-50">
+                    {org.id ? (
+                      <span>
+                        ID: <span className="font-mono text-ink-60">{org.id}</span>
+                      </span>
+                    ) : null}
+                    {org.code ? (
+                      <span>
+                        Code: <span className="font-mono text-ink-60">{org.code}</span>
+                      </span>
+                    ) : null}
+                    {typeof org.eventsCount === 'number' ? (
+                      <span className="font-semibold text-ink-60">
+                        {org.eventsCount} event{org.eventsCount === 1 ? '' : 's'}
+                      </span>
+                    ) : null}
+                  </div>
+                  {org.bio ? (
+                    <p className="mt-2 text-[14px] leading-relaxed text-ink-60">{org.bio}</p>
+                  ) : null}
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    {org.slug?.trim() ? (
+                      <Link
+                        to={`/organizers/${encodeURIComponent(org.slug.trim())}`}
+                        className="inline-flex items-center justify-center rounded-full border border-ink bg-ink px-4 py-2 text-[13px] font-semibold text-white hover:bg-ink-80"
+                      >
+                        View organizer profile
+                      </Link>
+                    ) : (
+                      <span
+                        className="inline-flex cursor-not-allowed items-center justify-center rounded-full border border-ink-10 bg-ink-5 px-4 py-2 text-[13px] font-semibold text-ink-40"
+                        title="This organizer has no public profile URL yet."
+                      >
+                        View organizer profile
+                      </span>
+                    )}
+                    {org.name ? (
+                      <Link
+                        to={`/events?keyword=${encodeURIComponent(org.name)}`}
+                        className="text-[13px] font-semibold text-coral hover:underline"
+                      >
+                        Search events by name
+                      </Link>
+                    ) : null}
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {event.showTalents && event.talents.length > 0 && (
             <div className="mt-10">
@@ -775,18 +856,23 @@ export function EventDetailPage() {
             ) : (
               <div className="mt-6 space-y-3">
                 <p className="text-center text-[13px] font-semibold text-coral">Sold out</p>
-                {waitlistJoined ? (
-                  <p className="text-center text-[12px] text-ink-60">You&apos;re on the waitlist — we&apos;ll notify you if tickets return.</p>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={onJoinWaitlist}
-                    disabled={joiningWaitlist}
-                    className="flex h-12 w-full items-center justify-center rounded-full border-2 border-ink bg-white text-[14px] font-semibold text-ink hover:bg-ink-5 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {joiningWaitlist ? 'Joining…' : 'Join waitlist'}
-                  </button>
-                )}
+                {detail ? (
+                  <EventWaitlistCta
+                    key={String(detail.id)}
+                    joinedFromApi={waitlistJoinedFromApi}
+                    eventSlugForApi={String(eventId ?? detail.slug ?? '')}
+                    joiningWaitlist={joiningWaitlist}
+                    joinWaitlist={joinWaitlistMutation}
+                    onJoined={() => {
+                      pushNotification({
+                        title: "You're on the waitlist",
+                        body: `We'll notify you if tickets return for ${event.title}.`,
+                        kind: 'waitlist',
+                        href: `/events/${eventId}`,
+                      });
+                    }}
+                  />
+                ) : null}
                 <Link
                   to={`/auction/events/${event.id}`}
                   className="flex h-11 w-full items-center justify-center rounded-full bg-ink-5 text-[13px] font-semibold text-ink hover:bg-ink-10"

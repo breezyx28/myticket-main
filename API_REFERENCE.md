@@ -369,7 +369,7 @@ Auth: none.
 
 - Hook: `useListEventsQuery(filters)`.
 - Query (`EventListQuery` in [`src/api/types/event.ts`](src/api/types/event.ts)):
-  - `keyword`, `category`, `city`, `date_from`, `date_to`, `price_min`, `price_max`, `layout_type` (`seated|free`), `availability_only`, `featured`, `page`, `per_page`.
+  - `keyword`, `category` (numeric `event_categories.id`), `city`, `date_from`, `date_to`, `price_min`, `price_max`, `layout_type` (`seated|free`), `availability_only`, `featured`, `page`, `per_page`.
 - Response `200`: `Paginated<EventListItem>`.
 
 ### `GET /events/featured`
@@ -384,13 +384,13 @@ Auth: none.
   ```json
   {
     "data": [
-      { "id": 1, "slug": "music", "name": "Music", "name_ar": "موسيقى", "icon": "music" },
-      { "id": 2, "slug": "comedy", "name": "Comedy", "name_ar": "كوميديا", "icon": "comedy" }
+      { "id": 1, "slug": "music", "name": "Music", "name_ar": "موسيقى", "events_count": 42 },
+      { "id": 2, "slug": "comedy", "name": "Comedy", "name_ar": "كوميديا", "events_count": 17 }
     ]
   }
   ```
 
-  Used by the events filter chips and the homepage taxonomy menu.
+  Active categories only; `icon_key` / `color_token` are not in this DTO — the SPA maps `slug` to tile styles. Used by event filters and the homepage category grid.
 
 ### `GET /events/cities`
 

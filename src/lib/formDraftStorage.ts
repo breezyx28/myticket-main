@@ -24,6 +24,7 @@ export interface RegisterPageDraft {
 
 export interface EventsFilterDraft {
   keyword: string;
+  /** `event_categories.id` as string (older drafts may still hold a slug until re-saved). */
   category: string;
   city: string;
   dateFrom: string;

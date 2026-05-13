@@ -1,7 +1,7 @@
-import type { EventDetail, EventListItem, TicketType } from '@/api/types/event';
+import type { EventDetail, EventListItem, EventOrganizerSummary, TicketType } from '@/api/types/event';
 import type { EventCardProps } from '@/components/cards/EventCard';
 import { priceFromTicketApi, remainingFromTicketApiRow } from '@/lib/ticketTypeFromApi';
-import type { LayoutType, MockEvent } from '@/types/domain';
+import type { LayoutType, MockEvent, OrganizerSummary } from '@/types/domain';
 
 /**
  * Maps API `layout_type` onto the binary `MockEvent.layoutType`.
@@ -60,29 +60,118 @@ export function formatCardDateTime(iso: string): { date: string; time: string } 
  * navigation handlers (`/events/${eventId}`) keep working — the route param
  * is treated as a slug end-to-end in Phase 3.
  */
+function parseEventsCount(raw: EventOrganizerSummary['events_count']): number | undefined {
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+  if (typeof raw === 'string' && raw.trim() !== '') {
+    const n = Number.parseInt(raw, 10);
+    if (Number.isFinite(n)) return n;
+  }
+  return undefined;
+}
+
+/** Maps nested `EventDetail.organizer` (+ optional mock fallback) onto `OrganizerSummary`. */
+export function mapEventOrganizerToSummary(
+  api: EventOrganizerSummary | null | undefined,
+  fallback?: MockEvent['organizer'],
+): OrganizerSummary {
+  if (!api && !fallback) {
+    return { id: '', name: '', bio: '' };
+  }
+  if (!api && fallback) {
+    return { ...fallback };
+  }
+  const o = api!;
+  const fb = fallback;
+  const name =
+    (typeof o.name === 'string' && o.name.trim() !== ''
+      ? o.name.trim()
+      : typeof o.display_name === 'string' && o.display_name.trim() !== ''
+        ? o.display_name.trim()
+        : fb?.name ?? '') ?? '';
+  const slug = o.slug != null && String(o.slug).trim() !== '' ? String(o.slug) : fb?.slug;
+  const code =
+    typeof o.code === 'string' && o.code.trim() !== '' ? o.code.trim() : fb?.code;
+  const eventsCount = parseEventsCount(o.events_count) ?? fb?.eventsCount;
+  const bio =
+    (typeof o.bio === 'string' && o.bio.trim() !== ''
+      ? o.bio.trim()
+      : typeof o.description === 'string' && o.description.trim() !== ''
+        ? o.description.trim()
+        : fb?.bio ?? '') ?? '';
+  const logo =
+    (typeof o.logo_url === 'string' && o.logo_url.trim() !== '' ? o.logo_url.trim() : undefined) ?? fb?.logo;
+
+  return {
+    id: String(o.id ?? fb?.id ?? ''),
+    name,
+    bio,
+    ...(logo !== undefined ? { logo } : {}),
+    ...(slug !== undefined ? { slug } : {}),
+    ...(code !== undefined ? { code } : {}),
+    ...(eventsCount !== undefined ? { eventsCount } : {}),
+  };
+}
+
+/** Coerce Laravel / JSON numeric fields that may arrive as strings. */
+function coerceFiniteNumber(v: unknown): number | null {
+  if (v == null || v === '') return null;
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  if (typeof v === 'string' && v.trim() !== '') {
+    const n = Number.parseFloat(v.replace(/,/g, ''));
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
+function listItemPriceFrom(e: EventListItem): number {
+  const r = e as Record<string, unknown>;
+  const fromMin =
+    coerceFiniteNumber(e.price_min) ??
+    coerceFiniteNumber(r.price_min) ??
+    coerceFiniteNumber(r.price_from) ??
+    coerceFiniteNumber(r.starting_price) ??
+    coerceFiniteNumber(r.min_price);
+  const fromMax = coerceFiniteNumber(e.price_max) ?? coerceFiniteNumber(r.price_max);
+  const base = fromMin ?? fromMax ?? 0;
+  return Number.isFinite(base) ? Math.max(0, Math.round(base)) : 0;
+}
+
 export function eventListItemToCardProps(e: EventListItem): EventCardProps {
-  const startAt = e.date_start ?? e.starts_at ?? '';
+  const r = e as Record<string, unknown>;
+  const startAt = e.date_start ?? e.starts_at ?? (typeof r.starts_at === 'string' ? r.starts_at : '') ?? '';
   const { date, time } = formatCardDateTime(startAt);
-  const priceFrom = typeof e.price_min === 'number' ? e.price_min : 0;
+  const priceFrom = listItemPriceFrom(e);
   const eventKey = e.slug ?? e.code ?? String(e.id);
-  const categoryLabel = e.category ?? e.category_name ?? 'Event';
-  const venueLabel = e.venue ?? e.venue_name ?? '';
-  const cityLabel = e.city ?? e.city_name ?? '';
-  const featured = typeof e.featured === 'boolean' ? e.featured : Boolean(e.is_featured);
+  const categoryLabel = e.category ?? e.category_name ?? (typeof r.category === 'string' ? r.category : null) ?? 'Event';
+  const venueLabel = e.venue ?? e.venue_name ?? (typeof r.venue === 'string' ? r.venue : '') ?? '';
+  const cityLabel = e.city ?? e.city_name ?? (typeof r.city === 'string' ? r.city : '') ?? '';
+  const featured = typeof e.featured === 'boolean' ? e.featured : Boolean(e.is_featured ?? r.is_featured ?? r.featured);
+  const cover =
+    (typeof e.cover_image_url === 'string' && e.cover_image_url.trim() !== '' ? e.cover_image_url : null) ??
+    (typeof r.cover_image_url === 'string' && r.cover_image_url.trim() !== '' ? r.cover_image_url : null) ??
+    (typeof r.cover_image === 'string' && r.cover_image.trim() !== '' ? r.cover_image : null) ??
+    (typeof r.image === 'string' && r.image.trim() !== '' ? r.image : null) ??
+    '';
+  const ticketsLeft = coerceFiniteNumber(e.tickets_left) ?? coerceFiniteNumber(r.tickets_left);
+  const ratingVal =
+    coerceFiniteNumber(e.rating_average) ??
+    coerceFiniteNumber(r.rating_average) ??
+    coerceFiniteNumber(r.rating_avg) ??
+    coerceFiniteNumber(r.average_rating);
   return {
     eventId: eventKey,
     title: e.title,
     category: categoryLabel,
     accentColor: accentForCategory(categoryLabel),
-    image: e.cover_image_url ?? '',
+    image: cover,
     date,
     time,
     venue: venueLabel,
     city: cityLabel,
     priceFrom,
-    rating: typeof e.rating_average === 'number' ? e.rating_average : null,
+    rating: ratingVal,
     isFeatured: featured,
-    isSoldOut: typeof e.tickets_left === 'number' ? e.tickets_left === 0 : false,
+    isSoldOut: ticketsLeft !== null ? ticketsLeft === 0 : false,
   };
 }
 
@@ -125,12 +214,7 @@ export function eventDetailToMockEvent(detail: EventDetail, fallback?: MockEvent
     ticketsLeft,
     layoutType,
     featured: typeof detail.featured === 'boolean' ? detail.featured : Boolean(detail.is_featured),
-    organizer: {
-      id: String(detail.organizer?.id ?? fallback?.organizer.id ?? ''),
-      name: detail.organizer?.display_name ?? fallback?.organizer.name ?? '',
-      logo: detail.organizer?.logo_url ?? fallback?.organizer.logo,
-      bio: fallback?.organizer.bio ?? '',
-    },
+    organizer: mapEventOrganizerToSummary(detail.organizer, fallback?.organizer),
     showTalents: detail.show_talents ?? fallback?.showTalents ?? false,
     showVendors: detail.show_vendors ?? fallback?.showVendors ?? false,
     talents: (detail.talents ?? []).map((t) => ({

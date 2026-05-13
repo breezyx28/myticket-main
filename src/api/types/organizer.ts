@@ -3,7 +3,9 @@ import type { Id, Iso8601, Slug } from '@/api/types/common';
 export interface Organizer {
   id: Id;
   slug: Slug;
-  display_name: string;
+  /** API may send `display_name` and/or `name`. */
+  display_name?: string;
+  name?: string;
   bio?: string | null;
   city?: string | null;
   is_company?: boolean;

@@ -73,6 +73,9 @@ export interface OrganizerSummary {
   name: string;
   logo?: string;
   bio: string;
+  slug?: string;
+  code?: string;
+  eventsCount?: number;
 }
 
 export interface MockEvent {

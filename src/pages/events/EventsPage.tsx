@@ -8,6 +8,7 @@ import {
   useListEventsQuery,
 } from '@/api/endpoints';
 import type { EventLayoutType, EventListQuery } from '@/api/types/event';
+import type { EventCategoryRef } from '@/api/types/reference';
 import { eventListItemToCardProps } from '@/lib/eventMappers';
 import { cn } from '@/lib/utils';
 import {
@@ -17,6 +18,8 @@ import {
 } from '@/lib/formDraftStorage';
 
 const PER_PAGE = 12;
+
+const EMPTY_EVENT_CATEGORIES: EventCategoryRef[] = [];
 
 export function EventsPage() {
   const navigate = useNavigate();
@@ -62,14 +65,37 @@ export function EventsPage() {
 
   const { data: categoriesResp } = useGetEventCategoriesQuery();
   const { data: citiesResp } = useGetEventCitiesQuery();
-  const categories = categoriesResp?.data ?? [];
+  const categories = categoriesResp?.data ?? EMPTY_EVENT_CATEGORIES;
   const cities = citiesResp?.data ?? [];
+
+  /** Numeric category id for `GET /events?category=`; omits slug until taxonomy loads. */
+  const categoryQueryParam = useMemo((): string | undefined => {
+    if (category === 'all') return undefined;
+    if (/^\d+$/.test(category)) {
+      if (categories.length === 0) return category;
+      return categories.some((c) => String(c.id) === category) ? category : undefined;
+    }
+    if (categories.length === 0) return undefined;
+    const m = categories.find((x) => String(x.slug).toLowerCase() === category.toLowerCase());
+    return m ? String(m.id) : undefined;
+  }, [category, categories]);
+
+  const categorySelectValue = useMemo(() => {
+    if (category === 'all') return 'all';
+    if (/^\d+$/.test(category)) {
+      if (categories.length === 0) return category;
+      return categories.some((c) => String(c.id) === category) ? category : 'all';
+    }
+    if (categories.length === 0) return category;
+    const m = categories.find((c) => String(c.slug).toLowerCase() === category.toLowerCase());
+    return m ? String(m.id) : 'all';
+  }, [category, categories]);
 
   const query: EventListQuery = useMemo(() => {
     const q: EventListQuery = { page, per_page: PER_PAGE };
     const kw = keyword.trim();
     if (kw) q.keyword = kw;
-    if (category !== 'all') q.category = category;
+    if (categoryQueryParam) q.category = categoryQueryParam;
     if (city !== 'all') q.city = city;
     if (dateFrom) q.date_from = dateFrom;
     if (dateTo) q.date_to = dateTo;
@@ -82,7 +108,7 @@ export function EventsPage() {
   }, [
     page,
     keyword,
-    category,
+    categoryQueryParam,
     city,
     dateFrom,
     dateTo,
@@ -103,7 +129,7 @@ export function EventsPage() {
     setPage(1);
   }, [
     keyword,
-    category,
+    categoryQueryParam,
     city,
     dateFrom,
     dateTo,
@@ -119,6 +145,42 @@ export function EventsPage() {
     setCategory(c && c.length > 0 ? c : 'all');
     setKeyword(searchParams.get('keyword')?.trim() ?? '');
   }, [searchParams]);
+
+  useEffect(() => {
+    if (category === 'all') return;
+    if (categories.length === 0) return;
+
+    if (/^\d+$/.test(category)) {
+      if (!categories.some((c) => String(c.id) === category)) {
+        setCategory('all');
+        setSearchParams((prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete('category');
+          return next;
+        }, { replace: true });
+      }
+      return;
+    }
+
+    const bySlug = categories.find((x) => String(x.slug).toLowerCase() === category.toLowerCase());
+    if (bySlug) {
+      const id = String(bySlug.id);
+      setCategory(id);
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('category', id);
+        return next;
+      }, { replace: true });
+      return;
+    }
+
+    setCategory('all');
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('category');
+      return next;
+    }, { replace: true });
+  }, [category, categories, setSearchParams]);
 
   useEffect(() => {
     const stored = readEventsFilterDraft();
@@ -272,7 +334,7 @@ export function EventsPage() {
                       Category
                     </span>
                     <select
-                      value={category}
+                      value={categorySelectValue}
                       onChange={(e) => {
                         const v = e.target.value;
                         setCategory(v);
@@ -289,8 +351,13 @@ export function EventsPage() {
                       )}
                     >
                       <option value="all">All categories</option>
+                      {category !== 'all' &&
+                        !/^\d+$/.test(category) &&
+                        categories.length === 0 && (
+                          <option value={category}>{category}</option>
+                        )}
                       {categories.map((c) => (
-                        <option key={c.slug} value={c.slug}>
+                        <option key={String(c.id)} value={String(c.id)}>
                           {c.name}
                         </option>
                       ))}
