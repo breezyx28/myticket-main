@@ -41,6 +41,9 @@ const OrganizerProfilePage = lazy(() =>
     default: m.OrganizerProfilePage,
   })),
 );
+const AuctionPage = lazy(() =>
+  import('@/pages/auction/AuctionPage').then((m) => ({ default: m.AuctionPage })),
+);
 const AuctionEventPage = lazy(() =>
   import('@/pages/auction/AuctionEventPage').then((m) => ({ default: m.AuctionEventPage })),
 );
