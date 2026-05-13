@@ -9,7 +9,7 @@ import {
 } from '@/api/endpoints';
 import type { EventLayoutType, EventListQuery } from '@/api/types/event';
 import type { EventCategoryRef } from '@/api/types/reference';
-import { eventListItemToCardProps } from '@/lib/eventMappers';
+import { eventListItemPublicPathSegment, eventListItemToCardProps } from '@/lib/eventMappers';
 import { cn } from '@/lib/utils';
 import {
   clearEventsFilterDraft,
@@ -499,7 +499,9 @@ export function EventsPage() {
                   <EventCard
                     key={e.id}
                     {...props}
-                    onClick={() => navigate(`/events/${e.slug ?? e.code ?? e.id}`)}
+                    onClick={() =>
+                      navigate(`/events/${encodeURIComponent(eventListItemPublicPathSegment(e))}`)
+                    }
                   />
                 );
               })}

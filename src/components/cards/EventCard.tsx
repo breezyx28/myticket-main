@@ -60,7 +60,10 @@ function StarDisplay({ value }: { value: number }) {
 }
 
 export interface EventCardProps {
+  /** API event id (favorites, ratings `subject_id`). */
   eventId?: string;
+  /** Public slug/code for `/events/{segment}` and default share URL; falls back to `eventId`. */
+  detailPathSegment?: string;
   title: string;
   category: string;
   accentColor: string;
@@ -86,6 +89,7 @@ export interface EventCardProps {
 
 export function EventCard({
   eventId,
+  detailPathSegment,
   title,
   category,
   accentColor,
@@ -143,7 +147,10 @@ export function EventCard({
 
   const [liked, setLiked] = useState(false);
   useEffect(() => {
-    if (apiFavoriteState != null) setLiked(apiFavoriteState);
+    if (apiFavoriteState == null) return;
+    queueMicrotask(() => {
+      setLiked(apiFavoriteState);
+    });
   }, [apiFavoriteState]);
 
   const [cardHover, setCardHover] = useState(false);
@@ -154,11 +161,15 @@ export function EventCard({
 
   const resolvedShareUrl = useMemo(() => {
     if (shareUrlProp) return shareUrlProp;
-    if (typeof window !== 'undefined' && eventId) {
-      return `${window.location.origin}/events/${eventId}`;
+    const segment =
+      (typeof detailPathSegment === 'string' && detailPathSegment.trim() !== ''
+        ? detailPathSegment.trim()
+        : null) ?? (typeof eventId === 'string' && eventId.trim() !== '' ? eventId.trim() : '');
+    if (typeof window !== 'undefined' && segment) {
+      return `${window.location.origin}/events/${encodeURIComponent(segment)}`;
     }
     return typeof window !== 'undefined' ? window.location.href : '';
-  }, [shareUrlProp, eventId]);
+  }, [shareUrlProp, eventId, detailPathSegment]);
 
   const toggleLike = useCallback(
     async (e: React.MouseEvent) => {
@@ -442,18 +453,44 @@ export function EventCard({
               )}
             >
               <div className="min-w-0">
-                <span
-                  className={cn(
-                    'mb-0.5 block text-[9px] font-semibold uppercase tracking-wide',
-                    lightAccent ? 'text-ink/50' : 'text-white/70'
-                  )}
-                >
-                  From
-                </span>
-                <span className="inline-flex items-baseline gap-0.5 font-mono text-[16px] font-black leading-none tracking-tight" dir="ltr">
-                  <span>{priceAmount}</span>
-                  <SaudiRiyalIcon className="h-[1.05em] w-[1.05em] translate-y-[0.06em]" />
-                </span>
+                {priceFrom > 0 ? (
+                  <>
+                    <span
+                      className={cn(
+                        'mb-0.5 block text-[9px] font-semibold uppercase tracking-wide',
+                        lightAccent ? 'text-ink/50' : 'text-white/70'
+                      )}
+                    >
+                      From
+                    </span>
+                    <span
+                      className="inline-flex items-baseline gap-0.5 font-mono text-[18px] font-black leading-none tracking-tight sm:text-[19px]"
+                      dir="ltr"
+                    >
+                      <span>{priceAmount}</span>
+                      <SaudiRiyalIcon className="h-[1.05em] w-[1.05em] translate-y-[0.06em]" />
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span
+                      className={cn(
+                        'mb-0.5 block text-[9px] font-semibold uppercase tracking-wide',
+                        lightAccent ? 'text-ink/50' : 'text-white/70'
+                      )}
+                    >
+                      Tickets
+                    </span>
+                    <span
+                      className={cn(
+                        'text-[13px] font-bold leading-tight',
+                        lightAccent ? 'text-ink/90' : 'text-white'
+                      )}
+                    >
+                      See event for pricing
+                    </span>
+                  </>
+                )}
               </div>
               <button
                 type="button"

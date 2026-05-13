@@ -38,7 +38,7 @@ import {
   useListMyWaitlistQuery,
   useSubmitRatingMutation,
 } from '@/api/endpoints';
-import { mergeEventTicketTypes, eventListItemToCardProps } from '@/lib/eventMappers';
+import { mergeEventTicketTypes, eventListItemPublicPathSegment, eventListItemToCardProps } from '@/lib/eventMappers';
 import { apiAuctionToMockAuctionListing } from '@/lib/auctionMappers';
 import type { MockAuctionListing, MockEvent } from '@/types/domain';
 import { cn } from '@/lib/utils';
@@ -780,7 +780,9 @@ export function EventDetailPage() {
                     <RichEventCard
                       key={re.id}
                       {...props}
-                      onClick={() => navigate(`/events/${re.slug}`)}
+                      onClick={() =>
+                        navigate(`/events/${encodeURIComponent(eventListItemPublicPathSegment(re))}`)
+                      }
                       className="w-full"
                     />
                   );

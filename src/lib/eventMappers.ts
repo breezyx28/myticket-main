@@ -52,14 +52,36 @@ export function formatCardDateTime(iso: string): { date: string; time: string } 
 }
 
 /**
- * Project an API `EventListItem` onto the shape `EventCard` expects, so the
- * card markup stays untouched while the data source moves from mocks to
- * `useListEventsQuery` / `useGetFeaturedEventsQuery`.
- *
- * `eventId` is intentionally set to the **slug** so existing `onClick` /
- * navigation handlers (`/events/${eventId}`) keep working — the route param
- * is treated as a slug end-to-end in Phase 3.
+ * First non-empty slug/code (trimmed), else numeric id — use as `/events/{segment}`
+ * for `useGetEventBySlugQuery` (the route param is the public slug).
  */
+export function eventListItemPublicPathSegment(e: EventListItem): string {
+  const r = e as Record<string, unknown>;
+  const slug = typeof e.slug === 'string' && e.slug.trim() !== '' ? e.slug.trim() : null;
+  if (slug) return slug;
+  const code = typeof e.code === 'string' && e.code.trim() !== '' ? e.code.trim() : null;
+  if (code) return code;
+  for (const key of ['event_slug', 'public_slug'] as const) {
+    const v = r[key];
+    if (typeof v === 'string' && v.trim() !== '') return v.trim();
+  }
+  return String(e.id);
+}
+
+function minPriceFromListTicketTypes(r: Record<string, unknown>): number | null {
+  const types = r.ticket_types;
+  if (!Array.isArray(types) || types.length === 0) return null;
+  let minP = Infinity;
+  for (const t of types) {
+    if (!t || typeof t !== 'object') continue;
+    const tr = t as Record<string, unknown>;
+    if (tr.is_active === false) continue;
+    const p = priceFromTicketApi(tr.price ?? tr.amount ?? tr.unit_price);
+    if (Number.isFinite(p) && p >= 0 && p < minP) minP = p;
+  }
+  return Number.isFinite(minP) && minP < Infinity ? minP : null;
+}
+
 function parseEventsCount(raw: EventOrganizerSummary['events_count']): number | undefined {
   if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
   if (typeof raw === 'string' && raw.trim() !== '') {
@@ -130,18 +152,33 @@ function listItemPriceFrom(e: EventListItem): number {
     coerceFiniteNumber(r.price_min) ??
     coerceFiniteNumber(r.price_from) ??
     coerceFiniteNumber(r.starting_price) ??
-    coerceFiniteNumber(r.min_price);
+    coerceFiniteNumber(r.min_price) ??
+    coerceFiniteNumber(r.price) ??
+    coerceFiniteNumber(r.lowest_price) ??
+    coerceFiniteNumber(r.from_price) ??
+    coerceFiniteNumber(r.min_ticket_price) ??
+    coerceFiniteNumber(r.lowest_ticket_price);
   const fromMax = coerceFiniteNumber(e.price_max) ?? coerceFiniteNumber(r.price_max);
-  const base = fromMin ?? fromMax ?? 0;
+  const fromTypes = minPriceFromListTicketTypes(r);
+  const base = fromMin ?? fromMax ?? fromTypes ?? 0;
   return Number.isFinite(base) ? Math.max(0, Math.round(base)) : 0;
 }
 
+/**
+ * Project an API `EventListItem` onto the shape `EventCard` expects, so the
+ * card markup stays untouched while the data source moves from mocks to
+ * `useListEventsQuery` / `useGetFeaturedEventsQuery`.
+ *
+ * `eventId` is the API **event row id** (favorites, ratings). Use
+ * `detailPathSegment` / `eventListItemPublicPathSegment` for `/events/:slug`
+ * navigation — never rely on `slug ?? code` alone (empty string is not nullish).
+ */
 export function eventListItemToCardProps(e: EventListItem): EventCardProps {
   const r = e as Record<string, unknown>;
   const startAt = e.date_start ?? e.starts_at ?? (typeof r.starts_at === 'string' ? r.starts_at : '') ?? '';
   const { date, time } = formatCardDateTime(startAt);
   const priceFrom = listItemPriceFrom(e);
-  const eventKey = e.slug ?? e.code ?? String(e.id);
+  const detailPathSegment = eventListItemPublicPathSegment(e);
   const categoryLabel = e.category ?? e.category_name ?? (typeof r.category === 'string' ? r.category : null) ?? 'Event';
   const venueLabel = e.venue ?? e.venue_name ?? (typeof r.venue === 'string' ? r.venue : '') ?? '';
   const cityLabel = e.city ?? e.city_name ?? (typeof r.city === 'string' ? r.city : '') ?? '';
@@ -159,7 +196,8 @@ export function eventListItemToCardProps(e: EventListItem): EventCardProps {
     coerceFiniteNumber(r.rating_avg) ??
     coerceFiniteNumber(r.average_rating);
   return {
-    eventId: eventKey,
+    eventId: String(e.id),
+    detailPathSegment,
     title: e.title,
     category: categoryLabel,
     accentColor: accentForCategory(categoryLabel),

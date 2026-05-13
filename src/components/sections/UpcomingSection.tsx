@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { EventCard } from '@/components/cards/EventCard';
 import { useListEventsQuery } from '@/api/endpoints';
 import type { EventListQuery } from '@/api/types/event';
-import { eventListItemToCardProps } from '@/lib/eventMappers';
+import { eventListItemPublicPathSegment, eventListItemToCardProps } from '@/lib/eventMappers';
 import { cn } from '@/lib/utils';
 
 const dateFilters = ['All', 'Today', 'This Week', 'This Month', 'Weekend'] as const;
@@ -109,7 +109,9 @@ export function UpcomingSection() {
                   key={e.id}
                   {...props}
                   className="w-full"
-                  onClick={() => navigate(`/events/${e.slug ?? e.code ?? e.id}`)}
+                  onClick={() =>
+                    navigate(`/events/${encodeURIComponent(eventListItemPublicPathSegment(e))}`)
+                  }
                 />
               );
             })}
