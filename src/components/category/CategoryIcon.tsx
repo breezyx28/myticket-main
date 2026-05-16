@@ -1,30 +1,42 @@
-import type { ComponentType } from 'react';
-import * as PhosphorIcons from '@phosphor-icons/react';
-import { CalendarBlank, type IconProps } from '@phosphor-icons/react';
-
-type PhosphorIconName = keyof typeof PhosphorIcons;
+import { createElement, useEffect, useMemo, useState } from 'react';
+import { CalendarBlank, type Icon, type IconProps } from '@phosphor-icons/react';
+import {
+  isStaticPhosphorIconKey,
+  loadPhosphorIconAsync,
+  resolvePhosphorIconSync,
+} from '@/lib/phosphorIconRegistry';
 
 export type CategoryIconProps = IconProps & {
   iconKey: string | null | undefined;
+  /** Used when `icon_key` is missing or fails to resolve. */
+  slugFallback?: string;
 };
 
 /**
  * Renders a Phosphor icon by API `icon_key` (PascalCase export name, e.g. `MusicNotes`).
  */
-export function CategoryIcon({ iconKey, ...props }: CategoryIconProps) {
-  if (!iconKey?.trim()) {
-    return <CalendarBlank {...props} />;
-  }
+export function CategoryIcon({ iconKey, slugFallback, ...props }: CategoryIconProps) {
+  const syncIcon = useMemo(
+    () => resolvePhosphorIconSync(iconKey, slugFallback, CalendarBlank),
+    [iconKey, slugFallback],
+  );
 
-  const Icon = PhosphorIcons[iconKey.trim() as PhosphorIconName];
+  const needsDynamicLoad = Boolean(iconKey?.trim()) && !isStaticPhosphorIconKey(iconKey);
+  const [dynamicIcon, setDynamicIcon] = useState<Icon | null>(null);
 
-  if (typeof Icon !== 'function' && (typeof Icon !== 'object' || Icon === null)) {
-    if (import.meta.env.DEV) {
-      console.warn(`Unknown Phosphor icon_key: ${iconKey}`);
-    }
-    return <CalendarBlank {...props} />;
-  }
+  useEffect(() => {
+    if (!needsDynamicLoad || !iconKey?.trim()) return;
 
-  const Resolved = Icon as ComponentType<IconProps>;
-  return <Resolved {...props} />;
+    let cancelled = false;
+    void loadPhosphorIconAsync(iconKey.trim(), slugFallback, CalendarBlank).then((loaded) => {
+      if (!cancelled) setDynamicIcon(loaded);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [iconKey, slugFallback, needsDynamicLoad]);
+
+  const displayIcon = needsDynamicLoad ? (dynamicIcon ?? CalendarBlank) : syncIcon;
+
+  return createElement(displayIcon, props);
 }

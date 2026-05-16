@@ -1,10 +1,15 @@
 import type { Icon } from '@phosphor-icons/react';
 import { Link } from 'react-router-dom';
+import { CategoryIcon } from '@/components/category/CategoryIcon';
 import { cn } from '@/lib/utils';
 
 interface CategoryTileProps {
   label: string;
-  icon: Icon;
+  /** @deprecated Prefer `iconKey` from the categories API. */
+  icon?: Icon;
+  iconKey?: string | null;
+  /** Slug used to pick a fallback icon when `icon_key` is missing. */
+  iconSlugFallback?: string;
   color: string;
   count?: number;
   size?: 'sm' | 'md' | 'lg';
@@ -19,7 +24,17 @@ const sizeMap = {
   lg: { tile: 'w-[220px] h-[220px] p-6', icon: 80 },
 };
 
-export function CategoryTile({ label, icon: Icon, color, count, size = 'md', onClick, to }: CategoryTileProps) {
+export function CategoryTile({
+  label,
+  icon: IconProp,
+  iconKey,
+  iconSlugFallback,
+  color,
+  count,
+  size = 'md',
+  onClick,
+  to,
+}: CategoryTileProps) {
   const s = sizeMap[size];
   const className = cn(
     'rounded-3xl flex flex-col justify-between text-left cursor-pointer',
@@ -37,7 +52,27 @@ export function CategoryTile({ label, icon: Icon, color, count, size = 'md', onC
           <span className="text-[11px] opacity-60 mt-0.5 block">{count.toLocaleString()} events</span>
         )}
       </div>
-      <Icon size={s.icon} weight="fill" className="opacity-90 self-end" />
+      {iconKey != null && iconKey !== '' ? (
+        <CategoryIcon
+          key={iconKey ?? iconSlugFallback ?? 'default'}
+          iconKey={iconKey}
+          slugFallback={iconSlugFallback}
+          size={s.icon}
+          weight="fill"
+          className="opacity-90 self-end"
+        />
+      ) : IconProp ? (
+        <IconProp size={s.icon} weight="fill" className="opacity-90 self-end" />
+      ) : (
+        <CategoryIcon
+          key={iconSlugFallback ?? 'default'}
+          iconKey={null}
+          slugFallback={iconSlugFallback}
+          size={s.icon}
+          weight="fill"
+          className="opacity-90 self-end"
+        />
+      )}
     </>
   );
   if (to) {

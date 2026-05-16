@@ -29,7 +29,8 @@ export function CategorySection() {
               <CategoryTile
                 key={String(cat.id)}
                 label={cat.name}
-                icon={style.icon}
+                iconKey={cat.icon_key}
+                iconSlugFallback={cat.slug}
                 color={style.color}
                 count={count}
                 to={`/events?category=${encodeURIComponent(String(cat.id))}`}

@@ -1,6 +1,6 @@
-import * as PhosphorIcons from '@phosphor-icons/react';
 import { CalendarBlank, Tag, type Icon } from '@phosphor-icons/react';
 import type { EventCategoryRef } from '@/api/types/reference';
+import { resolvePhosphorIcon } from '@/lib/phosphorIconRegistry';
 
 export type CategoryTileVisual = { icon: Icon; color: string };
 
@@ -77,8 +77,6 @@ const STYLE_BY_SLUG: Record<string, string> = {
   charity: 'bg-blush text-ink',
 };
 
-type PhosphorIconName = keyof typeof PhosphorIcons;
-
 function normalizeColorToken(raw: string | null | undefined): string {
   return (raw ?? '').trim().toLowerCase().replace(/_/g, '-');
 }
@@ -105,25 +103,12 @@ export function categoryTileColorClasses(
   return DEFAULT_TILE_COLOR;
 }
 
-/**
- * Resolves API `icon_key` to a Phosphor component for `CategoryTile`.
- */
-export function resolveCategoryIcon(iconKey: string | null | undefined): Icon {
-  if (!iconKey?.trim()) {
-    return DEFAULT_ICON;
-  }
-
-  const name = iconKey.trim() as PhosphorIconName;
-  const Icon = PhosphorIcons[name];
-
-  if (typeof Icon === 'function' || (typeof Icon === 'object' && Icon !== null)) {
-    return Icon as Icon;
-  }
-
-  if (import.meta.env.DEV) {
-    console.warn(`Unknown Phosphor icon_key: ${iconKey}`);
-  }
-  return DEFAULT_ICON;
+/** Resolves API `icon_key` to a Phosphor component for `CategoryTile`. */
+export function resolveCategoryIcon(
+  iconKey: string | null | undefined,
+  slugFallback?: string,
+): Icon {
+  return resolvePhosphorIcon(iconKey, DEFAULT_ICON, slugFallback);
 }
 
 /** @deprecated Prefer `categoryTileVisualForCategory` with API fields. */
@@ -140,7 +125,7 @@ export function categoryTileVisualForCategory(
   cat: Pick<EventCategoryRef, 'slug' | 'icon_key' | 'color_token'>,
 ): CategoryTileVisual {
   return {
-    icon: resolveCategoryIcon(cat.icon_key),
+    icon: resolveCategoryIcon(cat.icon_key, cat.slug),
     color: categoryTileColorClasses(cat.color_token, cat.slug),
   };
 }
