@@ -1,11 +1,15 @@
 import type { Id } from '@/api/types/common';
 
-/** `GET /events/categories` — reduced DTO (active categories, ordered server-side). */
+/** `GET /events/categories` — public list DTO (active categories, ordered server-side). */
 export interface EventCategoryRef {
   id: Id;
   slug: string;
   name: string;
   name_ar?: string | null;
+  /** PascalCase `@phosphor-icons/react` export name, e.g. `MusicNotes`. */
+  icon_key?: string | null;
+  /** Semantic or hue token mapped to theme tile colors, e.g. `primary`, `purple`. */
+  color_token?: string | null;
   /** Published events with this category (`deleted_at` null). */
   events_count?: number | string | null;
   [key: string]: unknown;

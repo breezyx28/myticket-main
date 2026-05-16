@@ -1,6 +1,6 @@
 import { CategoryTile } from '@/components/cards/CategoryTile';
 import { useGetEventCategoriesQuery } from '@/api/endpoints';
-import { categoryTileVisualForSlug, parseCategoryEventsCount } from '@/lib/eventCategoryUi';
+import { categoryTileVisualForCategory, parseCategoryEventsCount } from '@/lib/eventCategoryUi';
 
 export function CategorySection() {
   const { data, isFetching, isError } = useGetEventCategoriesQuery();
@@ -23,7 +23,7 @@ export function CategorySection() {
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
           {categories.map((cat) => {
-            const style = categoryTileVisualForSlug(cat.slug);
+            const style = categoryTileVisualForCategory(cat);
             const count = parseCategoryEventsCount(cat.events_count);
             return (
               <CategoryTile
