@@ -9,14 +9,21 @@ import {
   useGetEventTicketTypesQuery,
 } from '@/api/endpoints';
 import type { Id } from '@/api/types/common';
+import type { SeatLock } from '@/api/types/seat';
 import { Button } from '@/components/ui/Button';
 import { SeatGridRaw } from '@/components/seats/SeatGridRaw';
 import { SeatLegend } from '@/components/seats/SeatLegend';
 import { useAuth } from '@/contexts/AuthContext';
 import { mergeEventTicketTypes } from '@/lib/eventMappers';
 import { apiSeatsToSeatRecords, ticketTypeRowHints, uiSeatIdToApi } from '@/lib/seatMappers';
+import {
+  filterSeatsForMapDisplay,
+  getSeatInventoryStats,
+  isSeatSelectable,
+  seatRecordsFromLockIds,
+  toSelectedSeat,
+} from '@/lib/seating';
 import { formatTicketRemainingLabel } from '@/lib/ticketTypeFromApi';
-import { getSeatInventoryStats, isSeatSelectable, toSelectedSeat } from '@/lib/seating';
 import type { SeatRecord } from '@/types/seating';
 
 const DEFAULT_LOCK_TTL_SECONDS = 180;
@@ -38,6 +45,18 @@ function formatCountdown(secondsLeft: number): string {
   const m = Math.floor(secondsLeft / 60);
   const s = secondsLeft % 60;
   return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function applyLockToState(lock: SeatLock, setters: {
+  setActiveLockId: (id: Id) => void;
+  setLockExpiresAt: (at: string) => void;
+  setSelectedTicketTypeId: (id: string) => void;
+  setSelectedSeatIds: (ids: string[]) => void;
+}) {
+  setters.setActiveLockId(lock.id);
+  setters.setLockExpiresAt(lock.expires_at);
+  setters.setSelectedTicketTypeId(String(lock.ticket_type_id));
+  setters.setSelectedSeatIds((lock.seat_ids ?? []).map(String));
 }
 
 export function SeatSelectionPage() {
@@ -68,10 +87,11 @@ export function SeatSelectionPage() {
   );
   const inventory = useMemo(() => apiSeatsToSeatRecords(seatMap?.seats), [seatMap]);
 
-  const { data: currentLock } = useGetCurrentSeatLockQuery(
-    { slug },
-    { skip: !slug || !user || !isSeated },
-  );
+  const {
+    data: currentLock,
+    isFetching: currentLockFetching,
+    isLoading: currentLockLoading,
+  } = useGetCurrentSeatLockQuery({ slug }, { skip: !slug || !user || !isSeated });
 
   const [selectedTicketTypeId, setSelectedTicketTypeId] = useState('');
   const [selectedSeatIds, setSelectedSeatIds] = useState<string[]>([]);
@@ -86,6 +106,9 @@ export function SeatSelectionPage() {
   const [createLock, { isLoading: creatingLock }] = useCreateSeatLockMutation();
   const [extendLock, { isLoading: extendingLock }] = useExtendSeatLockMutation();
 
+  const lockData = currentLock && 'data' in currentLock ? currentLock.data : null;
+  const waitingForLock = Boolean(user && isSeated && (currentLockLoading || currentLockFetching) && !hydrated);
+
   const ticketTypeNameById = useMemo(() => {
     const map = new Map<string, string>();
     if (!event) return map;
@@ -95,6 +118,11 @@ export function SeatSelectionPage() {
     return map;
   }, [event]);
 
+  const displaySeats = useMemo(
+    () => filterSeatsForMapDisplay(inventory, selectedSeatIds),
+    [inventory, selectedSeatIds],
+  );
+
   const rowHints = useMemo(
     () => ticketTypeRowHints(inventory, ticketTypeNameById),
     [inventory, ticketTypeNameById],
@@ -102,27 +130,51 @@ export function SeatSelectionPage() {
 
   useEffect(() => {
     if (!event || hydrated) return;
-    const lockData = currentLock && 'data' in currentLock ? currentLock.data : null;
+    if (user && (currentLockLoading || currentLockFetching)) return;
+
     if (lockData) {
-      setActiveLockId(lockData.id);
-      setLockExpiresAt(lockData.expires_at);
-      setSelectedTicketTypeId(String(lockData.ticket_type_id));
-      setSelectedSeatIds((lockData.seat_ids ?? []).map(String));
+      applyLockToState(lockData, {
+        setActiveLockId,
+        setLockExpiresAt,
+        setSelectedTicketTypeId,
+        setSelectedSeatIds,
+      });
       setHydrated(true);
       return;
     }
+
     setSelectedTicketTypeId(incomingState.selectedTicketTypeId ?? event.ticketTypes[0]?.id ?? '');
     setSelectedSeatIds(incomingState.selectedSeats?.map((seat) => seat.seatId) ?? []);
     if (incomingState.lockId != null) setActiveLockId(incomingState.lockId);
     setHydrated(true);
   }, [
     event,
-    currentLock,
     hydrated,
+    user,
+    currentLockLoading,
+    currentLockFetching,
+    lockData,
     incomingState.selectedTicketTypeId,
     incomingState.selectedSeats,
     incomingState.lockId,
   ]);
+
+  useEffect(() => {
+    if (!event || !hydrated || !lockData) return;
+    const lockSeatIds = (lockData.seat_ids ?? []).map(String);
+    const sameType = String(lockData.ticket_type_id) === selectedTicketTypeId;
+    const sameSeats =
+      lockSeatIds.length === selectedSeatIds.length &&
+      lockSeatIds.every((id) => selectedSeatIds.includes(id));
+    if (sameType && sameSeats && activeLockId === lockData.id) return;
+
+    applyLockToState(lockData, {
+      setActiveLockId,
+      setLockExpiresAt,
+      setSelectedTicketTypeId,
+      setSelectedSeatIds,
+    });
+  }, [event, hydrated, lockData, selectedTicketTypeId, selectedSeatIds, activeLockId]);
 
   useEffect(() => {
     if (!event || !hydrated) return;
@@ -148,17 +200,22 @@ export function SeatSelectionPage() {
     [event, selectedTicketTypeId],
   );
 
-  const selectedSeats = useMemo(
-    () => inventory.filter((seat) => selectedSeatIds.includes(seat.id)),
-    [inventory, selectedSeatIds],
-  );
+  const ticketTypeForSelection = lockData
+    ? String(lockData.ticket_type_id)
+    : selectedTicketTypeId;
 
-  const seatStats = useMemo(() => getSeatInventoryStats(inventory), [inventory]);
+  const selectedSeats = useMemo(
+    () => seatRecordsFromLockIds(inventory, selectedSeatIds, ticketTypeForSelection),
+    [inventory, selectedSeatIds, ticketTypeForSelection],
+  );
 
   const lockTicketTypeId = useMemo(() => {
     if (selectedSeats.length > 0) return selectedSeats[0].ticketTypeId;
+    if (lockData) return String(lockData.ticket_type_id);
     return selectedTicketTypeId;
-  }, [selectedSeats, selectedTicketTypeId]);
+  }, [selectedSeats, lockData, selectedTicketTypeId]);
+
+  const seatStats = useMemo(() => getSeatInventoryStats(displaySeats), [displaySeats]);
 
   function applySeatSelection(seat: SeatRecord) {
     if (selectedSeatIds.includes(seat.id)) {
@@ -175,7 +232,7 @@ export function SeatSelectionPage() {
   }
 
   function toggleSeat(seat: SeatRecord) {
-    if (!isSeatSelectable(seat)) return;
+    if (!isSeatSelectable(seat, selectedSeatIds)) return;
     if (selectedSeatIds.includes(seat.id)) {
       applySeatSelection(seat);
       return;
@@ -226,7 +283,7 @@ export function SeatSelectionPage() {
       };
       setActiveLockId(lock.id);
       setLockExpiresAt(lock.expires_at);
-      navigate(`/checkout/${eventId}`, { state });
+      navigate(`/checkout/${eventId}`, { state, replace: true });
     } catch (err) {
       const message =
         (err as { data?: { message?: string } })?.data?.message ??
@@ -249,7 +306,7 @@ export function SeatSelectionPage() {
     }
   }
 
-  if (eventLoading || (!event && !eventError)) {
+  if (eventLoading || (!event && !eventError) || waitingForLock) {
     return <div className="px-6 py-24 text-center text-ink-40">Loading…</div>;
   }
   if (eventError || !event) {
@@ -392,13 +449,13 @@ export function SeatSelectionPage() {
             <div className="mt-4">
               {seatsFetching && inventory.length === 0 ? (
                 <p className="py-12 text-center text-[12px] text-ink-40">Loading seat map…</p>
-              ) : !seatsFetching && inventory.length === 0 ? (
+              ) : !seatsFetching && displaySeats.length === 0 ? (
                 <div className="py-12 text-center">
                   <p className="text-[14px] font-semibold text-ink">No seats available</p>
                   <p className="mt-2 text-[12px] text-ink-40">
                     {seatsError
                       ? 'We could not load the seat map. Try again or return to the event.'
-                      : 'This event has no seat inventory yet.'}
+                      : 'All seats are currently held or sold.'}
                   </p>
                   <Link
                     to={`/events/${event.id}`}
@@ -409,7 +466,7 @@ export function SeatSelectionPage() {
                 </div>
               ) : (
                 <SeatGridRaw
-                  seats={inventory}
+                  seats={displaySeats}
                   selectedSeatIds={selectedSeatIds}
                   highlightTicketTypeId={selectedTicketTypeId}
                   onToggleSeat={toggleSeat}
@@ -422,21 +479,21 @@ export function SeatSelectionPage() {
             <h2 className="text-[15px] font-extrabold text-ink">Selection</h2>
             <p className="mt-1 text-[12px] text-ink-40">
               {selectedSeats.length > 0
-                ? ticketTypeNameById.get(lockTicketTypeId) ?? currentTicketType?.name ?? '—'
+                ? (ticketTypeNameById.get(lockTicketTypeId) ?? currentTicketType?.name ?? '—')
                 : `Highlighting ${currentTicketType?.name ?? '—'}`}
             </p>
 
             <div className="mt-4 space-y-2 rounded-xl bg-ink-5/70 p-3 text-[12px] text-ink-60">
               <div className="flex items-center justify-between">
-                <span>Available</span>
+                <span>Available on map</span>
                 <span className="font-semibold text-ink">{seatStats.available}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span>Held</span>
+                <span>Held on map</span>
                 <span className="font-semibold text-ink">{seatStats.held}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span>Booked</span>
+                <span>Booked on map</span>
                 <span className="font-semibold text-ink">{seatStats.booked}</span>
               </div>
             </div>

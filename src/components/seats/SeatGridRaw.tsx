@@ -30,7 +30,7 @@ export function SeatGridRaw({
               <span className="w-12 shrink-0 text-[11px] font-semibold text-ink-40">{rowHeader}</span>
               <div className="flex flex-wrap gap-2">
                 {row.seats.map((seat) => {
-                  const selectable = isSeatSelectable(seat);
+                const selectable = isSeatSelectable(seat, selectedSeatIds);
                   const selected = selectedSeatIds.includes(seat.id);
                   const highlighted = seat.ticketTypeId === highlightTicketTypeId;
                   return (

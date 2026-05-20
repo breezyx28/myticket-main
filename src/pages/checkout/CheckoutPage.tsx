@@ -27,7 +27,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { mergeEventTicketTypes } from '@/lib/eventMappers';
 import { apiSeatsToSeatRecords, uiSeatIdToApi } from '@/lib/seatMappers';
-import { isSeatSelectable } from '@/lib/seating';
+import { isSeatSelectable, seatRecordsFromLockIds, toSelectedSeat } from '@/lib/seating';
 import {
   brandToMethod,
   CARD_PAYMENT_METHODS,
@@ -109,7 +109,6 @@ export function CheckoutPage() {
   const [selectedSavedCardId, setSelectedSavedCardId] = useState<Id | null>(null);
   const [savedCardAutoSelected, setSavedCardAutoSelected] = useState(false);
 
-  const selectedSeats = useMemo(() => locationState.selectedSeats ?? [], [locationState.selectedSeats]);
   const stateLockId = locationState.lockId ?? null;
 
   const [createOrder, { isLoading: creatingOrder }] = useCreateOrderMutation();
@@ -164,18 +163,39 @@ export function CheckoutPage() {
     }
   }, [event, step]);
 
-  const { data: currentLockEnvelope, isFetching: currentLockFetching } = useGetCurrentSeatLockQuery(
-    { slug },
-    { skip: !slug || !user || event?.layoutType !== 'free' },
-  );
+  const {
+    data: currentLockEnvelope,
+    isFetching: currentLockFetching,
+    isLoading: currentLockLoading,
+  } = useGetCurrentSeatLockQuery({ slug }, { skip: !slug || !user });
 
-  const serverLockId = useMemo(() => {
-    if (event?.layoutType !== 'free') return null;
-    if (currentLockEnvelope && 'data' in currentLockEnvelope) return currentLockEnvelope.data.id;
+  const serverLock = useMemo(() => {
+    if (currentLockEnvelope && 'data' in currentLockEnvelope) return currentLockEnvelope.data;
     return null;
-  }, [event?.layoutType, currentLockEnvelope]);
+  }, [currentLockEnvelope]);
+
+  const serverLockId = serverLock?.id ?? null;
 
   const lockId = useMemo(() => stateLockId ?? serverLockId, [stateLockId, serverLockId]);
+
+  const { data: seatedSeatMap } = useGetEventSeatsQuery(
+    { slug },
+    { skip: !slug || event?.layoutType !== 'seated' },
+  );
+
+  const seatedInventory = useMemo(() => apiSeatsToSeatRecords(seatedSeatMap?.seats), [seatedSeatMap]);
+
+  const selectedSeats = useMemo(() => {
+    const fromState = locationState.selectedSeats ?? [];
+    if (fromState.length > 0) return fromState;
+    if (!serverLock || event?.layoutType !== 'seated') return fromState;
+    const typeId = String(serverLock.ticket_type_id);
+    return seatRecordsFromLockIds(
+      seatedInventory,
+      (serverLock.seat_ids ?? []).map(String),
+      typeId,
+    ).map(toSelectedSeat);
+  }, [locationState.selectedSeats, serverLock, event?.layoutType, seatedInventory]);
 
   const { data: freeSeatMap, isFetching: freeSeatsFetching } = useGetEventSeatsQuery(
     { slug },
@@ -429,6 +449,20 @@ export function CheckoutPage() {
     return (
       <div className="px-6 py-24 text-center text-[14px] text-ink-60">
         Preparing your ticket hold…
+      </div>
+    );
+  }
+
+  const waitingForSeatedLock =
+    event.layoutType === 'seated' &&
+    !!user &&
+    stateLockId == null &&
+    (currentLockLoading || currentLockFetching);
+
+  if (waitingForSeatedLock) {
+    return (
+      <div className="px-6 py-24 text-center text-[14px] text-ink-60">
+        Restoring your seat hold…
       </div>
     );
   }

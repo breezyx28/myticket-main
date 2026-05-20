@@ -9,6 +9,15 @@ import type {
   SeatLockRequest,
 } from '@/api/types/seat';
 
+/** Main API wraps seat locks in `{ data: SeatLock }`. */
+export function unwrapSeatLock(raw: unknown): SeatLock {
+  if (raw && typeof raw === 'object' && 'data' in raw) {
+    const inner = (raw as CurrentSeatLockEnvelope).data;
+    if (inner && typeof inner === 'object') return inner;
+  }
+  return raw as SeatLock;
+}
+
 export const seatsApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
     createSeatLock: build.mutation<SeatLock, { slug: Slug; body: SeatLockRequest }>({
@@ -17,6 +26,7 @@ export const seatsApi = baseApi.injectEndpoints({
         method: 'POST',
         body,
       }),
+      transformResponse: (raw: unknown) => unwrapSeatLock(raw),
       invalidatesTags: (_res, _err, arg) => [
         { type: 'EventSeats', id: arg.slug },
         { type: 'SeatLock', id: 'LIST' },
@@ -41,6 +51,7 @@ export const seatsApi = baseApi.injectEndpoints({
         method: 'POST',
         body: body ?? undefined,
       }),
+      transformResponse: (raw: unknown) => unwrapSeatLock(raw),
       invalidatesTags: (_res, _err, arg) => [{ type: 'SeatLock', id: arg.lockId }],
     }),
     /**
