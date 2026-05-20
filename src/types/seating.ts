@@ -14,9 +14,13 @@ export interface SeatRecord {
   section: string;
   row: number;
   number: number;
+  /** API `row_label` (e.g. A, B) for grid headers. */
+  rowLabel?: string;
   ticketTypeId: string;
   status: SeatStatus;
   position: SeatPosition;
+  /** Per-seat override from API `price_override`. */
+  priceOverride?: number;
 }
 
 export interface SelectedSeat {

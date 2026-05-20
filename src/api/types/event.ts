@@ -147,13 +147,19 @@ export type SeatStatus = 'available' | 'held' | 'booked' | string;
 export interface SeatRecord {
   id: Id;
   label: string;
-  section?: string;
+  section?: string | null;
   row?: number | string;
   number?: number | string;
+  row_index?: number;
+  col_index?: number;
+  row_label?: string | null;
+  seat_number?: number;
   ticket_type_id: Id;
   status: SeatStatus;
   position?: { x: number; y: number; z: number };
   price?: Money;
+  price_override?: Money | string | null;
+  is_locked?: boolean;
   [key: string]: unknown;
 }
 

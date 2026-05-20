@@ -10,6 +10,8 @@ import type {
   EventOccurrence,
   EventRatingsSummary,
   SeatMap,
+  SeatRecord as ApiSeatRecord,
+  SeatStatus,
   TicketType,
 } from '@/api/types/event';
 
@@ -63,6 +65,73 @@ function normalizeTicketTypesResponse(response: unknown): TicketType[] {
   return staged.map((s) => s.row);
 }
 
+function unwrapSeatsPayload(response: unknown): unknown[] {
+  if (Array.isArray(response)) return response;
+  if (response && typeof response === 'object' && Array.isArray((response as ResourceEnvelope<unknown[]>).data)) {
+    return (response as ResourceEnvelope<unknown[]>).data;
+  }
+  return [];
+}
+
+function apiSeatStatusFromRow(r: Record<string, unknown>): SeatStatus {
+  if (r.is_locked === true) return 'held';
+  const s = String(r.status ?? 'available').toLowerCase();
+  if (s === 'held' || s === 'booked') return s;
+  return 'available';
+}
+
+/** Unwraps `{ data: Seat[] }` and builds aggregate counts for the seat picker. */
+function normalizeEventSeatsResponse(response: unknown): SeatMap {
+  const raw = unwrapSeatsPayload(response);
+  const seats: ApiSeatRecord[] = [];
+  let available = 0;
+  let held = 0;
+  let booked = 0;
+
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const r = item as Record<string, unknown>;
+    const id = r.id;
+    if (id === undefined || id === null) continue;
+
+    const status = apiSeatStatusFromRow(r);
+    if (status === 'available') available += 1;
+    else if (status === 'held') held += 1;
+    else booked += 1;
+
+    const row: ApiSeatRecord = {
+      id: id as ApiSeatRecord['id'],
+      label: String(r.label ?? ''),
+      ticket_type_id: r.ticket_type_id as ApiSeatRecord['ticket_type_id'],
+      status,
+    };
+    if (r.section != null) row.section = r.section as string | null;
+    if (r.row != null) row.row = r.row as number | string;
+    if (r.number != null) row.number = r.number as number | string;
+    if (r.row_index != null) row.row_index = num(r.row_index);
+    if (r.col_index != null) row.col_index = num(r.col_index);
+    if (r.row_label != null) row.row_label = String(r.row_label);
+    if (r.seat_number != null) row.seat_number = num(r.seat_number);
+    if (r.price_override != null) row.price_override = r.price_override as ApiSeatRecord['price_override'];
+    if (r.is_locked != null) row.is_locked = Boolean(r.is_locked);
+    const px = num(r.position_x, NaN);
+    const py = num(r.position_y, NaN);
+    const pz = num(r.position_z, NaN);
+    if (Number.isFinite(px) && Number.isFinite(py) && Number.isFinite(pz)) {
+      row.position = { x: px, y: py, z: pz };
+    }
+    seats.push(row);
+  }
+
+  return {
+    seats,
+    total: seats.length,
+    available,
+    held,
+    booked,
+  };
+}
+
 export const eventsApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
     listEvents: build.query<Paginated<EventListItem>, EventListQuery | void>({
@@ -110,6 +179,7 @@ export const eventsApi = baseApi.injectEndpoints({
     }),
     getEventSeats: build.query<SeatMap, { slug: Slug }>({
       query: ({ slug }) => ({ url: `/events/${encodeURIComponent(slug)}/seats` }),
+      transformResponse: (response: unknown) => normalizeEventSeatsResponse(response),
       providesTags: (_res, _err, arg) => [{ type: 'EventSeats', id: arg.slug }],
     }),
   }),

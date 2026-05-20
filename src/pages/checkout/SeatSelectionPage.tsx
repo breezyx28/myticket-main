@@ -12,12 +12,12 @@ import type { Id } from '@/api/types/common';
 import { Button } from '@/components/ui/Button';
 import { SeatGridRaw } from '@/components/seats/SeatGridRaw';
 import { SeatLegend } from '@/components/seats/SeatLegend';
-import { SeatScene3D } from '@/components/seats/SeatScene3D';
 import { useAuth } from '@/contexts/AuthContext';
 import { mergeEventTicketTypes } from '@/lib/eventMappers';
-import { apiSeatsToSeatRecords, uiSeatIdToApi } from '@/lib/seatMappers';
+import { apiSeatsToSeatRecords, ticketTypeRowHints, uiSeatIdToApi } from '@/lib/seatMappers';
+import { formatTicketRemainingLabel } from '@/lib/ticketTypeFromApi';
 import { getSeatInventoryStats, isSeatSelectable, toSelectedSeat } from '@/lib/seating';
-import type { SeatRecord, SeatViewMode } from '@/types/seating';
+import type { SeatRecord } from '@/types/seating';
 
 const DEFAULT_LOCK_TTL_SECONDS = 180;
 const LOW_TIME_WARNING_SECONDS = 30;
@@ -58,13 +58,13 @@ export function SeatSelectionPage() {
 
   const event = useMemo(
     () => (detail ? mergeEventTicketTypes(detail, ticketTypesList) : null),
-    [detail, ticketTypesList]
+    [detail, ticketTypesList],
   );
 
   const isSeated = event?.layoutType === 'seated';
-  const { data: seatMap, isFetching: seatsFetching } = useGetEventSeatsQuery(
+  const { data: seatMap, isFetching: seatsFetching, isError: seatsError } = useGetEventSeatsQuery(
     { slug },
-    { skip: !slug || !isSeated }
+    { skip: !slug || !isSeated },
   );
   const inventory = useMemo(() => apiSeatsToSeatRecords(seatMap?.seats), [seatMap]);
 
@@ -73,9 +73,9 @@ export function SeatSelectionPage() {
     { skip: !slug || !user || !isSeated },
   );
 
-  const [viewMode, setViewMode] = useState<SeatViewMode>('blueprint');
   const [selectedTicketTypeId, setSelectedTicketTypeId] = useState('');
   const [selectedSeatIds, setSelectedSeatIds] = useState<string[]>([]);
+  const [pendingCrossTypeSeat, setPendingCrossTypeSeat] = useState<SeatRecord | null>(null);
   const [holdInfoOpen, setHoldInfoOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [activeLockId, setActiveLockId] = useState<Id | null>(null);
@@ -85,6 +85,20 @@ export function SeatSelectionPage() {
 
   const [createLock, { isLoading: creatingLock }] = useCreateSeatLockMutation();
   const [extendLock, { isLoading: extendingLock }] = useExtendSeatLockMutation();
+
+  const ticketTypeNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    if (!event) return map;
+    for (const tt of event.ticketTypes) {
+      map.set(String(tt.id), tt.name);
+    }
+    return map;
+  }, [event]);
+
+  const rowHints = useMemo(
+    () => ticketTypeRowHints(inventory, ticketTypeNameById),
+    [inventory, ticketTypeNameById],
+  );
 
   useEffect(() => {
     if (!event || hydrated) return;
@@ -131,51 +145,82 @@ export function SeatSelectionPage() {
 
   const currentTicketType = useMemo(
     () => event?.ticketTypes.find((tt) => tt.id === selectedTicketTypeId) ?? null,
-    [event, selectedTicketTypeId]
-  );
-
-  const seatsForType = useMemo(
-    () => inventory.filter((seat) => seat.ticketTypeId === selectedTicketTypeId),
-    [inventory, selectedTicketTypeId]
+    [event, selectedTicketTypeId],
   );
 
   const selectedSeats = useMemo(
-    () => seatsForType.filter((seat) => selectedSeatIds.includes(seat.id)),
-    [seatsForType, selectedSeatIds]
+    () => inventory.filter((seat) => selectedSeatIds.includes(seat.id)),
+    [inventory, selectedSeatIds],
   );
 
-  const seatStats = useMemo(() => getSeatInventoryStats(seatsForType), [seatsForType]);
+  const seatStats = useMemo(() => getSeatInventoryStats(inventory), [inventory]);
 
-  function toggleSeat(seat: SeatRecord) {
-    if (!isSeatSelectable(seat)) return;
-    setSelectedSeatIds((prev) =>
-      prev.includes(seat.id) ? prev.filter((id) => id !== seat.id) : [...prev, seat.id]
-    );
-  }
+  const lockTicketTypeId = useMemo(() => {
+    if (selectedSeats.length > 0) return selectedSeats[0].ticketTypeId;
+    return selectedTicketTypeId;
+  }, [selectedSeats, selectedTicketTypeId]);
 
-  function selectSectionSeats(seatIds: string[]) {
-    if (seatIds.length < 1) return;
+  function applySeatSelection(seat: SeatRecord) {
+    if (selectedSeatIds.includes(seat.id)) {
+      setSelectedSeatIds((prev) => prev.filter((id) => id !== seat.id));
+      return;
+    }
     setSelectedSeatIds((prev) => {
-      const merged = new Set(prev);
-      for (const seatId of seatIds) merged.add(seatId);
-      return Array.from(merged);
+      const compatible = prev.filter((id) => {
+        const s = inventory.find((item) => item.id === id);
+        return s?.ticketTypeId === seat.ticketTypeId;
+      });
+      return [...compatible, seat.id];
     });
   }
 
+  function toggleSeat(seat: SeatRecord) {
+    if (!isSeatSelectable(seat)) return;
+    if (selectedSeatIds.includes(seat.id)) {
+      applySeatSelection(seat);
+      return;
+    }
+    if (seat.ticketTypeId !== selectedTicketTypeId) {
+      setPendingCrossTypeSeat(seat);
+      return;
+    }
+    applySeatSelection(seat);
+  }
+
+  function confirmCrossTypeSeat() {
+    const seat = pendingCrossTypeSeat;
+    if (!seat) return;
+    setSelectedTicketTypeId(seat.ticketTypeId);
+    setSelectedSeatIds((prev) => {
+      const compatible = prev.filter((id) => {
+        const s = inventory.find((item) => item.id === id);
+        return s?.ticketTypeId === seat.ticketTypeId;
+      });
+      return [...compatible, seat.id];
+    });
+    setPendingCrossTypeSeat(null);
+  }
+
+  function cancelCrossTypeSeat() {
+    setPendingCrossTypeSeat(null);
+  }
+
   async function continueToCheckout() {
-    if (!event || !selectedTicketTypeId || selectedSeats.length < 1) return;
+    if (!event || selectedSeats.length < 1) return;
+    const ticketTypeForLock = lockTicketTypeId;
+    if (!ticketTypeForLock) return;
     setLockError(null);
     try {
       const lock = await createLock({
         slug,
         body: {
-          ticket_type_id: uiSeatIdToApi(selectedTicketTypeId),
+          ticket_type_id: uiSeatIdToApi(ticketTypeForLock),
           seat_ids: selectedSeatIds.map(uiSeatIdToApi),
           ttl_seconds: DEFAULT_LOCK_TTL_SECONDS,
         },
       }).unwrap();
       const state: CheckoutSeatNavigationState = {
-        selectedTicketTypeId,
+        selectedTicketTypeId: ticketTypeForLock,
         selectedSeats: selectedSeats.map(toSelectedSeat),
         lockId: lock.id,
       };
@@ -230,6 +275,10 @@ export function SeatSelectionPage() {
 
   const lowTime = secondsLeft != null && secondsLeft <= LOW_TIME_WARNING_SECONDS;
   const continueDisabled = selectedSeats.length < 1 || creatingLock || !user;
+  const pendingTargetTypeName = pendingCrossTypeSeat
+    ? (ticketTypeNameById.get(pendingCrossTypeSeat.ticketTypeId) ?? 'another ticket type')
+    : '';
+  const pendingCurrentTypeName = currentTicketType?.name ?? 'the highlighted type';
 
   return (
     <div className="bg-ink-5/40 pb-20 pt-10">
@@ -239,7 +288,8 @@ export function SeatSelectionPage() {
         </Link>
         <h1 className="mt-4 text-2xl font-extrabold text-ink">Select your seats</h1>
         <p className="mt-1 text-[14px] text-ink-60">
-          {event.title} · Mapped seating: choose one or more seats on the map, then continue to checkout.
+          {event.title} · Choose seats on the map. Highlighted seats match the ticket type below; other seats are still
+          selectable.
         </p>
 
         <div className="mt-4 rounded-xl border border-ink-10 bg-white/90 px-4 py-3 text-[13px] text-ink-60 shadow-sm">
@@ -254,8 +304,8 @@ export function SeatSelectionPage() {
           {holdInfoOpen && (
             <div className="mt-2 space-y-2 border-t border-ink-10 pt-2 text-[12px] leading-relaxed text-ink-60">
               <p>
-                Selected seats are held server-side while you complete payment. If you walk away, the hold expires
-                and seats become available to others. See our{' '}
+                Selected seats are held server-side while you complete payment. If you walk away, the hold expires and
+                seats become available to others. See our{' '}
                 <Link to="/terms" className="font-semibold text-coral hover:underline">
                   Terms
                 </Link>{' '}
@@ -315,63 +365,66 @@ export function SeatSelectionPage() {
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
           <section className="rounded-2xl border border-ink-10 bg-white p-5 shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <label className="block min-w-[240px]">
-                <span className="text-[12px] font-semibold text-ink-60">Ticket type / section</span>
-                <select
-                  value={selectedTicketTypeId}
-                  onChange={(e) => {
-                    setSelectedTicketTypeId(e.target.value);
-                    setSelectedSeatIds([]);
-                  }}
-                  className="mt-1.5 w-full rounded-xl border border-ink-10 px-4 py-2.5 text-[14px]"
-                >
-                  {event.ticketTypes.map((ticketType) => (
-                    <option key={ticketType.id} value={ticketType.id}>
-                      {ticketType.name} — {ticketType.price} SAR ({ticketType.remaining} left)
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="inline-flex rounded-full border border-ink-10 p-1">
-                <button
-                  type="button"
-                  onClick={() => setViewMode('blueprint')}
-                  className={`rounded-full px-4 py-1.5 text-[12px] font-semibold ${viewMode === 'blueprint' ? 'bg-ink text-white' : 'text-ink-60'}`}
-                >
-                  Blueprint
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode('raw')}
-                  className={`rounded-full px-4 py-1.5 text-[12px] font-semibold ${viewMode === 'raw' ? 'bg-ink text-white' : 'text-ink-60'}`}
-                >
-                  Raw
-                </button>
-              </div>
-            </div>
+            <label className="block">
+              <span className="text-[12px] font-semibold text-ink-60">Highlight ticket type</span>
+              <select
+                value={selectedTicketTypeId}
+                onChange={(e) => setSelectedTicketTypeId(e.target.value)}
+                className="mt-1.5 w-full rounded-xl border border-ink-10 px-4 py-2.5 text-[14px]"
+              >
+                {event.ticketTypes.map((ticketType) => (
+                  <option key={ticketType.id} value={ticketType.id}>
+                    {ticketType.name} — {ticketType.price} SAR ({formatTicketRemainingLabel(ticketType.remaining)})
+                  </option>
+                ))}
+              </select>
+            </label>
+            {rowHints.length > 0 && (
+              <ul className="mt-2 space-y-0.5 text-[11px] text-ink-40">
+                {rowHints.map((hint) => (
+                  <li key={hint}>{hint}</li>
+                ))}
+              </ul>
+            )}
 
             <SeatLegend className="mt-4" />
 
             <div className="mt-4">
               {seatsFetching && inventory.length === 0 ? (
                 <p className="py-12 text-center text-[12px] text-ink-40">Loading seat map…</p>
-              ) : viewMode === 'blueprint' ? (
-                <SeatScene3D
-                  seats={seatsForType}
-                  selectedSeatIds={selectedSeatIds}
-                  onToggleSeat={toggleSeat}
-                  onSelectSectionSeats={selectSectionSeats}
-                />
+              ) : !seatsFetching && inventory.length === 0 ? (
+                <div className="py-12 text-center">
+                  <p className="text-[14px] font-semibold text-ink">No seats available</p>
+                  <p className="mt-2 text-[12px] text-ink-40">
+                    {seatsError
+                      ? 'We could not load the seat map. Try again or return to the event.'
+                      : 'This event has no seat inventory yet.'}
+                  </p>
+                  <Link
+                    to={`/events/${event.id}`}
+                    className="mt-4 inline-flex text-[13px] font-semibold text-coral hover:underline"
+                  >
+                    Back to event
+                  </Link>
+                </div>
               ) : (
-                <SeatGridRaw seats={seatsForType} selectedSeatIds={selectedSeatIds} onToggleSeat={toggleSeat} />
+                <SeatGridRaw
+                  seats={inventory}
+                  selectedSeatIds={selectedSeatIds}
+                  highlightTicketTypeId={selectedTicketTypeId}
+                  onToggleSeat={toggleSeat}
+                />
               )}
             </div>
           </section>
 
           <aside className="rounded-2xl border border-ink-10 bg-white p-5 shadow-sm">
             <h2 className="text-[15px] font-extrabold text-ink">Selection</h2>
-            <p className="mt-1 text-[12px] text-ink-40">Section {currentTicketType?.name ?? '—'}</p>
+            <p className="mt-1 text-[12px] text-ink-40">
+              {selectedSeats.length > 0
+                ? ticketTypeNameById.get(lockTicketTypeId) ?? currentTicketType?.name ?? '—'
+                : `Highlighting ${currentTicketType?.name ?? '—'}`}
+            </p>
 
             <div className="mt-4 space-y-2 rounded-xl bg-ink-5/70 p-3 text-[12px] text-ink-60">
               <div className="flex items-center justify-between">
@@ -396,6 +449,9 @@ export function SeatSelectionPage() {
                 {selectedSeats.map((seat) => (
                   <li key={seat.id} className="rounded-lg border border-ink-10 px-2 py-1.5">
                     {seat.label}
+                    {seat.priceOverride != null ? (
+                      <span className="ml-1 font-mono text-ink">{seat.priceOverride} SAR</span>
+                    ) : null}
                   </li>
                 ))}
               </ul>
@@ -424,6 +480,46 @@ export function SeatSelectionPage() {
           </aside>
         </div>
       </div>
+
+      {pendingCrossTypeSeat && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="cross-type-seat-title"
+        >
+          <div className="w-full max-w-md rounded-2xl border border-ink-10 bg-white p-6 shadow-lg">
+            <h2 id="cross-type-seat-title" className="text-[17px] font-extrabold text-ink">
+              Different ticket type
+            </h2>
+            <p className="mt-3 text-[14px] leading-relaxed text-ink-60">
+              Seat <span className="font-semibold text-ink">{pendingCrossTypeSeat.label}</span> is{' '}
+              <span className="font-semibold text-ink">{pendingTargetTypeName}</span>, not{' '}
+              <span className="font-semibold text-ink">{pendingCurrentTypeName}</span>.
+            </p>
+            <p className="mt-2 text-[13px] text-ink-60">
+              Continue will switch the highlight to {pendingTargetTypeName} and update your selection. Seats from other
+              types will be removed.
+            </p>
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={cancelCrossTypeSeat}
+                className="h-10 rounded-full border border-ink-10 px-5 text-[13px] font-semibold text-ink hover:bg-ink-5"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmCrossTypeSeat}
+                className="h-10 rounded-full bg-ink px-5 text-[13px] font-semibold text-white hover:bg-ink-80"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
