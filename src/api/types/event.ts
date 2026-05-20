@@ -66,20 +66,26 @@ export interface EventListItem {
 
 export interface EventDetail extends EventListItem {
   description?: string | null;
+  organizer_notes?: string | null;
   organizer?: EventOrganizerSummary;
   show_talents?: boolean;
   show_vendors?: boolean;
   talents?: EventTalentSummary[];
   vendors?: EventVendorSummary[];
   ticket_types?: TicketType[];
-  gallery?: string[];
+  /** String URLs or `{ url, image_url, … }` rows from the detail payload. */
+  gallery?: (string | EventGalleryItem)[] | null;
   venue_images?: string[];
+  venue_address?: string | null;
+  attending_count?: number | string | null;
+  tickets_sold?: number | string | null;
+  waitlist_count?: number | string | null;
+  timezone?: string | null;
+  video_url?: string | null;
   lat?: number | null;
   lng?: number | null;
   latitude?: number | string | null;
   longitude?: number | string | null;
-  video_url?: string | null;
-  organizer_notes?: string | null;
   [key: string]: unknown;
 }
 
@@ -130,7 +136,8 @@ export interface TicketType {
   code?: string | null;
   name: string;
   price: Money;
-  remaining: number;
+  /** `null` when quantity is unlimited / not tracked. */
+  remaining: number | null;
   description?: string | null;
   [key: string]: unknown;
 }

@@ -396,7 +396,7 @@ export function CheckoutPage() {
   if (eventLoading || (!event && !eventError)) {
     return <div className="px-6 py-24 text-center text-ink-40">Loading…</div>;
   }
-  if (eventError || !event || event.ticketsLeft <= 0) {
+  if (eventError || !event || event.ticketsLeft === 0) {
     return <Navigate to={`/events/${eventId}`} replace />;
   }
 
@@ -511,8 +511,13 @@ export function CheckoutPage() {
                   className="mt-1.5 w-full rounded-xl border border-ink-10 px-4 py-3 text-[14px]"
                 >
                   {event.ticketTypes.map((tt) => (
-                    <option key={tt.id} value={tt.id} disabled={tt.remaining < 1}>
-                      {tt.name} — {tt.price} SAR ({tt.remaining} left)
+                    <option
+                      key={tt.id}
+                      value={tt.id}
+                      disabled={tt.remaining != null && tt.remaining < 1}
+                    >
+                      {tt.name} — {tt.price} SAR (
+                      {tt.remaining != null ? `${tt.remaining} left` : 'available'})
                     </option>
                   ))}
                 </select>

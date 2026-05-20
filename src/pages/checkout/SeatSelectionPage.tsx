@@ -210,7 +210,7 @@ export function SeatSelectionPage() {
   if (eventError || !event) {
     return <Navigate to="/events" replace />;
   }
-  if (event.ticketsLeft <= 0) {
+  if (event.ticketsLeft === 0) {
     return <Navigate to={`/events/${event.id}`} replace />;
   }
 

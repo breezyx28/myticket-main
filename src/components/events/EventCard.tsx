@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { MapPin } from '@phosphor-icons/react';
 import type { MockEvent } from '@/types/domain';
+import { eventHasPrimaryInventory, isEventSoldOut } from '@/lib/eventMappers';
 import { cn } from '@/lib/utils';
 
 function formatDate(iso: string) {
@@ -12,6 +13,8 @@ function formatDate(iso: string) {
 }
 
 export function EventCard({ event }: { event: MockEvent }) {
+  const soldOut = isEventSoldOut(event.ticketsLeft);
+  const hasInventory = eventHasPrimaryInventory(event.ticketsLeft);
   return (
     <article
       className={cn(
@@ -46,12 +49,14 @@ export function EventCard({ event }: { event: MockEvent }) {
         </div>
         <div className="mt-3 flex items-center justify-between gap-3 border-t border-ink-10 pt-3">
           <span className="text-[12px] font-medium text-ink-60">
-            {event.ticketsLeft > 0 ? (
+            {soldOut ? (
+              <span className="text-coral">Sold out</span>
+            ) : event.ticketsLeft != null ? (
               <>
                 <span className="font-bold text-ink">{event.ticketsLeft}</span> tickets left
               </>
             ) : (
-              <span className="text-coral">Sold out</span>
+              <span className="text-ink-60">Tickets available</span>
             )}
           </span>
           <span className="text-[11px] text-ink-40">{formatDate(event.dateStart)}</span>
@@ -60,7 +65,7 @@ export function EventCard({ event }: { event: MockEvent }) {
           to={`/events/${event.id}`}
           className="mt-4 inline-flex h-10 items-center justify-center rounded-full bg-ink text-center text-[13px] font-semibold text-white transition-colors hover:bg-ink-80"
         >
-          {event.ticketsLeft > 0 ? 'Get tickets' : 'View event'}
+          {hasInventory ? 'Get tickets' : 'View event'}
         </Link>
       </div>
     </article>

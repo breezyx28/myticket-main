@@ -39,7 +39,15 @@ import {
   useSubmitRatingMutation,
 } from '@/api/endpoints';
 import type { EventListQuery } from '@/api/types/event';
-import { mergeEventTicketTypes, eventListItemPublicPathSegment, eventListItemToCardProps } from '@/lib/eventMappers';
+import {
+  eventHasPrimaryInventory,
+  formatEventLocation,
+  isEventSoldOut,
+  mergeEventTicketTypes,
+  eventListItemPublicPathSegment,
+  eventListItemToCardProps,
+} from '@/lib/eventMappers';
+import { formatTicketRemainingLabel } from '@/lib/ticketTypeFromApi';
 import { apiAuctionToMockAuctionListing } from '@/lib/auctionMappers';
 import type { MockAuctionListing, MockEvent } from '@/types/domain';
 import { cn } from '@/lib/utils';
@@ -343,7 +351,8 @@ export function EventDetailPage() {
   }, [event]);
   const gallerySlides = useMemo(() => {
     if (!event) return [];
-    return Array.from(new Set([event.coverImage, ...event.gallery, ...(event.venueImages ?? [])]));
+    const extra = [...event.gallery, ...(event.venueImages ?? [])].filter(Boolean);
+    return Array.from(new Set(extra.length > 0 ? extra : event.coverImage ? [event.coverImage] : []));
   }, [event]);
   const { data: auctionListingsPaged } = useListAuctionsQuery(
     detail ? { event_id: detail.id, per_page: 50 } : { per_page: 50 },
@@ -383,7 +392,12 @@ export function EventDetailPage() {
   const url = typeof window !== 'undefined' ? window.location.href : '';
   const avatars = event.attendeeAvatars?.slice(0, 3) ?? [];
   const avatarsHiddenCount = Math.max(0, (event.attendeeAvatars?.length ?? 0) - avatars.length);
-  const boughtLabel = formatAttendingLabel(event.attendingCount ?? Math.max(450, event.ticketsLeft * 12));
+  const ticketsBoughtCount = event.ticketsSold ?? event.attendingCount ?? 0;
+  const boughtLabel = formatAttendingLabel(ticketsBoughtCount);
+  const showTicketsBoughtRow = ticketsBoughtCount > 0 || avatars.length > 0;
+  const locationLabel = formatEventLocation(event);
+  const soldOut = isEventSoldOut(event.ticketsLeft);
+  const hasInventory = eventHasPrimaryInventory(event.ticketsLeft);
   const mapEmbedUrl = buildMapEmbedUrl(event);
   const mapOpenUrl = buildMapOpenUrl(event);
   const org = event.organizer;
@@ -410,7 +424,12 @@ export function EventDetailPage() {
               <span className="inline-block rounded-full bg-lemon px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-ink">
                 {event.category}
               </span>
-              {event.ticketsLeft <= 0 ? (
+              {event.featured && (
+                <span className="inline-block rounded-full bg-coral px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
+                  Featured
+                </span>
+              )}
+              {soldOut ? (
                 <span className="inline-block rounded-full bg-coral px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
                   No seats
                 </span>
@@ -438,10 +457,12 @@ export function EventDetailPage() {
                 <Calendar size={16} weight="bold" />
                 {formatRange(event.dateStart, event.dateEnd)}
               </span>
-              <span className="inline-flex items-center gap-1.5">
-                <MapPin size={16} weight="bold" />
-                {event.venue}, {event.city}
-              </span>
+              {locationLabel ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <MapPin size={16} weight="bold" />
+                  {locationLabel}
+                </span>
+              ) : null}
             </div>
           </div>
         </div>
@@ -449,29 +470,43 @@ export function EventDetailPage() {
 
       <div className="mx-auto grid max-w-[1280px] gap-10 px-6 py-10 lg:grid-cols-[1fr_340px] lg:px-8 lg:py-14">
         <div>
-          <div className="rounded-3xl border border-ink-10 bg-surface-card p-5">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <AvatarGroup className="grayscale">
-                  {avatars.map((avatar, idx) => (
-                    <Avatar key={`${avatar}-${idx}`}>
-                      <AvatarImage src={avatar} alt={`Attendee ${idx + 1}`} />
-                      <AvatarFallback>{`U${idx + 1}`}</AvatarFallback>
-                    </Avatar>
-                  ))}
-                  {avatarsHiddenCount > 0 && <AvatarGroupCount>{`+${avatarsHiddenCount}`}</AvatarGroupCount>}
-                </AvatarGroup>
-                <div className="inline-flex items-center gap-2 text-[13px] font-semibold text-ink">
-                  <span className="font-mono text-[15px] font-extrabold text-ink">{boughtLabel}</span>
-                  <span className="text-[12px] font-medium text-ink-60">tickets bought</span>
-                </div>
+          {showTicketsBoughtRow || event.ticketsLeft !== null ? (
+            <div className="rounded-3xl border border-ink-10 bg-surface-card p-5">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                {showTicketsBoughtRow ? (
+                  <div className="flex items-center gap-3">
+                    {avatars.length > 0 ? (
+                      <AvatarGroup className="grayscale">
+                        {avatars.map((avatar, idx) => (
+                          <Avatar key={`${avatar}-${idx}`}>
+                            <AvatarImage src={avatar} alt={`Attendee ${idx + 1}`} />
+                            <AvatarFallback>{`U${idx + 1}`}</AvatarFallback>
+                          </Avatar>
+                        ))}
+                        {avatarsHiddenCount > 0 && (
+                          <AvatarGroupCount>{`+${avatarsHiddenCount}`}</AvatarGroupCount>
+                        )}
+                      </AvatarGroup>
+                    ) : null}
+                    <div className="inline-flex items-center gap-2 text-[13px] font-semibold text-ink">
+                      <span className="font-mono text-[15px] font-extrabold text-ink">{boughtLabel}</span>
+                      <span className="text-[12px] font-medium text-ink-60">tickets bought</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div />
+                )}
+                {event.ticketsLeft !== null ? (
+                  <Badge
+                    label={soldOut ? 'Sold out' : `${event.ticketsLeft} left now`}
+                    variant={soldOut ? 'danger' : 'success'}
+                  />
+                ) : hasInventory ? (
+                  <Badge label="Tickets available" variant="success" />
+                ) : null}
               </div>
-              <Badge
-                label={event.ticketsLeft > 0 ? `${event.ticketsLeft} left now` : 'Sold out'}
-                variant={event.ticketsLeft > 0 ? 'success' : 'danger'}
-              />
             </div>
-          </div>
+          ) : null}
 
           <div className="mt-10">
             <div className="flex items-center justify-between gap-3">
@@ -836,7 +871,7 @@ export function EventDetailPage() {
               Tickets
             </h2>
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              {event.ticketsLeft <= 0 ? (
+              {soldOut ? (
                 <Badge label="No seats" variant="danger" className="text-[11px] font-bold uppercase tracking-wide" />
               ) : event.layoutType === 'free' ? (
                 <Badge label="Free seating" variant="success" className="text-[11px] font-bold uppercase tracking-wide" />
@@ -845,12 +880,19 @@ export function EventDetailPage() {
               )}
             </div>
             <p className="mt-2 text-[12px] text-ink-40">
-              {event.ticketsLeft <= 0
+              {soldOut
                 ? 'There is no primary inventory left — try the waitlist or verified resale.'
                 : event.layoutType === 'seated'
                   ? 'Choose your seats on the next screen, then pay on checkout.'
                   : 'Start a short ticket hold on the next screen (no seat map), then complete payment on checkout.'}
             </p>
+            {event.ticketTypes.length > 0 && (
+              <p className="mt-1 font-mono text-[13px] font-bold text-ink">
+                {event.priceMin === event.priceMax
+                  ? `From ${event.priceMin} SAR`
+                  : `${event.priceMin} – ${event.priceMax} SAR`}
+              </p>
+            )}
             <ul className="mt-4 space-y-3">
               {event.ticketTypes.map((tt) => (
                 <li
@@ -859,13 +901,13 @@ export function EventDetailPage() {
                 >
                   <div>
                     <p className="font-semibold text-ink">{tt.name}</p>
-                    <p className="text-[12px] text-ink-40">{tt.remaining} left</p>
+                    <p className="text-[12px] text-ink-40">{formatTicketRemainingLabel(tt.remaining)}</p>
                   </div>
                   <span className="font-mono text-[15px] font-bold text-ink">{tt.price} SAR</span>
                 </li>
               ))}
             </ul>
-            {event.ticketsLeft > 0 ? (
+            {hasInventory ? (
               <Link
                 to={
                   event.layoutType === 'seated'
@@ -912,7 +954,7 @@ export function EventDetailPage() {
                 </Link>
               </div>
             )}
-            {event.ticketsLeft > 0 && (
+            {hasInventory && (
               <Link
                 to={`/auction/events/${event.id}`}
                 className="mt-3 flex h-11 w-full items-center justify-center rounded-full border border-ink-10 bg-white text-[13px] font-semibold text-ink hover:bg-ink-5"

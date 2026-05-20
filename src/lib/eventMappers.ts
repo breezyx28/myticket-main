@@ -1,5 +1,6 @@
-import type { EventDetail, EventListItem, EventOrganizerSummary, TicketType } from '@/api/types/event';
+import type { EventDetail, EventGalleryItem, EventListItem, EventOrganizerSummary, TicketType } from '@/api/types/event';
 import type { EventCardProps } from '@/components/cards/EventCard';
+import { resolvePublicStorageUrl } from '@/lib/organizerMedia';
 import { priceFromTicketApi, remainingFromTicketApiRow } from '@/lib/ticketTypeFromApi';
 import type { LayoutType, MockEvent, OrganizerSummary } from '@/types/domain';
 
@@ -89,17 +90,99 @@ export function eventListItemPublicPathSegment(e: EventListItem): string {
 }
 
 function minPriceFromListTicketTypes(r: Record<string, unknown>): number | null {
-  const types = r.ticket_types;
+  const range = priceRangeFromTicketTypes(r.ticket_types);
+  return range?.min ?? null;
+}
+
+function priceRangeFromTicketTypes(types: unknown): { min: number; max: number } | null {
   if (!Array.isArray(types) || types.length === 0) return null;
   let minP = Infinity;
+  let maxP = -Infinity;
   for (const t of types) {
     if (!t || typeof t !== 'object') continue;
     const tr = t as Record<string, unknown>;
     if (tr.is_active === false) continue;
     const p = priceFromTicketApi(tr.price ?? tr.amount ?? tr.unit_price);
-    if (Number.isFinite(p) && p >= 0 && p < minP) minP = p;
+    if (Number.isFinite(p) && p >= 0) {
+      minP = Math.min(minP, p);
+      maxP = Math.max(maxP, p);
+    }
   }
-  return Number.isFinite(minP) && minP < Infinity ? minP : null;
+  if (!Number.isFinite(minP) || minP === Infinity) return null;
+  return { min: Math.round(minP), max: Math.round(maxP >= minP ? maxP : minP) };
+}
+
+function priceRangeFromDetail(detail: EventDetail, fallback?: MockEvent | null): { min: number; max: number } {
+  const r = detail as Record<string, unknown>;
+  let min =
+    coerceFiniteNumber(detail.price_min) ??
+    coerceFiniteNumber(r.price_min) ??
+    coerceFiniteNumber(r.price_from);
+  let max = coerceFiniteNumber(detail.price_max) ?? coerceFiniteNumber(r.price_max);
+  const fromTypes = priceRangeFromTicketTypes(r.ticket_types);
+  if (fromTypes) {
+    min = min ?? fromTypes.min;
+    max = max ?? fromTypes.max;
+  }
+  const fbMin = fallback?.priceMin ?? 0;
+  const fbMax = fallback?.priceMax ?? fbMin;
+  return {
+    min: min != null ? Math.max(0, Math.round(min)) : fbMin,
+    max: max != null ? Math.max(0, Math.round(max)) : fbMax,
+  };
+}
+
+function eventTicketsLeftFromDetail(detail: EventDetail, fallback?: MockEvent | null): number | null {
+  const r = detail as Record<string, unknown>;
+  const v = coerceFiniteNumber(detail.tickets_left) ?? coerceFiniteNumber(r.tickets_left);
+  if (v !== null) return v;
+  if (fallback && fallback.ticketsLeft !== undefined) return fallback.ticketsLeft;
+  return null;
+}
+
+/** `null` tickets_left means inventory unknown — not sold out. */
+export function isEventSoldOut(ticketsLeft: number | null): boolean {
+  return ticketsLeft === 0;
+}
+
+export function eventHasPrimaryInventory(ticketsLeft: number | null): boolean {
+  return ticketsLeft !== 0;
+}
+
+export function formatEventLocation(event: {
+  venue?: string;
+  city?: string;
+  venueAddress?: string;
+}): string {
+  const venue = event.venue?.trim() ?? '';
+  const city = event.city?.trim() ?? '';
+  const addr = event.venueAddress?.trim() ?? '';
+  if (venue && city) return `${venue}, ${city}`;
+  if (venue) return venue;
+  if (addr && city) return `${addr}, ${city}`;
+  if (city) return city;
+  if (addr) return addr;
+  return '';
+}
+
+/** Resolve gallery rows (`url` / `image_url`) or plain strings to absolute URLs. */
+export function normalizeEventGalleryUrls(gallery: EventDetail['gallery']): string[] {
+  if (!Array.isArray(gallery)) return [];
+  const urls: string[] = [];
+  for (const item of gallery) {
+    if (typeof item === 'string') {
+      const u = resolvePublicStorageUrl(item) ?? item.trim();
+      if (u) urls.push(u);
+      continue;
+    }
+    if (!item || typeof item !== 'object') continue;
+    const row = item as EventGalleryItem & Record<string, unknown>;
+    const raw = row.url ?? row.image_url;
+    if (raw == null || String(raw).trim() === '') continue;
+    const u = resolvePublicStorageUrl(String(raw)) ?? String(raw).trim();
+    if (u) urls.push(u);
+  }
+  return urls;
 }
 
 function parseEventsCount(raw: EventOrganizerSummary['events_count']): number | undefined {
@@ -244,26 +327,42 @@ export function eventListItemToCardProps(e: EventListItem): EventCardProps {
  * waitlist, tickets) keyed by the URL param continue to resolve consistently.
  */
 export function eventDetailToMockEvent(detail: EventDetail, fallback?: MockEvent | null): MockEvent {
+  const r = detail as Record<string, unknown>;
   const startAt = detail.date_start ?? detail.starts_at ?? fallback?.dateStart ?? '';
   const endAt = detail.date_end ?? detail.ends_at ?? startAt;
   const categoryLabel = detail.category ?? detail.category_name ?? fallback?.category ?? 'Event';
   const cityLabel = detail.city ?? detail.city_name ?? fallback?.city ?? '';
   const venueLabel = detail.venue ?? detail.venue_name ?? fallback?.venue ?? '';
+  const venueAddress =
+    typeof detail.venue_address === 'string' && detail.venue_address.trim() !== ''
+      ? detail.venue_address.trim()
+      : fallback?.venueAddress;
   const layoutType = apiLayoutTypeToMockLayout(detail.layout_type);
-  const ticketsLeft =
-    typeof detail.tickets_left === 'number'
-      ? detail.tickets_left
-      : (fallback?.ticketsLeft ?? 0);
-  const priceMin = typeof detail.price_min === 'number' ? detail.price_min : (fallback?.priceMin ?? 0);
-  const priceMax = typeof detail.price_max === 'number' ? detail.price_max : (fallback?.priceMax ?? priceMin);
+  const ticketsLeft = eventTicketsLeftFromDetail(detail, fallback);
+  const { min: priceMin, max: priceMax } = priceRangeFromDetail(detail, fallback);
+  const attendingCount =
+    coerceFiniteNumber(detail.attending_count) ??
+    coerceFiniteNumber(r.attending_count) ??
+    fallback?.attendingCount;
+  const ticketsSold =
+    coerceFiniteNumber(detail.tickets_sold) ?? coerceFiniteNumber(r.tickets_sold) ?? fallback?.ticketsSold;
+  const galleryFromApi = normalizeEventGalleryUrls(detail.gallery);
+  const venueImagesRaw = detail.venue_images ?? fallback?.venueImages;
+  const venueImages = Array.isArray(venueImagesRaw)
+    ? venueImagesRaw
+        .map((src) => (typeof src === 'string' ? resolvePublicStorageUrl(src) ?? src : null))
+        .filter((u): u is string => Boolean(u))
+    : undefined;
+
   return {
-    id: detail.slug ?? detail.code ?? String(detail.id),
+    id: eventListItemPublicPathSegment(detail) || String(detail.id),
     title: detail.title,
     excerpt: detail.excerpt ?? fallback?.excerpt ?? '',
     description: detail.description ?? fallback?.description ?? '',
     coverImage: detail.cover_image_url ?? fallback?.coverImage ?? '',
     city: cityLabel,
     venue: venueLabel,
+    ...(venueAddress ? { venueAddress } : {}),
     category: categoryLabel,
     dateStart: startAt,
     dateEnd: endAt,
@@ -271,7 +370,8 @@ export function eventDetailToMockEvent(detail: EventDetail, fallback?: MockEvent
     priceMax,
     ticketsLeft,
     layoutType,
-    featured: typeof detail.featured === 'boolean' ? detail.featured : Boolean(detail.is_featured),
+    featured:
+      typeof detail.featured === 'boolean' ? detail.featured : Boolean(detail.is_featured ?? r.is_featured),
     organizer: mapEventOrganizerToSummary(detail.organizer, fallback?.organizer),
     showTalents: detail.show_talents ?? fallback?.showTalents ?? false,
     showVendors: detail.show_vendors ?? fallback?.showVendors ?? false,
@@ -288,49 +388,59 @@ export function eventDetailToMockEvent(detail: EventDetail, fallback?: MockEvent
       name: v.business_name,
       serviceType: v.service_type ?? '',
     })),
-    rating: typeof detail.rating_average === 'number' ? detail.rating_average : (fallback?.rating ?? null),
+    rating:
+      coerceFiniteNumber(detail.rating_average) ??
+      coerceFiniteNumber(r.rating_average) ??
+      fallback?.rating ??
+      null,
     ratingCount:
-      typeof detail.ratings_count === 'number'
-        ? detail.ratings_count
-        : typeof detail.rating_count === 'number'
-          ? detail.rating_count
-          : (fallback?.ratingCount ?? undefined),
-    attendingCount: fallback?.attendingCount,
-    attendeeAvatars: fallback?.attendeeAvatars,
-    gallery: detail.gallery ?? fallback?.gallery ?? [],
+      coerceFiniteNumber(detail.ratings_count) ??
+      coerceFiniteNumber(detail.rating_count) ??
+      coerceFiniteNumber(r.rating_count) ??
+      fallback?.ratingCount,
+    ...(attendingCount !== undefined ? { attendingCount } : {}),
+    ...(ticketsSold !== undefined ? { ticketsSold } : {}),
+    gallery: galleryFromApi.length > 0 ? galleryFromApi : (fallback?.gallery ?? []),
     ticketTypes: (detail.ticket_types ?? fallback?.ticketTypes ?? [])
       .filter((t) => (t as Record<string, unknown>).is_active !== false)
       .map((t) => {
-        const r = t as TicketType & Record<string, unknown>;
+        const row = t as TicketType & Record<string, unknown>;
         return {
           id: String(t.id),
           name: t.name,
-          price: priceFromTicketApi(r.price),
-          remaining: remainingFromTicketApiRow(r as Record<string, unknown>),
+          price: priceFromTicketApi(row.price),
+          remaining: remainingFromTicketApiRow(row as Record<string, unknown>),
         };
       }),
     lat:
       detail.lat ??
+      coerceFiniteNumber(detail.latitude) ??
       (detail.latitude != null && detail.latitude !== '' ? Number(detail.latitude) : undefined) ??
       fallback?.lat,
     lng:
       detail.lng ??
+      coerceFiniteNumber(detail.longitude) ??
       (detail.longitude != null && detail.longitude !== '' ? Number(detail.longitude) : undefined) ??
       fallback?.lng,
     videoUrl: detail.video_url ?? fallback?.videoUrl,
     organizerNotes: detail.organizer_notes ?? fallback?.organizerNotes,
-    venueImages: detail.venue_images ?? fallback?.venueImages,
+    ...(venueImages && venueImages.length > 0 ? { venueImages } : {}),
   };
 }
 
 /** Maps `GET /events/{slug}/ticket-types` rows onto the `MockEvent.ticketTypes` UI shape. */
 export function ticketTypesToMockShape(types: TicketType[]): MockEvent['ticketTypes'] {
-  return types.map((t) => ({
-    id: String(t.id),
-    name: t.name,
-    price: typeof t.price === 'number' ? t.price : Number(t.price),
-    remaining: typeof t.remaining === 'number' ? t.remaining : Number(t.remaining),
-  }));
+  return types
+    .filter((t) => (t as Record<string, unknown>).is_active !== false)
+    .map((t) => {
+      const r = t as Record<string, unknown>;
+      return {
+        id: String(t.id),
+        name: t.name,
+        price: priceFromTicketApi(r.price ?? t.price),
+        remaining: remainingFromTicketApiRow(r),
+      };
+    });
 }
 
 /**

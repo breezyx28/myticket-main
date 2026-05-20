@@ -86,12 +86,14 @@ export interface MockEvent {
   coverImage: string;
   city: string;
   venue: string;
+  venueAddress?: string;
   category: string;
   dateStart: string;
   dateEnd: string;
   priceMin: number;
   priceMax: number;
-  ticketsLeft: number;
+  /** `null` when the API omits inventory (not the same as sold out). */
+  ticketsLeft: number | null;
   layoutType: LayoutType;
   featured: boolean;
   organizer: OrganizerSummary;
@@ -102,11 +104,13 @@ export interface MockEvent {
   rating: number | null;
   /** API-backed total rating count (when available from `EventDetail`). */
   ratingCount?: number;
-  /** Card attending stack — optional; EventCard derives demo defaults if omitted */
+  /** Social attending count from `attending_count`. */
   attendingCount?: number;
+  /** Primary sales from `tickets_sold` (shown as “tickets bought”). */
+  ticketsSold?: number;
   attendeeAvatars?: string[];
   gallery: string[];
-  ticketTypes: { id: string; name: string; price: number; remaining: number }[];
+  ticketTypes: { id: string; name: string; price: number; remaining: number | null }[];
   /** Map embed / link (demo) */
   lat?: number;
   lng?: number;

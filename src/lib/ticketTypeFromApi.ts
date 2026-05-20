@@ -17,7 +17,7 @@ export function priceFromTicketApi(v: unknown): number {
 }
 
 /** Prefers `quantity_remaining`, then `quantity_limit - quantity_sold`, then legacy keys. */
-export function remainingFromTicketApiRow(r: Record<string, unknown>): number {
+export function remainingFromTicketApiRow(r: Record<string, unknown>): number | null {
   const direct = num(
     r.quantity_remaining ??
       r.remaining ??
@@ -31,5 +31,12 @@ export function remainingFromTicketApiRow(r: Record<string, unknown>): number {
   const limit = num(r.quantity_limit, NaN);
   const sold = num(r.quantity_sold, NaN);
   if (Number.isFinite(limit) && Number.isFinite(sold)) return Math.max(0, limit - sold);
-  return 0;
+  if (Number.isFinite(limit)) return Math.max(0, limit);
+  return null;
+}
+
+export function formatTicketRemainingLabel(remaining: number | null | undefined): string {
+  if (remaining == null) return 'Available';
+  if (remaining <= 0) return 'Sold out';
+  return `${remaining.toLocaleString()} left`;
 }
