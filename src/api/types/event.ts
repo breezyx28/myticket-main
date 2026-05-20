@@ -33,6 +33,16 @@ export interface EventVendorSummary {
   [key: string]: unknown;
 }
 
+/** Row from `GET /events/featured` when the API nests the event under `event`. */
+export interface FeaturedEventPin {
+  id: Id;
+  event_id: Id;
+  position?: number;
+  pinned_until?: Iso8601 | null;
+  event?: EventListItem | null;
+  [key: string]: unknown;
+}
+
 export interface EventListItem {
   id: Id;
   slug?: Slug;

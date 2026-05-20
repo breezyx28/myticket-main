@@ -9,6 +9,7 @@ import type {
   EventListQuery,
   EventOccurrence,
   EventRatingsSummary,
+  FeaturedEventPin,
   SeatMap,
   SeatRecord as ApiSeatRecord,
   SeatStatus,
@@ -132,6 +133,103 @@ function normalizeEventSeatsResponse(response: unknown): SeatMap {
   };
 }
 
+function emptyPaginatedEvents(perPage = 8): Paginated<EventListItem> {
+  return {
+    current_page: 1,
+    data: [],
+    first_page_url: null,
+    from: null,
+    last_page: 1,
+    last_page_url: null,
+    links: [],
+    next_page_url: null,
+    path: '',
+    per_page: perPage,
+    prev_page_url: null,
+    to: null,
+    total: 0,
+  };
+}
+
+function isFeaturedPinRow(row: unknown): row is FeaturedEventPin & Record<string, unknown> {
+  if (!row || typeof row !== 'object') return false;
+  const r = row as Record<string, unknown>;
+  return r.event != null && typeof r.event === 'object';
+}
+
+function featuredPinToListItem(pin: FeaturedEventPin & Record<string, unknown>): EventListItem | null {
+  const nested = pin.event;
+  if (!nested || typeof nested !== 'object') return null;
+  const ev = nested as Record<string, unknown>;
+  const eventId = ev.id ?? pin.event_id;
+  if (eventId == null) return null;
+  const start = ev.starts_at ?? ev.date_start ?? '';
+  return {
+    ...(ev as EventListItem),
+    id: eventId as EventListItem['id'],
+    date_start: String(start),
+    starts_at: typeof ev.starts_at === 'string' ? ev.starts_at : String(start),
+    is_featured: true,
+    featured: true,
+  };
+}
+
+/**
+ * Featured endpoint may return Laravel pins `{ data: [{ event_id, event: {...} }] }`,
+ * a bare array, or a full paginator of flat `EventListItem` rows.
+ */
+export function normalizeFeaturedEventsResponse(
+  response: unknown,
+  perPage = 8,
+): Paginated<EventListItem> {
+  if (!response) return emptyPaginatedEvents(perPage);
+
+  if (Array.isArray(response)) {
+    const data = response
+      .map((row) =>
+        isFeaturedPinRow(row)
+          ? featuredPinToListItem(row)
+          : (row as EventListItem),
+      )
+      .filter((e): e is EventListItem => e != null && typeof e.title === 'string');
+    return { ...emptyPaginatedEvents(perPage), data, total: data.length, to: data.length };
+  }
+
+  if (typeof response !== 'object' || !('data' in response)) {
+    return emptyPaginatedEvents(perPage);
+  }
+
+  const raw = response as Paginated<unknown> & ResourceEnvelope<unknown[]>;
+  const rows = Array.isArray(raw.data) ? raw.data : [];
+
+  if (rows.length > 0 && isFeaturedPinRow(rows[0])) {
+    const data = rows
+      .map((row) => featuredPinToListItem(row as FeaturedEventPin & Record<string, unknown>))
+      .filter((e): e is EventListItem => e != null);
+    const base =
+      'current_page' in raw && typeof raw.current_page === 'number'
+        ? (raw as Paginated<EventListItem>)
+        : emptyPaginatedEvents(perPage);
+    return {
+      ...base,
+      data,
+      total: typeof raw.total === 'number' ? raw.total : data.length,
+      to: data.length,
+    };
+  }
+
+  const data = rows.filter(
+    (row): row is EventListItem =>
+      row != null && typeof row === 'object' && typeof (row as EventListItem).title === 'string',
+  ) as EventListItem[];
+
+  if ('current_page' in raw && typeof raw.current_page === 'number') {
+    return { ...(raw as Paginated<EventListItem>), data };
+  }
+
+  return { ...emptyPaginatedEvents(perPage), data, total: data.length, to: data.length };
+}
+
 export const eventsApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
     listEvents: build.query<Paginated<EventListItem>, EventListQuery | void>({
@@ -146,7 +244,18 @@ export const eventsApi = baseApi.injectEndpoints({
     }),
     getFeaturedEvents: build.query<Paginated<EventListItem>, PaginationQuery | void>({
       query: (params) => ({ url: '/events/featured', params: params ?? undefined }),
-      providesTags: [{ type: 'Event', id: 'FEATURED' }],
+      transformResponse: (response: unknown, _meta, arg) =>
+        normalizeFeaturedEventsResponse(
+          response,
+          arg && typeof arg === 'object' && 'per_page' in arg ? Number(arg.per_page) || 8 : 8,
+        ),
+      providesTags: (result) =>
+        result?.data?.length
+          ? [
+              ...result.data.map((e) => ({ type: 'Event' as const, id: e.id })),
+              { type: 'Event' as const, id: 'FEATURED' },
+            ]
+          : [{ type: 'Event' as const, id: 'FEATURED' }],
     }),
     getEventBySlug: build.query<EventDetail, { slug: Slug }>({
       query: ({ slug }) => ({ url: `/events/${encodeURIComponent(slug)}` }),

@@ -24,7 +24,7 @@ export function FeaturedSection() {
           {events.map((e) => {
             const props = eventListItemToCardProps(e);
             return (
-              <div key={e.id} className="flex-shrink-0">
+              <div key={props.eventId} className="flex-shrink-0">
                 <EventCard
                   {...props}
                   className="w-[280px]"
