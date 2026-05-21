@@ -1,27 +1,70 @@
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
+import type { TicketStatus } from '@/api/types/ticket';
 
 const QR_OPTIONS = {
-  errorCorrectionLevel: 'L' as const,
+  errorCorrectionLevel: 'M' as const,
   margin: 2,
   width: 400,
   color: { dark: '#0a0a0a', light: '#ffffff' },
 };
 
-export async function generateTicketQrDataUrl(signedPayload: string): Promise<string> {
-  return QRCode.toDataURL(signedPayload.trim(), QR_OPTIONS);
+export type TicketQrScanSource = {
+  code?: string | null;
+  qr_scan_value?: string | null;
+};
+
+/**
+ * Value encoded in the buyer QR matrix. Must match scanner `ticket_code` (`POST /scanner/scans`).
+ * Prefer `qr_scan_value` when the API provides it; never use `signed_qr_payload` for the matrix.
+ */
+export function ticketQrScanValue(
+  source: TicketQrScanSource | string | null | undefined,
+): string | null {
+  if (source == null) return null;
+  if (typeof source === 'string') {
+    const trimmed = source.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+  const raw = source.qr_scan_value ?? source.code;
+  if (raw == null) return null;
+  const trimmed = String(raw).trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+export async function generateTicketQrDataUrl(scanValue: string): Promise<string> {
+  return QRCode.toDataURL(scanValue.trim(), QR_OPTIONS);
+}
+
+export function ticketQrStatusMessage(status: TicketStatus | string): string | null {
+  switch (status) {
+    case 'used':
+      return 'This ticket has already been scanned at the gate.';
+    case 'cancelled':
+      return 'This ticket was cancelled and is not valid for entry.';
+    case 'refunded':
+      return 'This ticket was refunded and is not valid for entry.';
+    case 'expired':
+      return 'This ticket has expired.';
+    case 'gifted':
+      return 'This ticket was gifted. The recipient uses their own copy for entry.';
+    case 'auction':
+      return 'This ticket is listed for resale. Cancel the listing to use it for entry.';
+    default:
+      return null;
+  }
 }
 
 /**
- * Generates and caches a PNG data URL for `signed_qr_payload` (gate payload).
+ * Generates a PNG data URL for the gate scan value (`ticket.code`).
  */
-export function useTicketQrDataUrl(signedPayload: string | undefined | null) {
+export function useTicketQrDataUrl(scanValue: string | undefined | null) {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const raw = signedPayload?.trim();
+    const raw = scanValue?.trim();
     if (!raw) {
       setDataUrl(null);
       setLoading(false);
@@ -51,7 +94,7 @@ export function useTicketQrDataUrl(signedPayload: string | undefined | null) {
     return () => {
       cancelled = true;
     };
-  }, [signedPayload]);
+  }, [scanValue]);
 
   return { dataUrl, loading, error };
 }

@@ -1,4 +1,5 @@
 import type { Id, Iso8601, Money } from '@/api/types/common';
+import type { ConfirmPaymentTicket } from '@/api/types/ticket';
 
 export type PaymentMethod = 'visa' | 'mastercard' | 'mada' | string;
 export type OrderStatus =
@@ -50,6 +51,9 @@ export interface Order {
   payment_method?: PaymentMethod;
   payment_intent_id?: string | null;
   lines: OrderLine[];
+  /** Lean ticket rows after `POST /orders/{id}/confirm-payment` (codes for immediate QR). */
+  tickets?: ConfirmPaymentTicket[];
+  payment_status?: string;
   created_at?: Iso8601;
   updated_at?: Iso8601;
   [key: string]: unknown;

@@ -16,8 +16,10 @@ export type TicketStatus =
  */
 export interface Ticket {
   id: Id;
-  /** Public ticket code, e.g. `TIC-…`. */
+  /** Public ticket code, e.g. `TIC-…` — gate scan value. */
   code?: string | null;
+  /** Same as `code` on detail / confirm-payment rows (explicit for UI). */
+  qr_scan_value?: string | null;
   order_id?: Id;
   order_item_id?: Id;
   order_reference?: string | null;
@@ -45,7 +47,10 @@ export interface Ticket {
   qr_payload_hash?: string | null;
   qr_secret_hash?: string | null;
   qr_rotation_count?: number;
-  /** Laravel-encrypted payload for gate scanners; encode in QR on detail view. */
+  /**
+   * Present on `GET /me/tickets/{id}` only. Encrypted canonical payload; use with
+   * `POST /me/tickets/{id}/validate` — do **not** encode in the gate QR image.
+   */
   signed_qr_payload?: string | null;
   price_paid: Money;
   /** API may send `0` / `1`. */
@@ -58,6 +63,40 @@ export interface Ticket {
   cancelled_at?: Iso8601 | null;
   created_at?: Iso8601;
   updated_at?: Iso8601;
+  [key: string]: unknown;
+}
+
+/** Lean row from `POST /orders/{id}/confirm-payment` `data.tickets[]`. */
+export interface ConfirmPaymentTicket {
+  id: Id;
+  code: string;
+  status: TicketStatus;
+  event_id: Id;
+  seat_label_cache?: string | null;
+  type_name_cache?: string | null;
+  qr_scan_value: string;
+  [key: string]: unknown;
+}
+
+/** `GET /me/tickets/{id}` — includes `signed_qr_payload` and `qr_scan_value`. */
+export interface TicketDetail extends Ticket {
+  signed_qr_payload: string;
+  qr_scan_value: string;
+}
+
+export interface ValidateTicketQrRequest {
+  qr_payload: string;
+}
+
+export interface ValidateTicketQrResponse {
+  valid: boolean;
+  scanned_at?: Iso8601;
+  ticket?: {
+    id: Id;
+    code: string;
+    status: TicketStatus;
+    [key: string]: unknown;
+  };
   [key: string]: unknown;
 }
 

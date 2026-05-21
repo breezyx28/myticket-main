@@ -19,6 +19,8 @@ import type {
   CreateOrderRequest,
   Order,
 } from '@/api/types/order';
+import type { ConfirmPaymentTicket } from '@/api/types/ticket';
+import { CheckoutSuccessTickets } from '@/components/tickets/CheckoutSuccessTickets';
 import type { SavedCard } from '@/api/types/savedCard';
 import type { SeatLockRequest } from '@/api/types/seat';
 import { Button } from '@/components/ui/Button';
@@ -94,7 +96,10 @@ export function CheckoutPage() {
   const [overlapOpen, setOverlapOpen] = useState(false);
   const [overlapDismissed, setOverlapDismissed] = useState(false);
   const [overlapConflictTitle, setOverlapConflictTitle] = useState<string | null>(null);
-  const [success, setSuccess] = useState<{ orderRef: string } | null>(null);
+  const [success, setSuccess] = useState<{
+    orderRef: string;
+    tickets: ConfirmPaymentTicket[];
+  } | null>(null);
   const [payFailOpen, setPayFailOpen] = useState(false);
   const [paymentForm, setPaymentForm] = useState<PaymentFormState>({
     method: 'visa',
@@ -382,7 +387,20 @@ export function CheckoutPage() {
       if (paymentForm.saveCard && !usingSavedCard) {
         confirmBody.save_card = true;
       }
-      await confirmOrderPayment({ id: orderId, body: confirmBody }).unwrap();
+      const confirmed = await confirmOrderPayment({ id: orderId, body: confirmBody }).unwrap();
+      const orderRef =
+        confirmed.reference ?? order.reference ?? `ORD-${String(orderId)}`;
+      setSuccess({
+        orderRef,
+        tickets: confirmed.tickets ?? [],
+      });
+      pushNotification({
+        kind: 'order',
+        title: 'Order confirmed',
+        body: `${event.title} · ${orderRef} · ${qty} ticket${qty === 1 ? '' : 's'}`,
+        href: `/my-tickets`,
+      });
+      return;
     } catch (err) {
       const message =
         readApiErrorMessage(err) ?? 'Payment was declined or interrupted. Seat holds will release shortly.';
@@ -391,14 +409,6 @@ export function CheckoutPage() {
       return;
     }
 
-    const orderRef = order.reference ?? `ORD-${String(orderId)}`;
-    setSuccess({ orderRef });
-    pushNotification({
-      kind: 'order',
-      title: 'Order confirmed',
-      body: `${event.title} · ${orderRef} · ${qty} ticket${qty === 1 ? '' : 's'}`,
-      href: `/my-tickets`,
-    });
   }
 
   function onPaymentFieldChange(
@@ -913,7 +923,7 @@ export function CheckoutPage() {
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 12, opacity: 0 }}
-              className="max-w-md overflow-hidden rounded-2xl bg-white shadow-card-lg"
+              className="max-h-[90vh] max-w-md overflow-hidden overflow-y-auto rounded-2xl bg-white shadow-card-lg"
             >
               <div className="relative overflow-hidden bg-gradient-to-br from-lemon/90 via-mint/40 to-coral/30 px-6 py-10 text-center">
                 {Array.from({ length: 18 }).map((_, i) => (
@@ -944,6 +954,14 @@ export function CheckoutPage() {
                 </p>
                 <p className="mt-1 text-[13px] text-ink-40">Order {success.orderRef}</p>
               </div>
+              {success.tickets.length > 0 && (
+                <div className="border-t border-ink-10 px-6 py-4">
+                  <p className="text-center text-[11px] font-semibold uppercase tracking-wide text-ink-40">
+                    {success.tickets.length === 1 ? 'Your entry QR' : 'Your entry QRs'}
+                  </p>
+                  <CheckoutSuccessTickets tickets={success.tickets} className="mt-3" />
+                </div>
+              )}
               <div className="space-y-3 p-6">
                 <Link
                   to="/my-tickets"

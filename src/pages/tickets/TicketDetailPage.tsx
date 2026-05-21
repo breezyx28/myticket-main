@@ -10,6 +10,7 @@ import {
   useCreateMyAuctionMutation,
   useGetMyTicketQuery,
   useGiftTicketMutation,
+  useValidateTicketQrMutation,
 } from '@/api/endpoints';
 import type { CancelTicketResponse } from '@/api/types/ticket';
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,7 +18,7 @@ import { useNotifications } from '@/contexts/NotificationContext';
 import { apiTicketToMockTicket } from '@/lib/ticketMappers';
 import { downloadTicketPdf } from '@/lib/ticketPdfDownload';
 import { uiSeatIdToApi } from '@/lib/seatMappers';
-import { useTicketQrDataUrl } from '@/lib/ticketQr';
+import { ticketQrScanValue, useTicketQrDataUrl } from '@/lib/ticketQr';
 import { listForAuctionSchema } from '@/schemas/auction';
 import { cn } from '@/lib/utils';
 
@@ -50,15 +51,13 @@ export function TicketDetailPage() {
 
   const ticket = useMemo(() => (apiTicket ? apiTicketToMockTicket(apiTicket) : null), [apiTicket]);
 
-  const signedQrSource =
-    apiTicket?.signed_qr_payload != null && String(apiTicket.signed_qr_payload).trim()
-      ? String(apiTicket.signed_qr_payload).trim()
-      : ticket?.signedQrPayload?.trim() ?? null;
+  const scanValue = ticketQrScanValue(apiTicket ?? ticket?.ticketCode);
 
-  const qr = useTicketQrDataUrl(signedQrSource);
+  const qr = useTicketQrDataUrl(scanValue);
 
   const [giftTicket, { isLoading: gifting }] = useGiftTicketMutation();
   const [cancelTicket, { isLoading: cancelling }] = useCancelTicketMutation();
+  const [validateTicketQr, { isLoading: validatingQr }] = useValidateTicketQrMutation();
   const [createMyAuction, { isLoading: listingForAuction }] = useCreateMyAuctionMutation();
   const [cancelAuction, { isLoading: cancellingAuction }] = useCancelAuctionMutation();
 
@@ -74,6 +73,7 @@ export function TicketDetailPage() {
   const [cancelSummary, setCancelSummary] = useState<CancelTicketResponse['refund'] | null>(null);
   const [walletHint, setWalletHint] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [qrValidateResult, setQrValidateResult] = useState<'valid' | 'invalid' | null>(null);
 
   useEffect(() => {
     setError(null);
@@ -161,7 +161,7 @@ export function TicketDetailPage() {
         ? `${new Date(ticket.dateStart).toLocaleString()} — ${new Date(ticket.dateEnd || ticket.dateStart).toLocaleString()}`
         : 'Event schedule TBC';
       await downloadTicketPdf({
-        signedPayload: signedQrSource,
+        scanValue,
         dataUrl: qr.dataUrl,
         meta: {
           eventTitle: ticket.eventTitle || 'Event',
@@ -311,8 +311,51 @@ export function TicketDetailPage() {
             dataUrl={qr.dataUrl}
             loading={qr.loading}
             error={qr.error}
-            hasPayload={Boolean(signedQrSource)}
+            ticketCode={scanValue}
+            status={ticket.status}
           />
+          {apiTicket?.signed_qr_payload && ticket.status === 'active' && (
+            <div className="mt-4 rounded-xl border border-ink-10 bg-ink-5/30 p-4">
+              <p className="text-[12px] leading-relaxed text-ink-60">
+                Optional authenticity check (holder only). The gate still scans the code above, not the encrypted
+                payload.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-3"
+                loading={validatingQr}
+                disabled={validatingQr}
+                onClick={async () => {
+                  const signedPayload = apiTicket.signed_qr_payload?.trim();
+                  if (!signedPayload) return;
+                  setQrValidateResult(null);
+                  try {
+                    const res = await validateTicketQr({
+                      id: uiSeatIdToApi(ticket.id),
+                      body: { qr_payload: signedPayload },
+                    }).unwrap();
+                    setQrValidateResult(res.valid ? 'valid' : 'invalid');
+                  } catch {
+                    setQrValidateResult('invalid');
+                  }
+                }}
+              >
+                Verify ticket authenticity
+              </Button>
+              {qrValidateResult === 'valid' && (
+                <p className="mt-2 text-[13px] font-semibold text-mint-dark">
+                  Valid — this ticket matches the server record.
+                </p>
+              )}
+              {qrValidateResult === 'invalid' && (
+                <p className="mt-2 text-[13px] font-semibold text-coral">
+                  Could not verify. Refresh the page or contact support if this persists.
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         {apiTicket && <TicketSummaryCard ticket={apiTicket} />}
@@ -357,7 +400,7 @@ export function TicketDetailPage() {
             variant="outline"
             size="md"
             icon={DownloadSimple}
-            disabled={!canAct || pdfLoading || !signedQrSource}
+            disabled={!canAct || pdfLoading || !scanValue}
             loading={pdfLoading}
             onClick={() => void onDownloadPdf()}
           >

@@ -9,6 +9,8 @@ import type {
   OverlapCheckResponse,
   RefundTicketRequest,
   Ticket,
+  ValidateTicketQrRequest,
+  ValidateTicketQrResponse,
 } from '@/api/types/ticket';
 
 /** Laravel may wrap a single ticket as `{ data: Ticket }`. */
@@ -87,6 +89,17 @@ export const ticketsApi = baseApi.injectEndpoints({
         body,
       }),
     }),
+    validateTicketQr: build.mutation<
+      ValidateTicketQrResponse,
+      { id: Id; body: ValidateTicketQrRequest }
+    >({
+      query: ({ id, body }) => ({
+        url: `/me/tickets/${id}/validate`,
+        method: 'POST',
+        body,
+      }),
+      transformResponse: (raw: unknown) => unwrapDataKey<ValidateTicketQrResponse>(raw),
+    }),
     cancelTicket: build.mutation<
       CancelTicketResponse,
       { id: Id; body?: CancelTicketRequest }
@@ -112,4 +125,5 @@ export const {
   useRefundTicketMutation,
   useCheckTicketOverlapMutation,
   useCancelTicketMutation,
+  useValidateTicketQrMutation,
 } = ticketsApi;

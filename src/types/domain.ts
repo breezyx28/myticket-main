@@ -173,7 +173,7 @@ export interface MockTicket {
   seatLabel?: string;
   orderRef: string;
   qrPayload?: string;
-  /** Gate QR content from `signed_qr_payload` when present. */
+  /** API `signed_qr_payload` on detail — not used for QR rendering (gate uses `ticketCode`). */
   signedQrPayload?: string;
   pricePaid: number;
   /** If true, overlap check uses this when booking another event same time */

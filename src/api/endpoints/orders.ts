@@ -7,6 +7,7 @@ import type {
   CreateOrderRequest,
   Order,
 } from '@/api/types/order';
+import type { ConfirmPaymentTicket } from '@/api/types/ticket';
 
 type OrderPayload = Order & { order_id?: Id };
 
@@ -27,10 +28,11 @@ function unwrapOrderResponse(raw: unknown): Order {
   }
   const o = payload as OrderPayload;
   const id = (o.id ?? o.order_id) as Id | undefined;
+  const tickets = Array.isArray(o.tickets) ? (o.tickets as ConfirmPaymentTicket[]) : undefined;
   if (id == null) {
-    return o as Order;
+    return tickets ? { ...o, tickets } : (o as Order);
   }
-  return { ...o, id };
+  return { ...o, id, tickets };
 }
 
 export const ordersApi = baseApi.injectEndpoints({

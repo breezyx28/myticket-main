@@ -79,7 +79,12 @@ export function apiTicketToMockTicket(ticket: Ticket, fallback?: MockTicket | nu
 
   return {
     id: String(ticket.id),
-    ticketCode: ticket.code != null && String(ticket.code).trim() ? String(ticket.code).trim() : undefined,
+    ticketCode:
+      pickFirstNonEmpty(
+        ticket.qr_scan_value,
+        ticket.code,
+        fallback?.ticketCode,
+      ) || undefined,
     eventId: String(ticket.event_id),
     eventTitle,
     venue,

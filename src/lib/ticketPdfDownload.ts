@@ -19,21 +19,22 @@ function safeFilenamePart(s: string): string {
 
 /**
  * One-page PDF: receipt lines + embedded QR (PNG from data URL).
- * If `dataUrl` is omitted, generates QR from `signedPayload` (must be non-empty).
+ * QR encodes `ticket.code` (gate scan value). If `dataUrl` is omitted, generates from `scanValue`.
  */
 export async function downloadTicketPdf(opts: {
-  signedPayload?: string | null;
+  /** `ticket.code` — same string as the on-screen QR. */
+  scanValue?: string | null;
   dataUrl?: string | null;
   meta: TicketPdfMeta;
 }): Promise<void> {
   const { meta } = opts;
   let pngDataUrl = opts.dataUrl ?? null;
-  const payload = opts.signedPayload?.trim();
-  if (!pngDataUrl && payload) {
-    pngDataUrl = await generateTicketQrDataUrl(payload);
+  const scan = opts.scanValue?.trim() ?? meta.ticketCode?.trim();
+  if (!pngDataUrl && scan) {
+    pngDataUrl = await generateTicketQrDataUrl(scan);
   }
   if (!pngDataUrl) {
-    throw new Error('No QR data available for this ticket.');
+    throw new Error('No ticket code available for QR on this ticket.');
   }
 
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
