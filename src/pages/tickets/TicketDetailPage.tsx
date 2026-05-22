@@ -73,7 +73,8 @@ export function TicketDetailPage() {
   const [cancelSummary, setCancelSummary] = useState<CancelTicketResponse['refund'] | null>(null);
   const [walletHint, setWalletHint] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
-  const [qrValidateResult, setQrValidateResult] = useState<'valid' | 'invalid' | null>(null);
+  /** `mismatch` = HTTP OK but `valid: false`; `error` = request failed */
+  const [qrValidateResult, setQrValidateResult] = useState<'valid' | 'mismatch' | 'error' | null>(null);
 
   useEffect(() => {
     setError(null);
@@ -336,9 +337,9 @@ export function TicketDetailPage() {
                       id: uiSeatIdToApi(ticket.id),
                       body: { qr_payload: signedPayload },
                     }).unwrap();
-                    setQrValidateResult(res.valid ? 'valid' : 'invalid');
+                    setQrValidateResult(res.valid ? 'valid' : 'mismatch');
                   } catch {
-                    setQrValidateResult('invalid');
+                    setQrValidateResult('error');
                   }
                 }}
               >
@@ -349,9 +350,16 @@ export function TicketDetailPage() {
                   Valid — this ticket matches the server record.
                 </p>
               )}
-              {qrValidateResult === 'invalid' && (
+              {qrValidateResult === 'mismatch' && (
                 <p className="mt-2 text-[13px] font-semibold text-coral">
-                  Could not verify. Refresh the page or contact support if this persists.
+                  Authenticity check failed — the encrypted payload on this page does not match the server record.
+                  Your entry QR code above is unchanged. Refresh this page once (the server may repair legacy tickets on
+                  load), then try again. If it still fails, contact support.
+                </p>
+              )}
+              {qrValidateResult === 'error' && (
+                <p className="mt-2 text-[13px] font-semibold text-coral">
+                  Could not reach the verify service. Check your connection and try again.
                 </p>
               )}
             </div>
