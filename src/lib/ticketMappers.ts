@@ -49,15 +49,15 @@ export function apiTicketToMockTicket(ticket: Ticket, fallback?: MockTicket | nu
   );
   const venue = pickFirstNonEmpty(ticket.venue, ticket.venue_cache, fallback?.venue);
   const city = pickFirstNonEmpty(ticket.city, ticket.city_cache, fallback?.city);
+  // Event window from detail heal / caches — not ticket.created_at (purchase time).
   const dateStart = pickFirstNonEmpty(
-    ticket.date_start,
     ticket.starts_at_cache,
-    ticket.created_at,
+    ticket.date_start,
     fallback?.dateStart,
   );
   const dateEnd = pickFirstNonEmpty(
-    ticket.date_end,
     ticket.ends_at_cache,
+    ticket.date_end,
     dateStart,
     fallback?.dateEnd,
   );

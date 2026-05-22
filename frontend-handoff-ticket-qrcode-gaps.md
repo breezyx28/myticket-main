@@ -100,6 +100,7 @@ Handoff §7.8: invoice email is plain `ticket.code` text only.
 
 ## Backend confirmation (addressed in backend-updates handoff)
 
-1. `GET /me/tickets/{id}` returns `code`, `qr_scan_value`, and `signed_qr_payload` for holders.  
-2. `POST /orders/{id}/confirm-payment` returns `data.tickets[]` with `code` / `qr_scan_value`.  
-3. Validate is **`POST /me/tickets/{id}/validate`** (auth, holder-only); public `/tickets/{id}/validate` removed.
+1. `GET /me/tickets/{id}` returns `code`, `qr_scan_value`, and `signed_qr_payload` for holders; first load may heal legacy hashes and `*_cache` fields.  
+2. `POST /orders/{id}/confirm-payment` returns lean `data.tickets[]` with `code` / `qr_scan_value`.  
+3. Validate is **`POST /me/tickets/{id}/validate`** (auth, holder-only); `valid: false` means payload mismatch (not a transport error).  
+4. Event times on ticket UI use **`starts_at_cache` / `ends_at_cache`** via [`ticketMappers`](src/lib/ticketMappers.ts) — not `created_at`.

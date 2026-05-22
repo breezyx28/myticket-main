@@ -175,3 +175,19 @@ export function ticketQrScanValue(ticket: { code: string; qr_scan_value?: string
 | Legacy row | Detail load updates hash; validate succeeds |
 
 Tests: `BookingPaymentsFlowTest`, `TicketQrPayloadTest`, `MainPublicEndpointsTest`.
+
+---
+
+## Main website field mapping (post-deploy)
+
+| UI | API field |
+|----|-----------|
+| Draw gate QR | `data.code` or `data.qr_scan_value` (same `TIC-…` string) |
+| Event date/time on ticket page | `data.starts_at_cache` / `data.ends_at_cache` — **not** `created_at` |
+| Optional authenticity button | `POST /me/tickets/{id}/validate` with `signed_qr_payload` from latest detail GET |
+| Checkout success QR | `confirm-payment` → `data.tickets[].code` or `qr_scan_value` |
+| List (`GET /me/tickets`) | No `signed_qr_payload` / `qr_scan_value`; open detail for QR + verify |
+
+**Legacy heal:** First `GET /me/tickets/{id}` after deploy may update `qr_payload_hash`, caches, and `signed_qr_payload` in DB. Refresh detail (or use Verify — main app refetches detail first) before expecting `valid: true`.
+
+**Scanner (separate app):** `POST /scanner/scans` with `ticket_code` = scanned `TIC-…`. `result: "expired"` may include `event_window` + `failure_reason` (e.g. `after_window`); gate QR content unchanged.

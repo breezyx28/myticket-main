@@ -329,10 +329,16 @@ export function TicketDetailPage() {
                 loading={validatingQr}
                 disabled={validatingQr}
                 onClick={async () => {
-                  const signedPayload = apiTicket.signed_qr_payload?.trim();
-                  if (!signedPayload) return;
                   setQrValidateResult(null);
                   try {
+                    const { data: fresh } = await refetch();
+                    const signedPayload = (
+                      fresh?.signed_qr_payload ?? apiTicket.signed_qr_payload
+                    )?.trim();
+                    if (!signedPayload) {
+                      setQrValidateResult('error');
+                      return;
+                    }
                     const res = await validateTicketQr({
                       id: uiSeatIdToApi(ticket.id),
                       body: { qr_payload: signedPayload },
