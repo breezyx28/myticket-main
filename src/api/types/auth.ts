@@ -1,5 +1,5 @@
-import type { Id, Iso8601 } from '@/api/types/common';
-import type { UserMe } from '@/api/types/user';
+import type { Id, Iso8601 } from "@/api/types/common";
+import type { UserMe } from "@/api/types/user";
 
 export type OAuthProvider = string;
 
@@ -9,6 +9,7 @@ export interface RegisterRequest {
   password: string;
   full_name: string;
   display_name?: string;
+  agree_terms?: boolean;
 }
 
 export interface LoginRequest {

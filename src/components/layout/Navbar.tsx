@@ -7,6 +7,8 @@ import { useNotifications } from '@/contexts/NotificationContext';
 import { cn } from '@/lib/utils';
 import { canAccessEngagementsInbox, canBrowseMarketplace } from '@/lib/marketplaceAccess';
 import { isOrganizerUser } from '@/lib/organizerPortal';
+import { isTalentUser } from '@/lib/talentPortal';
+import { isVendorUser } from '@/lib/vendorPortal';
 
 export function Navbar() {
   const { user, signOut } = useAuth();
@@ -47,7 +49,13 @@ export function Navbar() {
     );
     return links;
   }, [user]);
-  const profilePath = isOrganizerUser(user) ? '/organizer-portal' : '/profile';
+  const profilePath = isOrganizerUser(user)
+    ? '/organizer-portal'
+    : isTalentUser(user)
+      ? '/talent-portal'
+      : isVendorUser(user)
+        ? '/vendor-portal'
+        : '/profile';
 
   return (
     <IconContext.Provider value={{ weight: 'fill' }}>

@@ -16,6 +16,8 @@ import {
 import { apiStatusToOnboardingStatus, apiTalentDetailToDraft } from '@/lib/roleApplicationMappers';
 import { runTalentRoleApplicationPipeline } from '@/services/roleApplicationSubmit';
 import { isOrganizerUser } from '@/lib/organizerPortal';
+import { isTalentUser } from '@/lib/talentPortal';
+import { buildVendorPortalUrl, isVendorUser } from '@/lib/vendorPortal';
 import type { RoleApplicationSummary } from '@/api/types/roleApplication';
 import type { UserSession } from '@/api/types/user';
 import {
@@ -601,6 +603,19 @@ export function ProfilePage() {
             Rejection reason: {rejectionReason ?? 'Please review your submitted details.'}
           </p>
         )}
+        {kind === 'vendor' && !isApproved ? (
+          <div className="mt-3">
+            <a
+              href={buildVendorPortalUrl(
+                status === 'submitted' ? '/application/status' : '/application',
+                user,
+              )}
+              className="text-[13px] font-semibold text-coral hover:underline"
+            >
+              Continue on Vendor Dashboard
+            </a>
+          </div>
+        ) : null}
         {isApproved ? (
           <p className="mt-2 text-[12px] text-mint-dark">Role is active.</p>
         ) : (
@@ -619,7 +634,11 @@ export function ProfilePage() {
                       await resubmitOrganizerApplication({ id: summary.id }).unwrap();
                     }
                     await refetchMyApps();
-                    navigate(`/register?role=${kind}`);
+                    if (kind === 'vendor') {
+                      window.location.assign(buildVendorPortalUrl('/application', user));
+                    } else {
+                      navigate(`/register?role=${kind}`);
+                    }
                   } catch (e) {
                     setSaveError(readApiErrorMessage(e, 'Could not reopen application.'));
                   }
@@ -655,6 +674,14 @@ export function ProfilePage() {
         )}
       </article>
     );
+  }
+
+  if (isTalentUser(user)) {
+    return <Navigate to="/talent-portal" replace />;
+  }
+
+  if (isVendorUser(user)) {
+    return <Navigate to="/vendor-portal/profile" replace />;
   }
 
   if (isOrganizerUser(user)) {

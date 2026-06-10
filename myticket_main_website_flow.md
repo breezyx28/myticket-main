@@ -67,7 +67,16 @@ Source: [src/components/auth/steps/SharedBasicStep.tsx](src/components/auth/step
 
 #### Role selection step
 
-Choice of one role: `guest | talent | vendor | organizer`. Selecting a non-guest role enters the role onboarding wizard (see §10 and §13). Choosing **Guest** completes registration immediately and redirects to the originally requested page (`from` location state) or `/`.
+Choice of one role: `guest | talent | vendor | organizer`.
+
+| Role | Post-registration redirect |
+|---|---|
+| **Guest** | Stays on the Main Website — originally requested page (`from` location state) or `/`. |
+| **Talent** | External **Talent Dashboard** at `https://myticket-talent.kat-jr.com/application` (see [src/lib/talentPortal.ts](src/lib/talentPortal.ts)). Account is created on the Main Website first if needed. |
+| **Vendor** | External **Vendor Dashboard** at `https://myticket-vendor.kat-jr.com/application` (see [src/lib/vendorPortal.ts](src/lib/vendorPortal.ts)). Account is created on the Main Website first if needed. |
+| **Organizer** | Onboarding wizard on the Main Website (see §10 and §13). After a successful application submit, redirects to the **Organizer Dashboard** at `https://myticket-organizer.kat-jr.com` (see [src/lib/organizerPortal.ts](src/lib/organizerPortal.ts)). |
+
+Redirect URLs append `?source=main-website` and, when available, `&email=<user email>` so the destination app can pre-fill or correlate the session. Override base URLs per environment via `VITE_TALENT_DASHBOARD_URL`, `VITE_VENDOR_DASHBOARD_URL`, and `VITE_ORGANIZER_DASHBOARD_URL` (see [.env.example](.env.example); local dev defaults to `http://localhost:5175`, `5176`, and `5174` respectively).
 
 ### Forgot Password / Reset Password
 
@@ -984,10 +993,11 @@ The "Change password" action triggers the password-update endpoint (out of band 
 
 1. User registers as Guest (default role upon registration).
 2. User submits a role application (Talent, Vendor, or Organizer) with supporting documents.
-3. Admin reviews and approves or rejects the application (in Admin Dashboard).
-4. On approval: role is granted **permanently** and user receives email + in-app notification. The role **cannot be changed** after approval.
-5. On rejection: user receives email + in-app notification with reason. The user may revise and resubmit.
-6. **Talent profiles** are subject to admin review — a **disclaimer about upload quality** is shown to Talents during profile setup (e.g., minimum resolution, clear content, professional presentation).
+3. On successful submit, the user is redirected to the matching role dashboard (`myticket-talent.kat-jr.com`, `myticket-vendor.kat-jr.com`, or `myticket-organizer.kat-jr.com`) to continue outside the Main Website.
+4. Admin reviews and approves or rejects the application (in Admin Dashboard).
+5. On approval: role is granted **permanently** and user receives email + in-app notification. The role **cannot be changed** after approval.
+6. On rejection: user receives email + in-app notification with reason. The user may revise and resubmit.
+7. **Talent profiles** are subject to admin review — a **disclaimer about upload quality** is shown to Talents during profile setup (e.g., minimum resolution, clear content, professional presentation).
 
 #### Role-onboarding state machine
 
@@ -1805,8 +1815,10 @@ Every `<Route>` declared in [src/App.tsx](src/App.tsx). Auth and role gating not
 | `/checkout/:eventId` | `CheckoutPage` | `MainLayout` | `RequireAuth` | Same. Seated layouts arrive with `selectedSeats[]` via router state. |
 | `/my-tickets` | `MyTicketsPage` | `MainLayout` | `RequireAuth` | Filter chips by `TicketStatus`. |
 | `/my-tickets/:ticketId` | `TicketDetailPage` | `MainLayout` | `RequireAuth` | Hosts gift / auction-listing modals. |
-| `/profile` | `ProfilePage` | `MainLayout` | `RequireAuth` | Organizer users redirect to `/organizer-portal`. Tabs: `info | preferences | security | roles | danger`. |
-| `/organizer-portal` | `OrganizerPortalRedirectPage` | `MainLayout` | `RequireAuth` | External-app redirect target for `role === 'organizer'`. |
+| `/profile` | `ProfilePage` | `MainLayout` | `RequireAuth` | Talent → `/talent-portal`; Vendor → `/vendor-portal/profile`; Organizer → `/organizer-portal`. Tabs: `info | preferences | security | roles | danger`. |
+| `/organizer-portal` | `OrganizerPortalRedirectPage` | `MainLayout` | `RequireAuth` | Redirects to `https://myticket-organizer.kat-jr.com` for `role === 'organizer'`. |
+| `/talent-portal` | `TalentPortalRedirectPage` | `MainLayout` | `RequireAuth` | Redirects to `https://myticket-talent.kat-jr.com`. Nested: `/talent-portal/application`, `/talent-portal/engagements`. |
+| `/vendor-portal` | `VendorPortalRedirectPage` | `MainLayout` | `RequireAuth` | Redirects to `https://myticket-vendor.kat-jr.com`. Nested: `/vendor-portal/application`, `/vendor-portal/profile`, `/vendor-portal/engagements`. |
 | `/engagements` | `EngagementsPage` | `MainLayout` | `RequireAuth` | UI-level role gate via `canAccessEngagementsInbox` (`talent | vendor | organizer`). Other roles see empty state. |
 | `*` | `NotFoundPage` | `MainLayout` | None | |
 
@@ -1815,7 +1827,7 @@ Guard summary:
 - **`RequireAuth`** — wraps booking, ticketing, profile, engagements, and organizer-portal routes. Unauthenticated users are redirected to `/login` with the original location in `from`.
 - **`RequireMarketplaceBrowse`** — wraps `/marketplace` subtree. Combines `RequireAuth` semantics with `canBrowseMarketplace(user)` (organizer or vendor).
 - **`canAccessEngagementsInbox(user)`** — `talent | vendor | organizer` only. Enforced in-page rather than at the router level.
-- **Profile organizer redirect** — `ProfilePage` calls `useEffect` to push `role==='organizer'` users to `/organizer-portal` so the main-app profile UI never renders for them.
+- **Profile role redirects** — `ProfilePage` sends `talent`, `vendor`, and `organizer` users to their respective `/talent-portal`, `/vendor-portal/profile`, or `/organizer-portal` routes, which in turn redirect to the external role dashboards (`myticket-talent.kat-jr.com`, `myticket-vendor.kat-jr.com`, `myticket-organizer.kat-jr.com`).
 
 ---
 

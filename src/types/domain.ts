@@ -1,15 +1,21 @@
 /** Domain types for mock main-website flows (replace with API types later). */
 
-export type LayoutType = 'seated' | 'free';
-export type UserRole = 'guest' | 'talent' | 'vendor' | 'organizer';
-export type TalentApplicationStatus = 'not_started' | 'draft' | 'submitted' | 'approved' | 'rejected';
+export type LayoutType = "seated" | "free";
+export type UserRole = "guest" | "talent" | "vendor" | "organizer";
+export type TalentApplicationStatus =
+  | "not_started"
+  | "draft"
+  | "submitted"
+  | "approved"
+  | "rejected";
 export type RoleOnboardingStatus = TalentApplicationStatus;
-export type OnboardingRole = 'talent' | 'vendor' | 'organizer';
+export type OnboardingRole = "talent" | "vendor" | "organizer";
 
 export interface BaseRegistrationFields {
   fullName: string;
   email: string;
   password: string;
+  passwordConfirmation?: string;
   contactPhone: string;
   agreeTerms: boolean;
 }
@@ -99,7 +105,13 @@ export interface MockEvent {
   organizer: OrganizerSummary;
   showTalents: boolean;
   showVendors: boolean;
-  talents: { id: string; slug?: string; name: string; photo?: string; proficiency?: string }[];
+  talents: {
+    id: string;
+    slug?: string;
+    name: string;
+    photo?: string;
+    proficiency?: string;
+  }[];
   vendors: { id: string; slug?: string; name: string; serviceType: string }[];
   rating: number | null;
   /** API-backed total rating count (when available from `EventDetail`). */
@@ -110,7 +122,12 @@ export interface MockEvent {
   ticketsSold?: number;
   attendeeAvatars?: string[];
   gallery: string[];
-  ticketTypes: { id: string; name: string; price: number; remaining: number | null }[];
+  ticketTypes: {
+    id: string;
+    name: string;
+    price: number;
+    remaining: number | null;
+  }[];
   /** Map embed / link (demo) */
   lat?: number;
   lng?: number;
@@ -150,13 +167,13 @@ export interface MockAuctionListing {
 }
 
 export type TicketStatus =
-  | 'active'
-  | 'auction'
-  | 'gifted'
-  | 'used'
-  | 'expired'
-  | 'cancelled'
-  | 'refunded';
+  | "active"
+  | "auction"
+  | "gifted"
+  | "used"
+  | "expired"
+  | "cancelled"
+  | "refunded";
 
 export interface MockTicket {
   id: string;
@@ -187,19 +204,19 @@ export interface MockTicket {
 }
 
 export type SupportCategory =
-  | 'technical'
-  | 'ticket'
-  | 'dispute_organizer'
-  | 'account'
-  | 'other';
+  | "technical"
+  | "ticket"
+  | "dispute_organizer"
+  | "account"
+  | "other";
 
 export type EngagementStatus =
-  | 'pending'
-  | 'accepted'
-  | 'declined'
-  | 'completed'
-  | 'cancelled';
-export type TalentAvailability = 'available' | 'reserved';
+  | "pending"
+  | "accepted"
+  | "declined"
+  | "completed"
+  | "cancelled";
+export type TalentAvailability = "available" | "reserved";
 
 export interface MockOrganizerProfile {
   id: string;
@@ -212,7 +229,7 @@ export interface MockOrganizerProfile {
 
 export interface MockEngagementMessage {
   id: string;
-  sender: 'organizer' | 'talent';
+  sender: "organizer" | "talent";
   text: string;
   createdAt: string;
 }
@@ -264,7 +281,7 @@ export interface EventFilters {
   priceMin?: number;
   priceMax?: number;
   /** `'all'` = no filter */
-  layoutType?: LayoutType | 'all';
+  layoutType?: LayoutType | "all";
   availabilityOnly?: boolean;
   featured?: boolean;
 }

@@ -48,14 +48,25 @@ function isSecureCookie(): boolean {
   return window.location.protocol === 'https:';
 }
 
+/** Share session across `*.myticket.com` subdomains in production. */
+function cookieDomainAttribute(): string {
+  if (typeof window === 'undefined') return '';
+  const host = window.location.hostname;
+  if (host === 'myticket.com' || host.endsWith('.myticket.com')) {
+    return '; Domain=.myticket.com';
+  }
+  return '';
+}
+
 function writeCookieRaw(name: string, value: string, maxAgeSeconds: number): void {
   try {
     if (typeof document === 'undefined') return;
     const secure = isSecureCookie() ? '; Secure' : '';
     const sameSite = '; SameSite=Lax';
     const path = '; Path=/';
+    const domain = cookieDomainAttribute();
     const maxAge = maxAgeSeconds > 0 ? `; Max-Age=${Math.floor(maxAgeSeconds)}` : '; Max-Age=0';
-    document.cookie = `${name}=${encodeURIComponent(value)}${maxAge}${path}${sameSite}${secure}`;
+    document.cookie = `${name}=${encodeURIComponent(value)}${maxAge}${path}${domain}${sameSite}${secure}`;
   } catch {
     /* quota / private mode */
   }

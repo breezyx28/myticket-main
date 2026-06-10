@@ -1,6 +1,6 @@
 import type { MockUser } from '@/contexts/AuthContext';
 
-const DEFAULT_ORGANIZER_PORTAL_URL = 'https://organizer.myticket.com';
+const DEFAULT_ORGANIZER_PORTAL_URL = 'https://myticket-organizer.kat-jr.com';
 
 export function isOrganizerUser(user: MockUser | null | undefined): boolean {
   return user?.role === 'organizer';

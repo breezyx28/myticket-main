@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react';
-import { Route, Routes } from 'react-router-dom';
+import { Route, Routes, useLocation } from 'react-router-dom';
 import { RequireAuth } from '@/components/auth/RequireAuth';
 import { RequireMarketplaceBrowse } from '@/components/auth/RequireMarketplaceBrowse';
 import { AuthLayout } from '@/layouts/AuthLayout';
@@ -16,6 +16,11 @@ import { CookiesPage } from '@/pages/legal/CookiesPage';
 import { PrivacyPage } from '@/pages/legal/PrivacyPage';
 import { TermsPage } from '@/pages/legal/TermsPage';
 import { OrganizerPortalRedirectPage } from '@/pages/organizer/OrganizerPortalRedirectPage';
+import { TalentPortalRedirectPage } from '@/pages/talent/TalentPortalRedirectPage';
+import { VendorPortalRedirectPage } from '@/pages/vendor/VendorPortalRedirectPage';
+import { useAuth } from '@/contexts/AuthContext';
+import { isTalentUser } from '@/lib/talentPortal';
+import { isVendorUser } from '@/lib/vendorPortal';
 
 const EventsPage = lazy(() =>
   import('@/pages/events/EventsPage').then((m) => ({ default: m.EventsPage })),
@@ -71,6 +76,20 @@ const EngagementsPage = lazy(() =>
   import('@/pages/marketplace/EngagementsPage').then((m) => ({ default: m.EngagementsPage })),
 );
 
+function MainEngagementsRoute() {
+  const { user } = useAuth();
+  const location = useLocation();
+  const engagementsPath = `/engagements${location.search}`;
+
+  if (isTalentUser(user)) {
+    return <TalentPortalRedirectPage targetPath={engagementsPath} />;
+  }
+  if (isVendorUser(user)) {
+    return <VendorPortalRedirectPage targetPath={engagementsPath} />;
+  }
+  return <EngagementsPage />;
+}
+
 export function App() {
   return (
     <Suspense
@@ -113,7 +132,29 @@ export function App() {
             <Route path="/my-tickets/:ticketId" element={<TicketDetailPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/organizer-portal" element={<OrganizerPortalRedirectPage />} />
-            <Route path="/engagements" element={<EngagementsPage />} />
+            <Route path="/talent-portal" element={<TalentPortalRedirectPage />} />
+            <Route
+              path="/talent-portal/application"
+              element={<TalentPortalRedirectPage targetPath="/application" />}
+            />
+            <Route
+              path="/talent-portal/engagements"
+              element={<TalentPortalRedirectPage targetPath="/engagements" />}
+            />
+            <Route path="/vendor-portal" element={<VendorPortalRedirectPage />} />
+            <Route
+              path="/vendor-portal/application"
+              element={<VendorPortalRedirectPage targetPath="/application" />}
+            />
+            <Route
+              path="/vendor-portal/profile"
+              element={<VendorPortalRedirectPage targetPath="/profile" />}
+            />
+            <Route
+              path="/vendor-portal/engagements"
+              element={<VendorPortalRedirectPage targetPath="/engagements" />}
+            />
+            <Route path="/engagements" element={<MainEngagementsRoute />} />
           </Route>
 
           <Route path="*" element={<NotFoundPage />} />

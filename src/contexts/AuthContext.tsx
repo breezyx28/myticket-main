@@ -1,5 +1,16 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import type { ChangeEmailRequest, ChangePasswordRequest } from '@/api/types/auth';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import type {
+  ChangeEmailRequest,
+  ChangePasswordRequest,
+} from "@/api/types/auth";
 import type {
   DeleteAccountRequest,
   DeleteAccountResponse,
@@ -8,7 +19,7 @@ import type {
   UpdateUserPreferencesRequest,
   UserMe,
   UserPreferences,
-} from '@/api/types/user';
+} from "@/api/types/user";
 import {
   useChangeEmailMutation,
   useChangePasswordMutation,
@@ -25,19 +36,19 @@ import {
   useTwoFactorChallengeMutation,
   useUpdateMeMutation,
   useUpdatePreferencesMutation,
-} from '@/api/endpoints';
+} from "@/api/endpoints";
 import {
   getRefreshToken,
   getSessionUserFromMeta,
   getStoredAuthMeta,
   getToken,
   persistAuthCookies,
-} from '@/api/authToken';
-import { logout as logoutAction, setCredentials } from '@/store/authSlice';
-import { useAppDispatch } from '@/store/hooks';
-import { mapUserMeToMockUser, parseAuthResponse } from '@/lib/authMapper';
-import { TwoFactorRequiredError, toAuthApiError } from '@/lib/authErrors';
-import type { UserRole } from '@/types/domain';
+} from "@/api/authToken";
+import { logout as logoutAction, setCredentials } from "@/store/authSlice";
+import { useAppDispatch } from "@/store/hooks";
+import { mapUserMeToMockUser, parseAuthResponse } from "@/lib/authMapper";
+import { TwoFactorRequiredError, toAuthApiError } from "@/lib/authErrors";
+import type { UserRole } from "@/types/domain";
 
 export type MockUser = {
   email: string;
@@ -49,8 +60,8 @@ export type MockUser = {
   bio: string;
   profileImage: string;
   preferences: {
-    language: 'en' | 'ar';
-    theme: 'system' | 'light' | 'dark';
+    language: "en" | "ar";
+    theme: "system" | "light" | "dark";
     emailNotifications: boolean;
     pushNotifications: boolean;
     smsNotifications: boolean;
@@ -63,12 +74,14 @@ export type MockUser = {
 };
 
 /** Map `/me/preferences` payload onto the camelCase `MockUser.preferences` mirror. */
-function apiPrefsToMock(p: UserPreferences): MockUser['preferences'] {
+function apiPrefsToMock(p: UserPreferences): MockUser["preferences"] {
   return {
-    language: (p.language === 'ar' ? 'ar' : 'en') as MockUser['preferences']['language'],
-    theme: (['system', 'light', 'dark'].includes(p.theme as string)
+    language: (p.language === "ar"
+      ? "ar"
+      : "en") as MockUser["preferences"]["language"],
+    theme: (["system", "light", "dark"].includes(p.theme as string)
       ? p.theme
-      : 'system') as MockUser['preferences']['theme'],
+      : "system") as MockUser["preferences"]["theme"],
     emailNotifications: Boolean(p.email_notifications),
     pushNotifications: Boolean(p.push_notifications),
     smsNotifications: Boolean(p.sms_notifications),
@@ -76,14 +89,20 @@ function apiPrefsToMock(p: UserPreferences): MockUser['preferences'] {
   };
 }
 
-function mockPrefsPatchToApi(patch: Partial<MockUser['preferences']>): UpdateUserPreferencesRequest {
+function mockPrefsPatchToApi(
+  patch: Partial<MockUser["preferences"]>,
+): UpdateUserPreferencesRequest {
   const body: UpdateUserPreferencesRequest = {};
   if (patch.language !== undefined) body.language = patch.language;
   if (patch.theme !== undefined) body.theme = patch.theme;
-  if (patch.emailNotifications !== undefined) body.email_notifications = patch.emailNotifications;
-  if (patch.pushNotifications !== undefined) body.push_notifications = patch.pushNotifications;
-  if (patch.smsNotifications !== undefined) body.sms_notifications = patch.smsNotifications;
-  if (patch.marketingEmails !== undefined) body.marketing_emails = patch.marketingEmails;
+  if (patch.emailNotifications !== undefined)
+    body.email_notifications = patch.emailNotifications;
+  if (patch.pushNotifications !== undefined)
+    body.push_notifications = patch.pushNotifications;
+  if (patch.smsNotifications !== undefined)
+    body.sms_notifications = patch.smsNotifications;
+  if (patch.marketingEmails !== undefined)
+    body.marketing_emails = patch.marketingEmails;
   return body;
 }
 
@@ -94,31 +113,50 @@ type AuthContextValue = {
   signInWithOtp: (otp: string, challengeToken: string) => Promise<void>;
   signInGoogle: () => Promise<void>;
   signInWithOAuth: (provider: string) => Promise<void>;
-  completeOAuthCallback: (provider: string, code: string, state: string | null) => Promise<void>;
+  completeOAuthCallback: (
+    provider: string,
+    code: string,
+    state: string | null,
+  ) => Promise<void>;
   requestPasswordReset: (email: string) => Promise<void>;
   confirmPasswordReset: (token: string, password: string) => Promise<void>;
-  signUp: (name: string, email: string, password: string, phone?: string) => Promise<void>;
+  signUp: (
+    name: string,
+    email: string,
+    password: string,
+    phone?: string,
+    agreeTerms?: boolean,
+  ) => Promise<void>;
   updateProfileName: (name: string) => void;
   /** Persists profile fields via `PATCH /me`. Email changes use `requestEmailChange` instead. */
   updateAccountInfo: (
-    patch: Partial<Pick<MockUser, 'name' | 'phone' | 'city' | 'region' | 'bio' | 'profileImage'>> & {
+    patch: Partial<
+      Pick<
+        MockUser,
+        "name" | "phone" | "city" | "region" | "bio" | "profileImage"
+      >
+    > & {
       displayName?: string;
-    }
+    },
   ) => Promise<void>;
   /** Persists via `PATCH /me/preferences` and mirrors the response into `MockUser.preferences`. */
-  updatePreferences: (patch: Partial<MockUser['preferences']>) => Promise<void>;
+  updatePreferences: (patch: Partial<MockUser["preferences"]>) => Promise<void>;
   /** Local mirror for 2FA toggles until profile security wires real endpoints here. */
-  updateSecuritySettings: (patch: Partial<MockUser['security']>) => void;
+  updateSecuritySettings: (patch: Partial<MockUser["security"]>) => void;
   changePassword: (body: ChangePasswordRequest) => Promise<void>;
   requestEmailChange: (body: ChangeEmailRequest) => Promise<string>;
-  requestAccountDeletion: (body: DeleteAccountRequest) => Promise<DeleteAccountResponse>;
-  setTalentAvailabilityStatus: (status: UpdateTalentAvailabilityRequest['status']) => Promise<void>;
+  requestAccountDeletion: (
+    body: DeleteAccountRequest,
+  ) => Promise<DeleteAccountResponse>;
+  setTalentAvailabilityStatus: (
+    status: UpdateTalentAvailabilityRequest["status"],
+  ) => Promise<void>;
   signOut: () => void;
 };
 
-const OAUTH_STATE_KEY = 'myticket_oauth_state';
-const OAUTH_PROVIDER_KEY = 'myticket_oauth_provider';
-const OAUTH_REDIRECT_KEY = 'myticket_oauth_redirect_after';
+const OAUTH_STATE_KEY = "myticket_oauth_state";
+const OAUTH_PROVIDER_KEY = "myticket_oauth_provider";
+const OAUTH_REDIRECT_KEY = "myticket_oauth_redirect_after";
 
 /**
  * Migration shim: the legacy mirrored-user cache `myticket_mock_auth` was
@@ -126,7 +164,7 @@ const OAUTH_REDIRECT_KEY = 'myticket_oauth_redirect_after';
  * exists in users' browsers. Safe to remove after a few releases.
  */
 try {
-  localStorage.removeItem('myticket_mock_auth');
+  localStorage.removeItem("myticket_mock_auth");
 } catch {
   /* ignore SSR / private-mode storage errors */
 }
@@ -134,15 +172,19 @@ try {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 function readMockUserFromSessionCookies(): MockUser | null {
-  if (typeof window === 'undefined') return null;
+  if (typeof window === "undefined") return null;
   if (!getToken()) return null;
   const u = getSessionUserFromMeta();
   return u ? mapUserMeToMockUser(u, null) : null;
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<MockUser | null>(() => readMockUserFromSessionCookies());
-  const [isHydrating, setIsHydrating] = useState<boolean>(() => Boolean(getToken()));
+  const [user, setUser] = useState<MockUser | null>(() =>
+    readMockUserFromSessionCookies(),
+  );
+  const [isHydrating, setIsHydrating] = useState<boolean>(() =>
+    Boolean(getToken()),
+  );
   const dispatch = useAppDispatch();
   const userRef = useRef<MockUser | null>(user);
   userRef.current = user;
@@ -202,10 +244,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (error) {
         // Drop optimistic session mirror; token stays until the user signs out or retries.
         setUser(null);
-        throw toAuthApiError(error, 'Failed to load your profile.');
+        throw toAuthApiError(error, "Failed to load your profile.");
       }
     },
-    [dispatch, triggerGetMe]
+    [dispatch, triggerGetMe],
   );
 
   /**
@@ -254,7 +296,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const response = await loginMutation({ email, password }).unwrap();
         const parsed = parseAuthResponse(response);
-        if ('twoFactor' in parsed) throw parsed.twoFactor;
+        if ("twoFactor" in parsed) throw parsed.twoFactor;
         await persistCredentialsAndHydrate(
           parsed.token,
           parsed.refresh_token,
@@ -263,10 +305,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         );
       } catch (error) {
         if (error instanceof TwoFactorRequiredError) throw error;
-        throw toAuthApiError(error, 'Sign-in failed.');
+        throw toAuthApiError(error, "Sign-in failed.");
       }
     },
-    [loginMutation, persistCredentialsAndHydrate]
+    [loginMutation, persistCredentialsAndHydrate],
   );
 
   const signInWithOtp = useCallback(
@@ -277,7 +319,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           challenge_token: challengeToken,
         }).unwrap();
         const parsed = parseAuthResponse(response);
-        if ('twoFactor' in parsed) throw parsed.twoFactor;
+        if ("twoFactor" in parsed) throw parsed.twoFactor;
         await persistCredentialsAndHydrate(
           parsed.token,
           parsed.refresh_token,
@@ -286,10 +328,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         );
       } catch (error) {
         if (error instanceof TwoFactorRequiredError) throw error;
-        throw toAuthApiError(error, 'OTP verification failed.');
+        throw toAuthApiError(error, "OTP verification failed.");
       }
     },
-    [twoFactorChallengeMutation, persistCredentialsAndHydrate]
+    [twoFactorChallengeMutation, persistCredentialsAndHydrate],
   );
 
   const signInWithOAuth = useCallback(
@@ -297,8 +339,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const response = await oauthStartMutation({ provider }).unwrap();
         const redirect = response?.redirect_url;
-        if (!redirect) throw new Error('Provider did not return a redirect URL.');
-        if (response.state) sessionStorage.setItem(OAUTH_STATE_KEY, response.state);
+        if (!redirect)
+          throw new Error("Provider did not return a redirect URL.");
+        if (response.state)
+          sessionStorage.setItem(OAUTH_STATE_KEY, response.state);
         else sessionStorage.removeItem(OAUTH_STATE_KEY);
         sessionStorage.setItem(OAUTH_PROVIDER_KEY, provider);
         const here = `${window.location.pathname}${window.location.search}`;
@@ -308,17 +352,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw toAuthApiError(error, `Could not start ${provider} sign-in.`);
       }
     },
-    [oauthStartMutation]
+    [oauthStartMutation],
   );
 
-  const signInGoogle = useCallback(() => signInWithOAuth('google'), [signInWithOAuth]);
+  const signInGoogle = useCallback(
+    () => signInWithOAuth("google"),
+    [signInWithOAuth],
+  );
 
   const completeOAuthCallback = useCallback(
     async (provider: string, code: string, state: string | null) => {
       try {
         const expected = sessionStorage.getItem(OAUTH_STATE_KEY);
         if (expected && state && expected !== state) {
-          throw new Error('OAuth state mismatch. Try signing in again.');
+          throw new Error("OAuth state mismatch. Try signing in again.");
         }
         sessionStorage.removeItem(OAUTH_STATE_KEY);
         sessionStorage.removeItem(OAUTH_PROVIDER_KEY);
@@ -327,7 +374,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           body: { code, state: state ?? undefined },
         }).unwrap();
         const parsed = parseAuthResponse(response);
-        if ('twoFactor' in parsed) throw parsed.twoFactor;
+        if ("twoFactor" in parsed) throw parsed.twoFactor;
         await persistCredentialsAndHydrate(
           parsed.token,
           parsed.refresh_token,
@@ -336,10 +383,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         );
       } catch (error) {
         if (error instanceof TwoFactorRequiredError) throw error;
-        throw toAuthApiError(error, 'OAuth sign-in failed.');
+        throw toAuthApiError(error, "OAuth sign-in failed.");
       }
     },
-    [oauthCallbackMutation, persistCredentialsAndHydrate]
+    [oauthCallbackMutation, persistCredentialsAndHydrate],
   );
 
   const requestPasswordReset = useCallback(
@@ -347,10 +394,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         await forgotPasswordMutation({ email }).unwrap();
       } catch (error) {
-        throw toAuthApiError(error, 'Could not start password reset.');
+        throw toAuthApiError(error, "Could not start password reset.");
       }
     },
-    [forgotPasswordMutation]
+    [forgotPasswordMutation],
   );
 
   const confirmPasswordReset = useCallback(
@@ -358,27 +405,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         await resetPasswordMutation({ token, password }).unwrap();
       } catch (error) {
-        throw toAuthApiError(error, 'Could not reset your password.');
+        throw toAuthApiError(error, "Could not reset your password.");
       }
     },
-    [resetPasswordMutation]
+    [resetPasswordMutation],
   );
 
   const signUp = useCallback(
-    async (name: string, email: string, password: string, phone?: string) => {
+    async (
+      name: string,
+      email: string,
+      password: string,
+      phone?: string,
+      agreeTerms?: boolean,
+    ) => {
       try {
         const trimmed =
           name.trim() ||
-          (typeof email === 'string' && email.includes('@') ? email.split('@')[0] : undefined) ||
-          'User';
+          (typeof email === "string" && email.includes("@")
+            ? email.split("@")[0]
+            : undefined) ||
+          "User";
         const response = await registerMutation({
           full_name: trimmed,
           email,
           password,
           ...(phone ? { phone } : {}),
+          ...(agreeTerms ? { agree_terms: true } : {}),
         }).unwrap();
         const parsed = parseAuthResponse(response);
-        if ('twoFactor' in parsed) throw parsed.twoFactor;
+        if ("twoFactor" in parsed) throw parsed.twoFactor;
         await persistCredentialsAndHydrate(
           parsed.token,
           parsed.refresh_token,
@@ -387,10 +443,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         );
       } catch (error) {
         if (error instanceof TwoFactorRequiredError) throw error;
-        throw toAuthApiError(error, 'Sign-up failed.');
+        throw toAuthApiError(error, "Sign-up failed.");
       }
     },
-    [registerMutation, persistCredentialsAndHydrate]
+    [registerMutation, persistCredentialsAndHydrate],
   );
 
   const updateProfileName = useCallback((name: string) => {
@@ -405,15 +461,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const updateAccountInfo = useCallback(
     async (
-      patch: Partial<Pick<MockUser, 'name' | 'phone' | 'city' | 'region' | 'bio' | 'profileImage'>> & {
+      patch: Partial<
+        Pick<
+          MockUser,
+          "name" | "phone" | "city" | "region" | "bio" | "profileImage"
+        >
+      > & {
         displayName?: string;
-      }
+      },
     ) => {
       const body: UpdateMeRequest = {};
-      if (patch.name !== undefined) body.full_name = patch.name.trim() || undefined;
-      if (patch.displayName !== undefined) body.display_name = patch.displayName.trim() || undefined;
+      if (patch.name !== undefined)
+        body.full_name = patch.name.trim() || undefined;
+      if (patch.displayName !== undefined)
+        body.display_name = patch.displayName.trim() || undefined;
       if (patch.bio !== undefined) body.bio = patch.bio;
-      if (patch.profileImage !== undefined) body.avatar_url = patch.profileImage || undefined;
+      if (patch.profileImage !== undefined)
+        body.avatar_url = patch.profileImage || undefined;
       if (patch.phone !== undefined) body.phone = patch.phone;
       if (patch.city !== undefined) body.city = patch.city;
       if (patch.region !== undefined) body.region = patch.region;
@@ -422,14 +486,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const next = mapUserMeToMockUser(me, userRef.current);
         setUser(next);
       } catch (error) {
-        throw toAuthApiError(error, 'Could not update profile.');
+        throw toAuthApiError(error, "Could not update profile.");
       }
     },
-    [updateMeMutation]
+    [updateMeMutation],
   );
 
   const updatePreferences = useCallback(
-    async (patch: Partial<MockUser['preferences']>) => {
+    async (patch: Partial<MockUser["preferences"]>) => {
       const body = mockPrefsPatchToApi(patch);
       try {
         const prefs = await updatePreferencesMutation(body).unwrap();
@@ -441,21 +505,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           };
         });
       } catch (error) {
-        throw toAuthApiError(error, 'Could not save preferences.');
+        throw toAuthApiError(error, "Could not save preferences.");
       }
     },
-    [updatePreferencesMutation]
+    [updatePreferencesMutation],
   );
 
-  const updateSecuritySettings = useCallback((patch: Partial<MockUser['security']>) => {
-    setUser((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        security: { ...prev.security, ...patch },
-      };
-    });
-  }, []);
+  const updateSecuritySettings = useCallback(
+    (patch: Partial<MockUser["security"]>) => {
+      setUser((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          security: { ...prev.security, ...patch },
+        };
+      });
+    },
+    [],
+  );
 
   const changePassword = useCallback(
     async (body: ChangePasswordRequest) => {
@@ -465,14 +532,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (!prev) return prev;
           return {
             ...prev,
-            security: { ...prev.security, lastPasswordChangedAt: res.password_changed_at },
+            security: {
+              ...prev.security,
+              lastPasswordChangedAt: res.password_changed_at,
+            },
           };
         });
       } catch (error) {
-        throw toAuthApiError(error, 'Could not change password.');
+        throw toAuthApiError(error, "Could not change password.");
       }
     },
-    [changePasswordMutation]
+    [changePasswordMutation],
   );
 
   const requestEmailChange = useCallback(
@@ -481,10 +551,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const res = await changeEmailMutation(body).unwrap();
         return res.message;
       } catch (error) {
-        throw toAuthApiError(error, 'Could not start email change.');
+        throw toAuthApiError(error, "Could not start email change.");
       }
     },
-    [changeEmailMutation]
+    [changeEmailMutation],
   );
 
   const requestAccountDeletion = useCallback(
@@ -492,21 +562,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         return await deleteMeMutation(body).unwrap();
       } catch (error) {
-        throw toAuthApiError(error, 'Could not delete account.');
+        throw toAuthApiError(error, "Could not delete account.");
       }
     },
-    [deleteMeMutation]
+    [deleteMeMutation],
   );
 
   const setTalentAvailabilityStatus = useCallback(
-    async (status: UpdateTalentAvailabilityRequest['status']) => {
+    async (status: UpdateTalentAvailabilityRequest["status"]) => {
       try {
         await setTalentAvailabilityMutation({ status }).unwrap();
       } catch (error) {
-        throw toAuthApiError(error, 'Could not update availability.');
+        throw toAuthApiError(error, "Could not update availability.");
       }
     },
-    [setTalentAvailabilityMutation]
+    [setTalentAvailabilityMutation],
   );
 
   const signOut = useCallback(() => {
@@ -563,7 +633,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       requestAccountDeletion,
       setTalentAvailabilityStatus,
       signOut,
-    ]
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -571,6 +641,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }
