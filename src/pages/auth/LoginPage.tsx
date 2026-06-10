@@ -5,7 +5,11 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import { getSafeRedirectPath } from '@/lib/navigation';
-import { TwoFactorRequiredError, authErrorMessage, isTwoFactorRequiredError } from '@/lib/authErrors';
+import {
+  authErrorMessage,
+  isEmailVerificationRequiredError,
+  isTwoFactorRequiredError,
+} from '@/lib/authErrors';
 import { FormSectionCard } from '@/components/ui/form/FormSectionCard';
 import { Field } from '@/components/ui/form/Field';
 import { TextInput } from '@/components/ui/form/inputs';
@@ -50,8 +54,12 @@ export function LoginPage() {
       }
       navigate(from, { replace: true });
     } catch (e) {
+      if (isEmailVerificationRequiredError(e)) {
+        setError(e.message);
+        return;
+      }
       if (isTwoFactorRequiredError(e)) {
-        setChallengeToken((e as TwoFactorRequiredError).challengeToken);
+        setChallengeToken(e.challengeToken);
         return;
       }
       setError(authErrorMessage(e, 'Sign-in failed.'));

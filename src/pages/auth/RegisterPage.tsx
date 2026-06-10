@@ -15,7 +15,7 @@ import {
 } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
-import { useAuth, type MockUser } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { SharedBasicStep } from "@/components/auth/steps/SharedBasicStep";
 import { TalentSteps } from "@/components/auth/steps/TalentSteps";
 import { VendorSteps } from "@/components/auth/steps/VendorSteps";
@@ -45,9 +45,7 @@ import {
   type BasicRegistrationSchema,
 } from "@/schemas/auth";
 import { cn } from "@/lib/utils";
-import { buildOrganizerPortalUrl } from "@/lib/organizerPortal";
-import { buildTalentPortalUrl } from "@/lib/talentPortal";
-import { buildVendorPortalUrl } from "@/lib/vendorPortal";
+import { getToken } from "@/api/authToken";
 import {
   clearRegisterDraft,
   readRegisterDraft,
@@ -80,7 +78,10 @@ import {
 } from "@/services/roleApplicationSubmit";
 
 type RegisterRole = "guest" | "talent" | "organizer" | "vendor";
-type RegisterStage = "basic" | "role-selection" | "onboarding";
+type RegisterStage = "basic" | "role-selection" | "onboarding" | "complete";
+
+const REGISTRATION_VERIFICATION_REMINDER =
+  "We sent a verification link to your email. Verify your address before signing in.";
 
 interface RoleCard {
   id: RegisterRole;
@@ -166,13 +167,6 @@ const EMPTY_VENDOR_DRAFT: VendorOnboardingDraft = {
   city: "",
   coverageArea: "",
 };
-
-function portalRedirectUser(
-  existing: MockUser | null,
-  email: string,
-): MockUser | null {
-  return existing ?? ({ email } as MockUser);
-}
 
 const EMPTY_ORGANIZER_DRAFT: OrganizerOnboardingDraft = {
   displayName: "",
@@ -266,6 +260,9 @@ export function RegisterPage() {
   const [vendorTempInput, setVendorTempInput] = useState("");
   const [organizerSocialInput, setOrganizerSocialInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState("");
+  const [completionMessage, setCompletionMessage] = useState("");
+  const [applicationSubmitted, setApplicationSubmitted] = useState(false);
 
   const { data: saudiRegionsRes } = useGetSaudiRegionsQuery();
   const apiSaudiRegions = saudiRegionsRes?.data;
@@ -300,6 +297,9 @@ export function RegisterPage() {
     setWizardStep(0);
     setError(null);
     setSuccess(null);
+    setRegisteredEmail("");
+    setCompletionMessage("");
+    setApplicationSubmitted(false);
     setTalentDraft(EMPTY_TALENT_DRAFT);
     setVendorDraft(EMPTY_VENDOR_DRAFT);
     setOrganizerDraft(EMPTY_ORGANIZER_DRAFT);
@@ -323,6 +323,7 @@ export function RegisterPage() {
 
   useEffect(() => {
     if (!draftHydrated) return;
+    if (stage === "complete") return;
     writeRegisterDraft({
       stage,
       role,
@@ -347,18 +348,9 @@ export function RegisterPage() {
     const rp = searchParams.get("role");
     if (rp !== "talent" && rp !== "vendor" && rp !== "organizer") return;
     setRole(rp);
-    if (!user) return;
-    if (rp === "talent") {
-      window.location.assign(buildTalentPortalUrl("/application", user));
-      return;
-    }
-    if (rp === "vendor") {
-      window.location.assign(buildVendorPortalUrl("/application", user));
-      return;
-    }
     setStage("onboarding");
     setWizardStep(0);
-  }, [searchParams, user]);
+  }, [searchParams]);
 
   useEffect(() => {
     if (!user) return;
@@ -464,14 +456,22 @@ export function RegisterPage() {
     setSuccess(null);
     setLoading(true);
     try {
-      await signUp(
+      const result = await signUp(
         values.fullName,
         values.email,
         values.password,
         values.contactPhone,
         Boolean(values.agreeTerms),
       );
-      navigate(redirectAfterAuth ?? "/");
+      clearRegisterDraft();
+      setRegisteredEmail(values.email);
+      setApplicationSubmitted(false);
+      setCompletionMessage(
+        result.status === "verification_required"
+          ? result.message
+          : REGISTRATION_VERIFICATION_REMINDER,
+      );
+      setStage("complete");
     } catch (e) {
       setError(authErrorMessage(e, "Sign-up failed."));
     } finally {
@@ -499,78 +499,26 @@ export function RegisterPage() {
     setStage("role-selection");
   });
 
-  async function continueWithTalentPortal() {
-    setError(null);
-    setSuccess(null);
-    setLoading(true);
-    try {
-      if (!user) {
-        const values = basicForm.getValues();
-        await signUp(
-          values.fullName,
-          values.email,
-          values.password,
-          values.contactPhone,
-          Boolean(values.agreeTerms),
-        );
-      }
-      const values = basicForm.getValues();
-      clearRegisterDraft();
-      window.location.assign(
-        buildTalentPortalUrl(
-          "/application",
-          portalRedirectUser(user, values.email),
-        ),
-      );
-    } catch (e) {
-      setError(authErrorMessage(e, "Could not continue to Talent dashboard."));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function continueWithVendorPortal() {
-    setError(null);
-    setSuccess(null);
-    setLoading(true);
-    try {
-      if (!user) {
-        const values = basicForm.getValues();
-        await signUp(
-          values.fullName,
-          values.email,
-          values.password,
-          values.contactPhone,
-          Boolean(values.agreeTerms),
-        );
-      }
-      const values = basicForm.getValues();
-      clearRegisterDraft();
-      window.location.assign(
-        buildVendorPortalUrl(
-          "/application",
-          portalRedirectUser(user, values.email),
-        ),
-      );
-    } catch (e) {
-      setError(authErrorMessage(e, "Could not continue to Vendor dashboard."));
-    } finally {
-      setLoading(false);
-    }
-  }
-
   function selectRole(nextRole: RegisterRole) {
     setError(null);
     setSuccess(null);
     setRole(nextRole);
     if (nextRole === "guest") return;
     if (nextRole === "talent") {
-      void continueWithTalentPortal();
-      return;
+      setTalentDraft((prev) => ({
+        ...prev,
+        fullName: prev.fullName || basic.fullName,
+        contactEmail: prev.contactEmail || basic.email,
+        contactPhone: prev.contactPhone || basic.contactPhone,
+      }));
     }
     if (nextRole === "vendor") {
-      void continueWithVendorPortal();
-      return;
+      setVendorDraft((prev) => ({
+        ...prev,
+        profileName: prev.profileName || basic.fullName,
+        contactEmail: prev.contactEmail || basic.email,
+        contactPhone: prev.contactPhone || basic.contactPhone,
+      }));
     }
     if (nextRole === "organizer") {
       setOrganizerDraft((prev) => ({
@@ -593,16 +541,21 @@ export function RegisterPage() {
     setError(null);
     setSuccess(null);
     try {
+      let verificationMessage = REGISTRATION_VERIFICATION_REMINDER;
       if (!user) {
-        await signUp(
+        const signUpResult = await signUp(
           basic.fullName,
           basic.email,
           basic.password,
           basic.contactPhone,
           Boolean(basic.agreeTerms),
         );
+        if (signUpResult.status === "verification_required") {
+          verificationMessage = signUpResult.message;
+        }
       }
 
+      const hasSession = Boolean(user || getToken());
       const basicPayload = user
         ? { fullName: user.name, email: user.email, contactPhone: user.phone }
         : {
@@ -670,7 +623,8 @@ export function RegisterPage() {
         ) => resubmitOrganizerApplication(args).unwrap(),
       };
 
-      if (role === "talent") {
+      let submittedApplication = false;
+      if (hasSession && role === "talent") {
         await runTalentRoleApplicationPipeline(
           {
             draft: {
@@ -692,8 +646,9 @@ export function RegisterPage() {
           },
           talentMutations,
         );
+        submittedApplication = true;
       }
-      if (role === "vendor") {
+      if (hasSession && role === "vendor") {
         await runVendorRoleApplicationPipeline(
           {
             draft: {
@@ -717,8 +672,9 @@ export function RegisterPage() {
           },
           vendorMutations,
         );
+        submittedApplication = true;
       }
-      if (role === "organizer") {
+      if (hasSession && role === "organizer") {
         await runOrganizerRoleApplicationPipeline(
           {
             draft: {
@@ -742,26 +698,14 @@ export function RegisterPage() {
           },
           organizerMutations,
         );
+        submittedApplication = true;
       }
 
       clearRegisterDraft();
-      const portalUser = portalRedirectUser(user, basicPayload.email);
-      if (role === "talent") {
-        window.location.assign(
-          buildTalentPortalUrl("/application", portalUser),
-        );
-        return;
-      }
-      if (role === "vendor") {
-        window.location.assign(
-          buildVendorPortalUrl("/application", portalUser),
-        );
-        return;
-      }
-      if (role === "organizer") {
-        window.location.assign(buildOrganizerPortalUrl(portalUser));
-        return;
-      }
+      setRegisteredEmail(basicPayload.email);
+      setApplicationSubmitted(submittedApplication);
+      setCompletionMessage(verificationMessage);
+      setStage("complete");
     } catch (err) {
       const authErr = toAuthApiError(err, "Could not submit application.");
       const emailErr = authErr.fieldErrors.email?.[0];
@@ -890,7 +834,7 @@ export function RegisterPage() {
         <FormSectionCard
           eyebrow="Onboarding"
           title="Choose your role"
-          description="Pick one role to continue. Talent and Vendor registration opens their dashboard to finish onboarding. Organizer onboarding completes here, then opens the Organizer Dashboard. You can also skip onboarding and continue as Guest."
+          description="Pick one role to continue its onboarding steps on this page. Your account is created only after you finish and submit. You can also skip onboarding and continue as Guest."
         >
           {error && (
             <div
@@ -1090,6 +1034,60 @@ export function RegisterPage() {
               Clear form
             </Button>
           </form>
+        </FormSectionCard>
+      )}
+
+      {stage === "complete" && (
+        <FormSectionCard
+          eyebrow="Registration"
+          title="Account created"
+          description="You're almost ready to use MyTicket."
+        >
+          <InlineNotice variant="info" title="Verify your email">
+            <p className="text-[13px] leading-relaxed text-ink-70">
+              {completionMessage || REGISTRATION_VERIFICATION_REMINDER}
+              {registeredEmail ? (
+                <>
+                  {" "}
+                  We sent the link to{" "}
+                  <strong className="text-ink">{registeredEmail}</strong>.
+                </>
+              ) : null}
+            </p>
+          </InlineNotice>
+          {applicationSubmitted && role !== "guest" && (
+            <p className="mt-4 text-[13px] leading-relaxed text-ink-70">
+              Your <strong className="text-ink">{role}</strong> application was
+              submitted and is pending review.
+            </p>
+          )}
+          {!applicationSubmitted && role !== "guest" && (
+            <p className="mt-4 text-[13px] leading-relaxed text-ink-70">
+              After you verify your email and sign in, you can finish submitting
+              your <strong className="text-ink">{role}</strong> application from
+              your account.
+            </p>
+          )}
+          <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+            <Button
+              type="button"
+              variant="dark"
+              size="md"
+              className="w-full sm:flex-1"
+              onClick={() => navigate("/login", { replace: true })}
+            >
+              Go to sign in
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              className="w-full sm:flex-1"
+              onClick={() => navigate(redirectAfterAuth ?? "/")}
+            >
+              Back to home
+            </Button>
+          </div>
         </FormSectionCard>
       )}
     </div>

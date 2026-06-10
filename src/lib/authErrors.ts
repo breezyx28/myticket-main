@@ -21,6 +21,27 @@ export function isTwoFactorRequiredError(value: unknown): value is TwoFactorRequ
   return value instanceof TwoFactorRequiredError;
 }
 
+/** Default copy when login is blocked until the user verifies their email. */
+export const EMAIL_VERIFICATION_REQUIRED_MESSAGE =
+  'Sign-in is incomplete; verification required. Check your email for a verification link, then sign in again.';
+
+/**
+ * Thrown by `AuthContext.signIn` when the account exists but email verification
+ * is still pending. Registration may return the same signal without throwing.
+ */
+export class EmailVerificationRequiredError extends Error {
+  constructor(message = EMAIL_VERIFICATION_REQUIRED_MESSAGE) {
+    super(message);
+    this.name = 'EmailVerificationRequiredError';
+  }
+}
+
+export function isEmailVerificationRequiredError(
+  value: unknown,
+): value is EmailVerificationRequiredError {
+  return value instanceof EmailVerificationRequiredError;
+}
+
 /**
  * Wraps an RTK Query / fetch failure into a presentable error so pages can
  * `setError(e instanceof AuthApiError ? e.message : ...)` without spelunking

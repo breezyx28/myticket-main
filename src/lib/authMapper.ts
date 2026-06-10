@@ -6,7 +6,11 @@ import type {
 import type { UserMe } from '@/api/types/user';
 import type { MockUser } from '@/contexts/AuthContext';
 import type { UserRole } from '@/types/domain';
-import { TwoFactorRequiredError } from '@/lib/authErrors';
+import {
+  EMAIL_VERIFICATION_REQUIRED_MESSAGE,
+  EmailVerificationRequiredError,
+  TwoFactorRequiredError,
+} from '@/lib/authErrors';
 
 const VALID_ROLES: readonly UserRole[] = ['guest', 'talent', 'vendor', 'organizer'];
 
@@ -93,6 +97,39 @@ function isAuthSuccess(data: Record<string, unknown>): data is AuthSuccessRespon
   return typeof data.token === 'string' && data.token.length > 0;
 }
 
+function pickResponseMessage(data: Record<string, unknown>): string | undefined {
+  const raw = data.message;
+  if (typeof raw === 'string' && raw.trim()) return raw.trim();
+  if (Array.isArray(raw)) {
+    const joined = raw
+      .filter((m: unknown): m is string => typeof m === 'string')
+      .join(' ')
+      .trim();
+    if (joined) return joined;
+  }
+  return undefined;
+}
+
+function isEmailVerificationRequired(data: Record<string, unknown>): boolean {
+  if (data.email_verification_required === true) return true;
+  if (data.verification_required === true) return true;
+  if (data.email_verified === false) return true;
+  if (data.user && !data.token) return true;
+  if (typeof data.message === 'string' && !data.token) return true;
+  return false;
+}
+
+export type AuthFlowOutcome =
+  | {
+      kind: 'session';
+      token: string;
+      refresh_token: string | null;
+      user: UserMe | null;
+      expires_at: string | null;
+    }
+  | { kind: 'two_factor'; error: TwoFactorRequiredError }
+  | { kind: 'verification_required'; error: EmailVerificationRequiredError };
+
 /**
  * Project the `LoginResponse` discriminated union onto the local auth-flow
  * outcome. Order of the discriminator matters: 2FA must be checked first so
@@ -101,13 +138,11 @@ function isAuthSuccess(data: Record<string, unknown>): data is AuthSuccessRespon
  */
 export function parseAuthResponse(
   response: LoginResponse | AuthSuccessResponse | undefined | null,
-):
-  | { token: string; refresh_token: string | null; user: UserMe | null; expires_at: string | null }
-  | { twoFactor: TwoFactorRequiredError } {
+): AuthFlowOutcome {
   const data = (response ?? {}) as Record<string, unknown>;
 
   if (isTwoFactorChallenge(data)) {
-    return { twoFactor: new TwoFactorRequiredError(data.challenge_token) };
+    return { kind: 'two_factor', error: new TwoFactorRequiredError(data.challenge_token) };
   }
 
   if (isAuthSuccess(data)) {
@@ -115,6 +150,7 @@ export function parseAuthResponse(
     const expires_at =
       typeof expiresRaw === 'string' && expiresRaw.length > 0 ? expiresRaw : null;
     return {
+      kind: 'session',
       token: data.token,
       refresh_token:
         typeof data.refresh_token === 'string' && data.refresh_token.length > 0
@@ -125,10 +161,14 @@ export function parseAuthResponse(
     };
   }
 
-  return {
-    twoFactor: new TwoFactorRequiredError(
-      '__pending__',
-      'Sign-in is incomplete; verification required.',
-    ),
-  };
+  if (isEmailVerificationRequired(data)) {
+    return {
+      kind: 'verification_required',
+      error: new EmailVerificationRequiredError(
+        pickResponseMessage(data) ?? EMAIL_VERIFICATION_REQUIRED_MESSAGE,
+      ),
+    };
+  }
+
+  throw new Error('Unexpected authentication response.');
 }

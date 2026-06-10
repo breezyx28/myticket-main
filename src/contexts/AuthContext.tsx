@@ -47,8 +47,16 @@ import {
 import { logout as logoutAction, setCredentials } from "@/store/authSlice";
 import { useAppDispatch } from "@/store/hooks";
 import { mapUserMeToMockUser, parseAuthResponse } from "@/lib/authMapper";
-import { TwoFactorRequiredError, toAuthApiError } from "@/lib/authErrors";
+import {
+  EmailVerificationRequiredError,
+  TwoFactorRequiredError,
+  toAuthApiError,
+} from "@/lib/authErrors";
 import type { UserRole } from "@/types/domain";
+
+export type SignUpResult =
+  | { status: "session_established" }
+  | { status: "verification_required"; message: string };
 
 export type MockUser = {
   email: string;
@@ -126,7 +134,7 @@ type AuthContextValue = {
     password: string,
     phone?: string,
     agreeTerms?: boolean,
-  ) => Promise<void>;
+  ) => Promise<SignUpResult>;
   updateProfileName: (name: string) => void;
   /** Persists profile fields via `PATCH /me`. Email changes use `requestEmailChange` instead. */
   updateAccountInfo: (
@@ -296,7 +304,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const response = await loginMutation({ email, password }).unwrap();
         const parsed = parseAuthResponse(response);
-        if ("twoFactor" in parsed) throw parsed.twoFactor;
+        if (parsed.kind === "two_factor") throw parsed.error;
+        if (parsed.kind === "verification_required") throw parsed.error;
         await persistCredentialsAndHydrate(
           parsed.token,
           parsed.refresh_token,
@@ -305,6 +314,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         );
       } catch (error) {
         if (error instanceof TwoFactorRequiredError) throw error;
+        if (error instanceof EmailVerificationRequiredError) throw error;
         throw toAuthApiError(error, "Sign-in failed.");
       }
     },
@@ -319,7 +329,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           challenge_token: challengeToken,
         }).unwrap();
         const parsed = parseAuthResponse(response);
-        if ("twoFactor" in parsed) throw parsed.twoFactor;
+        if (parsed.kind === "two_factor") throw parsed.error;
+        if (parsed.kind === "verification_required") throw parsed.error;
         await persistCredentialsAndHydrate(
           parsed.token,
           parsed.refresh_token,
@@ -328,6 +339,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         );
       } catch (error) {
         if (error instanceof TwoFactorRequiredError) throw error;
+        if (error instanceof EmailVerificationRequiredError) throw error;
         throw toAuthApiError(error, "OTP verification failed.");
       }
     },
@@ -374,7 +386,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           body: { code, state: state ?? undefined },
         }).unwrap();
         const parsed = parseAuthResponse(response);
-        if ("twoFactor" in parsed) throw parsed.twoFactor;
+        if (parsed.kind === "two_factor") throw parsed.error;
+        if (parsed.kind === "verification_required") throw parsed.error;
         await persistCredentialsAndHydrate(
           parsed.token,
           parsed.refresh_token,
@@ -383,6 +396,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         );
       } catch (error) {
         if (error instanceof TwoFactorRequiredError) throw error;
+        if (error instanceof EmailVerificationRequiredError) throw error;
         throw toAuthApiError(error, "OAuth sign-in failed.");
       }
     },
@@ -434,15 +448,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           ...(agreeTerms ? { agree_terms: true } : {}),
         }).unwrap();
         const parsed = parseAuthResponse(response);
-        if ("twoFactor" in parsed) throw parsed.twoFactor;
+        if (parsed.kind === "two_factor") throw parsed.error;
+        if (parsed.kind === "verification_required") {
+          return {
+            status: "verification_required" as const,
+            message: parsed.error.message,
+          };
+        }
         await persistCredentialsAndHydrate(
           parsed.token,
           parsed.refresh_token,
           parsed.user,
           parsed.expires_at,
         );
+        return { status: "session_established" as const };
       } catch (error) {
         if (error instanceof TwoFactorRequiredError) throw error;
+        if (error instanceof EmailVerificationRequiredError) {
+          return {
+            status: "verification_required" as const,
+            message: error.message,
+          };
+        }
         throw toAuthApiError(error, "Sign-up failed.");
       }
     },
