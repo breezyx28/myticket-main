@@ -30,3 +30,5 @@ export * from './complaints';
 export * from './roleApplications';
 export * from './favorites';
 export * from './reference';
+export * from './tourismAds';
+export * from './uploads';

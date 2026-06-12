@@ -75,6 +75,16 @@ const ProfilePage = lazy(() =>
 const EngagementsPage = lazy(() =>
   import('@/pages/marketplace/EngagementsPage').then((m) => ({ default: m.EngagementsPage })),
 );
+const TourismAdDetailPage = lazy(() =>
+  import('@/pages/tourism/TourismAdDetailPage').then((m) => ({
+    default: m.TourismAdDetailPage,
+  })),
+);
+const SubmitTourismAdPage = lazy(() =>
+  import('@/pages/tourism/SubmitTourismAdPage').then((m) => ({
+    default: m.SubmitTourismAdPage,
+  })),
+);
 
 function MainEngagementsRoute() {
   const { user } = useAuth();
@@ -124,8 +134,10 @@ export function App() {
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/cookies" element={<CookiesPage />} />
+          <Route path="/tourism-ads/:id" element={<TourismAdDetailPage />} />
 
           <Route element={<RequireAuth />}>
+            <Route path="/tourism-ads/submit" element={<SubmitTourismAdPage />} />
             <Route path="/checkout/:eventId/seats" element={<SeatSelectionPage />} />
             <Route path="/checkout/:eventId" element={<CheckoutPage />} />
             <Route path="/my-tickets" element={<MyTicketsPage />} />

@@ -58,6 +58,8 @@ export const apiTagTypes = [
   'Preferences',
   'EventTaxonomy',
   'SaudiRegion',
+  'TourismAd',
+  'TourismAdCarousel',
 ] as const;
 
 export type ApiTagType = (typeof apiTagTypes)[number];

@@ -125,7 +125,19 @@ The landing page is the main entry point for the platform. It includes:
 - **Hero section** with a prominent search bar and featured event highlights.
 - **Featured Events** section — uses an **algorithmic mode by default** (most sold, most viewed). The Admin can override manually from the Admin Dashboard.
 - **Category browsing** — category cards/tabs displayed prominently for quick filtering.
+- **Tourism Ads carousel** — published destination ads from `GET /tourism-ads/carousel`, rendered by [`TourismAdsSection`](src/components/sections/TourismAdsSection.tsx) **below categories and above Featured Events**. Section title **Tourism Ads** includes an **Add your Ad** button (login required) that opens [`/tourism-ads/submit`](src/pages/tourism/SubmitTourismAdPage.tsx). Card click opens [`/tourism-ads/:id`](src/pages/tourism/TourismAdDetailPage.tsx).
 - **Navigation** to all major sections: events, marketplace, my tickets, profile.
+
+### Tourism ad submission (guest)
+
+Authenticated users submit ads for admin review via a 4-step wizard on `/tourism-ads/submit`:
+
+1. Location & description (`location_name`, `latitude`, `longitude`, `description`)
+2. Opening hours (all 7 weekdays) & service tags
+3. Contact (phone or email required) & optional media links
+4. Gallery upload (`POST /uploads` with `context=tourism_ad_gallery`) & submit (`POST /me/tourism-ads/{id}/submit`)
+
+Drafts are created with `POST /me/tourism-ads` and updated with `PATCH` between steps. After submit the ad enters `pending_review`; the guest may `withdraw` until admin approves or rejects. See [`frontend-handoff-tourism-ads.md`](frontend-handoff-tourism-ads.md).
 
 ---
 
@@ -1811,6 +1823,8 @@ Every `<Route>` declared in [src/App.tsx](src/App.tsx). Auth and role gating not
 | `/terms` | `TermsPage` | `MainLayout` | None | |
 | `/privacy` | `PrivacyPage` | `MainLayout` | None | |
 | `/cookies` | `CookiesPage` | `MainLayout` | None | |
+| `/tourism-ads/:id` | `TourismAdDetailPage` | `MainLayout` | None | Public detail for published tourism ads. |
+| `/tourism-ads/submit` | `SubmitTourismAdPage` | `MainLayout` | `RequireAuth` | 4-step guest wizard; draft → submit for admin review. |
 | `/checkout/:eventId/seats` | `SeatSelectionPage` | `MainLayout` | `RequireAuth` | Redirects unauthenticated to `/login` with `from` state. |
 | `/checkout/:eventId` | `CheckoutPage` | `MainLayout` | `RequireAuth` | Same. Seated layouts arrive with `selectedSeats[]` via router state. |
 | `/my-tickets` | `MyTicketsPage` | `MainLayout` | `RequireAuth` | Filter chips by `TicketStatus`. |

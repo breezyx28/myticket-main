@@ -8,6 +8,7 @@ interface CarouselProps {
   title?: string;
   overline?: string;
   viewAllHref?: string;
+  headerAction?: ReactNode;
   className?: string;
   loop?: boolean;
   variant?: 'light' | 'dark';
@@ -18,6 +19,7 @@ export function Carousel({
   title,
   overline,
   viewAllHref,
+  headerAction,
   className,
   loop = false,
   variant = 'light',
@@ -75,6 +77,7 @@ export function Carousel({
             )}
           </div>
           <div className="flex items-center gap-3">
+            {headerAction}
             {viewAllHref && (
               <a
                 href={viewAllHref}

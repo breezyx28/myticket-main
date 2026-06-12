@@ -1245,7 +1245,49 @@ Auth: bearer.
 
 ---
 
-## 25. Coverage matrix (frontend ↔ backend)
+## 25. Tourism ads
+
+Source spec: [`frontend-handoff-tourism-ads.md`](frontend-handoff-tourism-ads.md). Types: [`src/api/types/tourismAd.ts`](src/api/types/tourismAd.ts). Hooks: [`src/api/endpoints/tourismAds.ts`](src/api/endpoints/tourismAds.ts), [`src/api/endpoints/uploads.ts`](src/api/endpoints/uploads.ts).
+
+### Public (no auth)
+
+| Method | Path | Hook |
+|---|---|---|
+| `GET` | `/tourism-ads/carousel` | `useGetTourismAdsCarouselQuery` |
+| `GET` | `/tourism-ads/{id}` | `useGetTourismAdQuery` |
+
+`GET /tourism-ads/carousel` returns `{ "data": [ …carousel items ] }` — published ads inside their visibility window, ordered by pin → `carousel_position` → `published_at`.
+
+`GET /tourism-ads/{id}` returns `{ "data": { …detail } }` for a single published ad. **404** when not visible.
+
+### Guest (`/me/tourism-ads`)
+
+Auth: bearer (`app:main`).
+
+| Method | Path | Hook |
+|---|---|---|
+| `POST` | `/me/tourism-ads` | `useCreateMyTourismAdMutation` |
+| `GET` | `/me/tourism-ads` | `useListMyTourismAdsQuery` |
+| `GET` | `/me/tourism-ads/{id}` | `useGetMyTourismAdQuery` |
+| `PATCH` | `/me/tourism-ads/{id}` | `useUpdateMyTourismAdMutation` |
+| `POST` | `/me/tourism-ads/{id}/submit` | `useSubmitMyTourismAdMutation` |
+| `POST` | `/me/tourism-ads/{id}/withdraw` | `useWithdrawMyTourismAdMutation` |
+
+Lifecycle: `draft` → `pending_review` (submit) → admin `published` / `rejected`; guest may `withdraw` while pending. Only **draft** ads are editable via `PATCH`.
+
+Guest list response is a Laravel paginator **without** an outer `{ data }` wrapper.
+
+### Uploads (gallery)
+
+| Method | Path | Hook |
+|---|---|---|
+| `POST` | `/uploads` | `useUploadFileMutation` |
+
+`multipart/form-data`: `file` (image/PDF, max 12 MB), `context=tourism_ad_gallery`. Response `{ "data": { "url", "content_type", "size_bytes" } }` — append `url` to `gallery_urls` on the draft before submit.
+
+---
+
+## 26. Coverage matrix (frontend ↔ backend)
 
 Historical traceability table mapping the original mock domains (now retired — see [`MOCK_API_REFERENCE.md`](MOCK_API_REFERENCE.md)) to the real API endpoints. The "Historical mock source" column links to file paths under `src/services/*` that no longer exist; they are kept here as provenance.
 
