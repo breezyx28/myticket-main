@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { OrganizerOnboardingDraft } from '@/types/domain';
-import { ProfileImageAvatarInput } from '@/components/auth/ProfileImageAvatarInput';
+import { DraftProfileImageAvatarInput } from '@/components/auth/DraftProfileImageAvatarInput';
 import { TALENT_BIO_MAX_CHARS, TALENT_BIO_MIN_CHARS } from '@/lib/onboardingValidation';
 import { CharCounter } from '@/components/ui/form/CharCounter';
 import { Field } from '@/components/ui/form/Field';
@@ -42,9 +42,9 @@ export function OrganizerSteps({ step, draft, socialInput, setSocialInput, onCha
             placeholder="Your organizer name"
           />
         </Field>
-        <ProfileImageAvatarInput
+        <DraftProfileImageAvatarInput
           value={draft.profileImage}
-          onChange={(next) => onChange({ profileImage: next })}
+          onChange={(url) => onChange({ profileImage: url })}
           displayName={draft.displayName.trim() || 'Organizer'}
         />
         <Field

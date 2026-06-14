@@ -1,51 +1,95 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Camera } from '@phosphor-icons/react';
-import { cn } from '@/lib/utils';
+import { toAuthApiError } from '@/lib/authErrors';
 import { initialsFromName, isProfileImageUrl } from '@/lib/initials';
-
-const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+import { PROFILE_IMAGE_ACCEPT } from '@/lib/profileImageUpload';
+import { cn } from '@/lib/utils';
 
 interface ProfileImageAvatarInputProps {
   value: string | undefined;
-  onChange: (next: string) => void;
   displayName: string;
   disabled?: boolean;
   className?: string;
+  hintText?: string;
+  /** Upload handler — e.g. `POST /me/profile-image` on /profile or onboarding. */
+  onFileSelected: (file: File) => Promise<void>;
+  onRemove?: () => Promise<void>;
 }
 
 export function ProfileImageAvatarInput({
   value,
-  onChange,
   displayName,
   disabled = false,
   className,
+  hintText,
+  onFileSelected,
+  onRemove,
 }: ProfileImageAvatarInputProps) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const previewObjectUrlRef = useRef<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const showImage = isProfileImageUrl(value);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [previewSrc, setPreviewSrc] = useState<string | null>(null);
+  const showImage = Boolean(previewSrc) || isProfileImageUrl(value);
+  const displaySrc = previewSrc ?? (value?.trim() ? value.trim() : null);
   const initials = initialsFromName(displayName);
 
+  useEffect(() => {
+    return () => {
+      if (previewObjectUrlRef.current) {
+        URL.revokeObjectURL(previewObjectUrlRef.current);
+        previewObjectUrlRef.current = null;
+      }
+    };
+  }, []);
+
+  const clearPreview = useCallback(() => {
+    if (previewObjectUrlRef.current) {
+      URL.revokeObjectURL(previewObjectUrlRef.current);
+      previewObjectUrlRef.current = null;
+    }
+    setPreviewSrc(null);
+  }, []);
+
   const onPickFile = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       e.target.value = '';
-      if (!file || !file.type.startsWith('image/')) return;
-      if (file.size > MAX_IMAGE_BYTES) {
-        window.alert('Please choose an image under 2 MB.');
-        return;
-      }
+      if (!file) return;
+
+      setUploadError(null);
+      clearPreview();
+      const objectUrl = URL.createObjectURL(file);
+      previewObjectUrlRef.current = objectUrl;
+      setPreviewSrc(objectUrl);
       setUploading(true);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result;
-        if (typeof result === 'string') onChange(result);
+
+      try {
+        await onFileSelected(file);
+        clearPreview();
+      } catch (err) {
+        clearPreview();
+        setUploadError(toAuthApiError(err, 'Could not upload photo.').message);
+      } finally {
         setUploading(false);
-      };
-      reader.onerror = () => setUploading(false);
-      reader.readAsDataURL(file);
+      }
     },
-    [onChange]
+    [clearPreview, onFileSelected],
   );
+
+  const handleRemove = useCallback(async () => {
+    if (!onRemove) return;
+    setUploadError(null);
+    clearPreview();
+    setUploading(true);
+    try {
+      await onRemove();
+    } catch (err) {
+      setUploadError(toAuthApiError(err, 'Could not remove photo.').message);
+    } finally {
+      setUploading(false);
+    }
+  }, [clearPreview, onRemove]);
 
   return (
     <div className={cn('flex flex-col items-start gap-3', className)}>
@@ -62,8 +106,8 @@ export function ProfileImageAvatarInput({
           )}
           aria-label="Upload profile photo"
         >
-          {showImage ? (
-            <img src={value!.trim()} alt="" className="h-full w-full object-cover" />
+          {showImage && displaySrc ? (
+            <img src={displaySrc} alt="" className="h-full w-full object-cover" />
           ) : (
             <span className="text-[28px] font-extrabold tracking-tight text-ink-40">{initials}</span>
           )}
@@ -78,15 +122,30 @@ export function ProfileImageAvatarInput({
             </span>
           )}
         </button>
-        <input ref={fileRef} type="file" accept="image/*" className="sr-only" onChange={onPickFile} disabled={disabled} />
+        <input
+          ref={fileRef}
+          type="file"
+          accept={PROFILE_IMAGE_ACCEPT}
+          className="sr-only"
+          onChange={onPickFile}
+          disabled={disabled}
+        />
         {!disabled && (
           <div className="flex min-w-0 flex-col gap-2 text-[12px] text-ink-60">
-            <p className="max-w-[220px] leading-snug">Tap the circle to choose a photo from your device.</p>
-            {showImage && (
+            <p className="max-w-[220px] leading-snug">
+              {hintText ?? 'Tap the circle to choose a photo from your device.'}
+            </p>
+            {uploadError && (
+              <p className="max-w-[220px] font-semibold text-coral" role="alert">
+                {uploadError}
+              </p>
+            )}
+            {showImage && onRemove && (
               <button
                 type="button"
-                className="self-start font-bold text-coral hover:underline"
-                onClick={() => onChange('')}
+                className="self-start font-bold text-coral hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={uploading}
+                onClick={() => void handleRemove()}
               >
                 Remove photo
               </button>

@@ -5,12 +5,6 @@ export const updateProfileSchema = yup
     full_name: yup.string().trim().min(2, 'Full name is required.').max(120).notRequired(),
     display_name: yup.string().trim().max(60).notRequired(),
     bio: yup.string().trim().max(2000).notRequired(),
-    avatar_url: yup
-      .string()
-      .trim()
-      .max(2000)
-      .notRequired()
-      .test('url-or-empty', 'Avatar must be a valid https URL or empty.', (v) => !v || /^https?:\/\/.+/i.test(v)),
     phone: yup
       .string()
       .trim()

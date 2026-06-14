@@ -1,7 +1,8 @@
 import { useEffect, useId, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
+import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
 
 export type ContactTargetKind = 'talent' | 'vendor';
 
@@ -29,7 +30,7 @@ export function ContactEngagementDialog({
   onClose,
   onSubmit,
 }: Props) {
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = usePrefersReducedMotion();
   const dialogTitleId = useId();
   const [topic, setTopic] = useState('');
   const [initialMessage, setInitialMessage] = useState('');

@@ -30,6 +30,20 @@ export interface UpdateMeRequest {
   [key: string]: unknown;
 }
 
+/** `POST /me/profile-image` — multipart field `image` (max 4 MB). */
+export interface UploadProfileImageResponse {
+  user_id: Id;
+  profile_image_url: string;
+  avatar_url: string;
+  content_type: string;
+  size_bytes: number;
+  synced_profiles?: string[];
+}
+
+export interface UploadProfileImageEnvelope {
+  data: UploadProfileImageResponse;
+}
+
 export interface UserSession {
   id: Id;
   ip_address?: string;

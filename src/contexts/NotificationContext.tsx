@@ -12,7 +12,9 @@ import {
   useMarkAllNotificationsReadMutation,
   useMarkNotificationReadMutation,
 } from '@/api/endpoints';
+import { getSessionUserFromMeta } from '@/api/authToken';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNotificationRealtime } from '@/hooks/useNotificationRealtime';
 import { apiNotificationToMockNotification } from '@/lib/notificationMappers';
 
 export type MockNotificationKind = 'order' | 'waitlist' | 'support' | 'gift' | 'general';
@@ -47,13 +49,15 @@ type NotificationContextValue = {
 const NotificationContext = createContext<NotificationContextValue | null>(null);
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, isHydrating } = useAuth();
   const isAuthenticated = Boolean(user);
+  const userId = getSessionUserFromMeta()?.id ?? null;
 
   const { data: streamGuidance } = useGetNotificationsStreamQuery(undefined, {
     skip: !isAuthenticated,
   });
-  const pollingInterval = useMemo(() => {
+
+  const fallbackPollIntervalMs = useMemo(() => {
     const seconds = streamGuidance?.poll_interval_seconds;
     if (typeof seconds === 'number' && seconds > 0) {
       return Math.max(seconds * 1000, 5_000);
@@ -61,9 +65,17 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     return DEFAULT_POLL_INTERVAL_MS;
   }, [streamGuidance]);
 
+  const { usePollingFallback } = useNotificationRealtime({
+    enabled: isAuthenticated && !isHydrating,
+    userId,
+    streamGuidance,
+  });
+
+  const pollingInterval = usePollingFallback ? fallbackPollIntervalMs : 0;
+
   const { data: paged } = useListNotificationsQuery(
     { per_page: 30 },
-    { skip: !isAuthenticated, pollingInterval }
+    { skip: !isAuthenticated, pollingInterval },
   );
 
   const [markNotificationRead] = useMarkNotificationReadMutation();
@@ -79,7 +91,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     if (!paged) return;
-    const ttl = Math.max(pollingInterval, LOCAL_ENTRY_TTL_MS);
+    const ttl = Math.max(pollingInterval || fallbackPollIntervalMs, LOCAL_ENTRY_TTL_MS);
     const now = Date.now();
     setLocalItems((prev) => {
       const next = prev.filter((entry) => {
@@ -89,7 +101,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       });
       return next.length === prev.length ? prev : next;
     });
-  }, [paged, pollingInterval]);
+  }, [paged, pollingInterval, fallbackPollIntervalMs]);
 
   const apiItems = useMemo<MockNotification[]>(() => {
     if (!paged?.data) return [];
@@ -121,7 +133,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       };
       setLocalItems((prev) => [entry, ...prev]);
     },
-    []
+    [],
   );
 
   const markRead = useCallback(
@@ -129,22 +141,22 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       const isLocal = localItems.some((x) => x.id === id);
       if (isLocal) {
         setLocalItems((prev) =>
-          prev.map((x) => (x.id === id ? { ...x, read: true } : x))
+          prev.map((x) => (x.id === id ? { ...x, read: true } : x)),
         );
         return;
       }
       void markNotificationRead({ id }).unwrap().catch(() => {
-        /* keep UI state; the next poll will resync. */
+        /* keep UI state; the next refetch will resync. */
       });
     },
-    [localItems, markNotificationRead]
+    [localItems, markNotificationRead],
   );
 
   const markAllRead = useCallback(() => {
     setLocalItems((prev) => prev.map((x) => ({ ...x, read: true })));
     if (!isAuthenticated) return;
     void markAllNotificationsRead().unwrap().catch(() => {
-      /* swallow; next poll resyncs. */
+      /* swallow; next refetch resyncs. */
     });
   }, [isAuthenticated, markAllNotificationsRead]);
 
@@ -156,7 +168,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       markRead,
       markAllRead,
     }),
-    [items, unreadCount, pushNotification, markRead, markAllRead]
+    [items, unreadCount, pushNotification, markRead, markAllRead],
   );
 
   return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;

@@ -1,19 +1,9 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
-import {
-  CalendarBlank,
-  DownloadSimple,
-  Gift,
-  Gavel,
-  MapPin,
-  Star,
-  Ticket,
-  Wallet,
-  XCircle,
-} from '@phosphor-icons/react';
+import { Star } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/Button';
-import { TicketSummaryCard } from '@/components/tickets/TicketSummaryCard';
-import { TicketQrPanel } from '@/components/tickets/TicketQrPanel';
+import { TicketDetailActions } from '@/components/tickets/TicketDetailActions';
+import { TicketInvoiceDocument } from '@/components/tickets/TicketInvoiceDocument';
 import {
   useCancelAuctionMutation,
   useCancelTicketMutation,
@@ -30,7 +20,6 @@ import { downloadTicketPdf } from '@/lib/ticketPdfDownload';
 import { uiSeatIdToApi } from '@/lib/seatMappers';
 import { ticketQrScanValue, useTicketQrDataUrl } from '@/lib/ticketQr';
 import { listForAuctionSchema } from '@/schemas/auction';
-import { cn } from '@/lib/utils';
 
 type ApiError = { data?: { message?: string; errors?: Record<string, string[]> } };
 function readApiErrorMessage(err: unknown): string | null {
@@ -44,57 +33,11 @@ function readApiErrorMessage(err: unknown): string | null {
   return null;
 }
 
-const STATUS_STYLES: Record<string, string> = {
-  active: 'bg-mint/15 text-mint-dark border-mint/30',
-  auction: 'bg-amber/15 text-amber border-amber/40',
-  gifted: 'bg-sky/15 text-sky border-sky/40',
-  used: 'bg-ink-5 text-ink-60 border-ink-10',
-  expired: 'bg-ink-5 text-ink-40 border-ink-10',
-  cancelled: 'bg-red-50 text-red-800 border-red-200',
-  refunded: 'bg-purple-50 text-purple-800 border-purple-200',
-};
-
-const STATUS_LABEL: Record<string, string> = {
-  active: 'Active',
-  auction: 'In auction',
-  gifted: 'Gifted',
-  used: 'Used',
-  expired: 'Expired',
-  cancelled: 'Cancelled',
-  refunded: 'Refunded',
-};
-
 function SectionHeading({ title, description }: { title: string; description?: string }) {
   return (
     <div className="mb-5">
       <h2 className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-40">{title}</h2>
       {description ? <p className="mt-1.5 text-[13px] leading-relaxed text-ink-60">{description}</p> : null}
-    </div>
-  );
-}
-
-function MetaItem({
-  icon,
-  label,
-  value,
-  mono,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string;
-  mono?: boolean;
-}) {
-  return (
-    <div className="flex gap-3 rounded-xl bg-ink-5/60 px-4 py-3">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-coral shadow-sm">
-        {icon}
-      </span>
-      <div className="min-w-0">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-40">{label}</p>
-        <p className={cn('mt-0.5 text-[14px] font-semibold leading-snug text-ink', mono && 'font-mono')}>
-          {value}
-        </p>
-      </div>
     </div>
   );
 }
@@ -291,15 +234,9 @@ export function TicketDetailPage() {
     }
   }
 
-  const statusKey = ticket.status in STATUS_STYLES ? ticket.status : 'active';
-  const eventWhenLabel = ticket.dateStart
-    ? `${new Date(ticket.dateStart).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })} — ${new Date(ticket.dateEnd || ticket.dateStart).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`
-    : 'Event schedule TBC';
-  const venueLabel = [ticket.venue, ticket.city].filter(Boolean).join(', ') || 'Venue TBC';
-
   return (
-    <div className="min-h-screen bg-ink-5/30 pb-24 pt-8">
-      <div className="mx-auto max-w-5xl px-6 lg:px-8">
+    <div className="min-h-screen bg-ink-5 pb-24 pt-8">
+      <div className="mx-auto max-w-[900px] px-6 lg:px-8">
         <Link
           to="/my-tickets"
           className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-coral transition-colors hover:text-coral/80"
@@ -307,46 +244,19 @@ export function TicketDetailPage() {
           <span aria-hidden>←</span> My tickets
         </Link>
 
-        <header className="mt-8 rounded-2xl border border-ink-10 bg-white p-6 shadow-sm lg:p-8">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <span
-              className={cn(
-                'inline-flex rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-wide',
-                STATUS_STYLES[statusKey],
-              )}
-            >
-              {STATUS_LABEL[statusKey] ?? ticket.status}
-            </span>
-            {ticket.ticketCode ? (
-              <span className="font-mono text-[12px] font-semibold text-ink-40">{ticket.ticketCode}</span>
-            ) : null}
-          </div>
-          <h1 className="mt-4 text-[28px] font-extrabold leading-tight tracking-tight text-ink lg:text-[32px]">
-            {ticket.eventTitle || 'Event'}
-          </h1>
-          <dl className="mt-6 grid gap-3 sm:grid-cols-2">
-            <MetaItem
-              icon={<MapPin size={20} weight="duotone" />}
-              label="Venue"
-              value={venueLabel}
-            />
-            <MetaItem
-              icon={<CalendarBlank size={20} weight="duotone" />}
-              label="Event time"
-              value={eventWhenLabel}
-            />
-            <MetaItem
-              icon={<Ticket size={20} weight="duotone" />}
-              label="Admission"
-              value={
-                ticket.seatLabel
-                  ? `${ticket.typeName || 'General admission'} · ${ticket.seatLabel}`
-                  : ticket.typeName || 'General admission'
-              }
-            />
-            <MetaItem icon={<Ticket size={20} weight="duotone" />} label="Order" value={ticket.orderRef} mono />
-          </dl>
-        </header>
+        <div className="mt-8">
+          <TicketInvoiceDocument
+            ticket={ticket}
+            apiTicket={apiTicket}
+            qr={qr}
+            scanValue={scanValue}
+            attendee={{
+              name: user.name,
+              email: user.email,
+              phone: user.phone,
+            }}
+          />
+        </div>
 
         {(ticket.status === 'active' ||
           walletHint ||
@@ -388,232 +298,115 @@ export function TicketDetailPage() {
           </div>
         )}
 
-        <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-8 xl:grid-cols-[minmax(0,1fr)_24rem]">
-          <div className="space-y-10">
+        <div className="mt-8 space-y-6">
+          {apiTicket?.signed_qr_payload && ticket.status === 'active' && (
             <section className="rounded-2xl border border-ink-10 bg-white p-6 shadow-sm lg:p-8">
               <SectionHeading
-                title="Entry at venue"
-                description="Show this QR at the gate. Increase screen brightness for best results."
+                title="Verify authenticity"
+                description="Optional check for ticket holders. The gate scans the QR on your ticket document, not the encrypted payload."
               />
-              <TicketQrPanel
-                dataUrl={qr.dataUrl}
-                loading={qr.loading}
-                error={qr.error}
-                ticketCode={scanValue}
-                status={ticket.status}
-              />
-              {apiTicket?.signed_qr_payload && ticket.status === 'active' && (
-                <div className="mt-6 rounded-xl border border-dashed border-ink-10 bg-ink-5/50 p-4 lg:p-5">
-                  <p className="text-[12px] leading-relaxed text-ink-60">
-                    Optional authenticity check (holder only). The gate still scans the code above, not the encrypted
-                    payload.
-                  </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="mt-4"
-                    loading={validatingQr}
-                    disabled={validatingQr}
-                    onClick={async () => {
-                      setQrValidateResult(null);
-                      try {
-                        const { data: fresh } = await refetch();
-                        const signedPayload = (
-                          fresh?.signed_qr_payload ?? apiTicket.signed_qr_payload
-                        )?.trim();
-                        if (!signedPayload) {
-                          setQrValidateResult('error');
-                          return;
-                        }
-                        const res = await validateTicketQr({
-                          id: uiSeatIdToApi(ticket.id),
-                          body: { qr_payload: signedPayload },
-                        }).unwrap();
-                        setQrValidateResult(res.valid ? 'valid' : 'mismatch');
-                      } catch {
-                        setQrValidateResult('error');
-                      }
-                    }}
-                  >
-                    Verify ticket authenticity
-                  </Button>
-                  {qrValidateResult === 'valid' && (
-                    <p className="mt-3 rounded-lg bg-mint/10 px-3 py-2 text-[13px] font-semibold text-mint-dark">
-                      Valid — this ticket matches the server record.
-                    </p>
-                  )}
-                  {qrValidateResult === 'mismatch' && (
-                    <p className="mt-3 rounded-lg bg-coral/10 px-3 py-2 text-[13px] leading-relaxed font-semibold text-coral">
-                      Authenticity check failed — the encrypted payload on this page does not match the server record.
-                      Your entry QR code above is unchanged. Refresh this page once (the server may repair legacy tickets
-                      on load), then try again. If it still fails, contact support.
-                    </p>
-                  )}
-                  {qrValidateResult === 'error' && (
-                    <p className="mt-3 rounded-lg bg-coral/10 px-3 py-2 text-[13px] font-semibold text-coral">
-                      Could not reach the verify service. Check your connection and try again.
-                    </p>
-                  )}
-                </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                loading={validatingQr}
+                disabled={validatingQr}
+                onClick={async () => {
+                  setQrValidateResult(null);
+                  try {
+                    const { data: fresh } = await refetch();
+                    const signedPayload = (fresh?.signed_qr_payload ?? apiTicket.signed_qr_payload)?.trim();
+                    if (!signedPayload) {
+                      setQrValidateResult('error');
+                      return;
+                    }
+                    const res = await validateTicketQr({
+                      id: uiSeatIdToApi(ticket.id),
+                      body: { qr_payload: signedPayload },
+                    }).unwrap();
+                    setQrValidateResult(res.valid ? 'valid' : 'mismatch');
+                  } catch {
+                    setQrValidateResult('error');
+                  }
+                }}
+              >
+                Verify ticket authenticity
+              </Button>
+              {qrValidateResult === 'valid' && (
+                <p className="mt-3 rounded-lg bg-mint/10 px-3 py-2 text-[13px] font-semibold text-mint-dark">
+                  Valid — this ticket matches the server record.
+                </p>
+              )}
+              {qrValidateResult === 'mismatch' && (
+                <p className="mt-3 rounded-lg bg-coral/10 px-3 py-2 text-[13px] leading-relaxed font-semibold text-coral">
+                  Authenticity check failed — the encrypted payload on this page does not match the server record.
+                  Your entry QR code is unchanged. Refresh this page once (the server may repair legacy tickets on
+                  load), then try again. If it still fails, contact support.
+                </p>
+              )}
+              {qrValidateResult === 'error' && (
+                <p className="mt-3 rounded-lg bg-coral/10 px-3 py-2 text-[13px] font-semibold text-coral">
+                  Could not reach the verify service. Check your connection and try again.
+                </p>
               )}
             </section>
+          )}
 
-            {ticket.status === 'used' && (
-              <section className="rounded-2xl border border-lemon/60 bg-lemon/15 p-6 lg:p-8">
-                <SectionHeading
-                  title="Rate your experience"
-                  description="Star ratings only — one rating per event."
-                />
-                <Link
-                  to={`/events/${ticket.eventId}#rate`}
-                  className="inline-flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-ink-80"
-                >
-                  <Star size={18} weight="fill" className="text-lemon" />
-                  Rate this event
-                </Link>
-              </section>
-            )}
-
-            {ticket.status === 'auction' && ticket.listedAuctionId && (
-              <section className="rounded-2xl border border-amber/40 bg-amber/10 p-6">
-                <SectionHeading
-                  title="Listed for resale"
-                  description="Your listing is visible in the auction area. You can cancel before it sells."
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void onCancelListing()}
-                  loading={cancellingAuction}
-                  disabled={cancellingAuction}
-                >
-                  Cancel listing
-                </Button>
-              </section>
-            )}
-
-            <section className="rounded-2xl border border-ink-10 bg-white p-6 shadow-sm lg:p-8">
-              <SectionHeading title="Manage ticket" description="Download, transfer, or cancel this ticket." />
-              <div className="space-y-6">
-                <div>
-                  <p className="mb-3 text-[10px] font-bold uppercase tracking-wide text-ink-40">Save &amp; wallet</p>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <Button
-                      variant="outline"
-                      size="md"
-                      icon={DownloadSimple}
-                      disabled={!canAct || pdfLoading || !scanValue}
-                      loading={pdfLoading}
-                      onClick={() => void onDownloadPdf()}
-                    >
-                      Download PDF
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="md"
-                      icon={Wallet}
-                      disabled={!canAct}
-                      title="Wallet passes are not available in the app yet."
-                      onClick={() => setWalletHint(true)}
-                    >
-                      Add to Wallet
-                    </Button>
-                  </div>
-                </div>
-                <div className="border-t border-ink-10 pt-6">
-                  <p className="mb-3 text-[10px] font-bold uppercase tracking-wide text-ink-40">Transfer &amp; resale</p>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <Button variant="secondary" size="md" icon={Gift} disabled={!canGift} onClick={() => setGiftOpen(true)}>
-                      Gift ticket
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      size="md"
-                      icon={Gavel}
-                      disabled={!canAuction}
-                      onClick={() => {
-                        setListPrice(String(ticket.pricePaid));
-                        setAuctionOpen(true);
-                      }}
-                    >
-                      Drop to auction
-                    </Button>
-                  </div>
-                </div>
-                <div className="border-t border-ink-10 pt-6">
-                  <Button
-                    variant="outline"
-                    size="md"
-                    icon={XCircle}
-                    disabled={!canCancel}
-                    className="w-full"
-                    onClick={() => {
-                      setCancelReason('');
-                      setRefundRequested(true);
-                      setCancelOpen(true);
-                    }}
-                  >
-                    Cancel ticket
-                  </Button>
-                  {!canAct && ticket.status !== 'auction' && (
-                    <p className="mt-3 text-center text-[12px] leading-relaxed text-ink-40">
-                      Primary actions apply to active tickets. Auction listings can be cancelled above.
-                    </p>
-                  )}
-                </div>
-              </div>
+          {ticket.status === 'used' && (
+            <section className="rounded-2xl border border-lemon/60 bg-lemon/15 p-6 lg:p-8">
+              <SectionHeading
+                title="Rate your experience"
+                description="Star ratings only — one rating per event."
+              />
+              <Link
+                to={`/events/${ticket.eventId}#rate`}
+                className="inline-flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-ink-80"
+              >
+                <Star size={18} weight="fill" className="text-lemon" />
+                Rate this event
+              </Link>
             </section>
-          </div>
+          )}
 
-          <aside className="space-y-6 lg:sticky lg:top-8">
-            <section className="rounded-2xl border border-ink-10 bg-white p-6 shadow-sm">
-              <SectionHeading title="Receipt" />
-              <div className="space-y-4">
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-40">Order reference</p>
-                  <p className="mt-1 font-mono text-[18px] font-bold text-ink">{ticket.orderRef}</p>
-                </div>
-                <div className="border-t border-ink-10 pt-4">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-40">Ticket</p>
-                  <p className="mt-1 text-[15px] font-semibold text-ink">
-                    {ticket.typeName || 'General admission'}
-                    {ticket.seatLabel ? (
-                      <span className="mt-0.5 block text-[13px] font-medium text-ink-60">Seat {ticket.seatLabel}</span>
-                    ) : null}
-                  </p>
-                </div>
-                <div className="border-t border-ink-10 pt-4">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-40">Payment</p>
-                  <div className="mt-3 space-y-2">
-                    <div className="flex items-center justify-between text-[14px]">
-                      <span className="text-ink-60">Ticket price</span>
-                      <span className="font-mono font-semibold text-ink">{ticket.pricePaid} SAR</span>
-                    </div>
-                    {apiTicket?.order_id != null && (
-                      <div className="flex items-center justify-between text-[12px] text-ink-40">
-                        <span>Order ID</span>
-                        <span className="font-mono text-ink">{String(apiTicket.order_id)}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between border-t border-ink-10 pt-3 text-[15px] font-bold text-ink">
-                      <span>Total paid</span>
-                      <span className="font-mono">{ticket.pricePaid} SAR</span>
-                    </div>
-                  </div>
-                  <p className="mt-3 text-[11px] leading-relaxed text-ink-40">
-                    Per-ticket amount from price_paid. Fees may be included in the order total on the server.
-                  </p>
-                </div>
-              </div>
+          {ticket.status === 'auction' && ticket.listedAuctionId && (
+            <section className="rounded-2xl border border-amber/40 bg-amber/10 p-6">
+              <SectionHeading
+                title="Listed for resale"
+                description="Your listing is visible in the auction area. You can cancel before it sells."
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void onCancelListing()}
+                loading={cancellingAuction}
+                disabled={cancellingAuction}
+              >
+                Cancel listing
+              </Button>
             </section>
+          )}
 
-            {apiTicket ? (
-              <div className="[&>section]:mt-0 [&>section]:shadow-sm">
-                <TicketSummaryCard ticket={apiTicket} />
-              </div>
-            ) : null}
-          </aside>
+          <TicketDetailActions
+            canAct={canAct}
+            canGift={canGift}
+            canCancel={canCancel}
+            canAuction={canAuction}
+            pdfLoading={pdfLoading}
+            scanValue={scanValue}
+            ticketStatus={ticket.status}
+            onDownloadPdf={() => void onDownloadPdf()}
+            onWalletHint={() => setWalletHint(true)}
+            onGiftOpen={() => setGiftOpen(true)}
+            onAuctionOpen={() => {
+              setListPrice(String(ticket.pricePaid));
+              setAuctionOpen(true);
+            }}
+            onCancelOpen={() => {
+              setCancelReason('');
+              setRefundRequested(true);
+              setCancelOpen(true);
+            }}
+          />
         </div>
       </div>
 

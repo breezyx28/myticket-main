@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { TalentOnboardingDraft } from "@/types/domain";
-import { ProfileImageAvatarInput } from "@/components/auth/ProfileImageAvatarInput";
+import { DraftProfileImageAvatarInput } from "@/components/auth/DraftProfileImageAvatarInput";
 import {
   TALENT_BIO_MAX_CHARS,
   TALENT_BIO_MIN_CHARS,
@@ -50,9 +50,9 @@ export function TalentSteps({
   if (step === 0) {
     return (
       <div className="space-y-4">
-        <ProfileImageAvatarInput
+        <DraftProfileImageAvatarInput
           value={draft.profileImage}
-          onChange={(next) => onChange({ profileImage: next })}
+          onChange={(url) => onChange({ profileImage: url })}
           displayName={draft.fullName.trim() || "User"}
         />
 

@@ -63,6 +63,15 @@ const ICON_BY_SLUG: Record<string, Icon> = {
   online: GameController,
   tech: GameController,
   fashion: Heart,
+  // Shorthand keys some API rows send instead of PascalCase Phosphor export names.
+  sparkles: Confetti,
+  mask: MaskHappy,
+  smile: Smiley,
+  mic: Microphone,
+  gallery: Images,
+  utensils: ForkKnife,
+  globe: GlobeHemisphereWest,
+  gamepad: GameController,
 };
 
 const dynamicIconCache = new Map<string, Icon>();
@@ -82,8 +91,32 @@ export function normalizePhosphorIconKey(raw: string): string {
 }
 
 export function isStaticPhosphorIconKey(iconKey: string | null | undefined): boolean {
-  const normalized = normalizePhosphorIconKey(iconKey ?? '');
+  if (!iconKey?.trim()) return false;
+  if (ICON_BY_SLUG[normalizeSlug(iconKey)]) return true;
+  const normalized = normalizePhosphorIconKey(iconKey);
   return Boolean(normalized && ICON_BY_KEY[normalized]);
+}
+
+function resolveKnownPhosphorIcon(
+  iconKey: string | null | undefined,
+  slugFallback: string | undefined,
+): Icon | null {
+  if (iconKey?.trim()) {
+    const aliasIcon = ICON_BY_SLUG[normalizeSlug(iconKey)];
+    if (aliasIcon) return aliasIcon;
+    const normalized = normalizePhosphorIconKey(iconKey);
+    if (normalized && ICON_BY_KEY[normalized]) {
+      return ICON_BY_KEY[normalized];
+    }
+    if (normalized && dynamicIconCache.has(normalized)) {
+      return dynamicIconCache.get(normalized)!;
+    }
+  }
+  if (slugFallback) {
+    const slugIcon = ICON_BY_SLUG[normalizeSlug(slugFallback)];
+    if (slugIcon) return slugIcon;
+  }
+  return null;
 }
 
 export function resolvePhosphorIconSync(
@@ -91,18 +124,7 @@ export function resolvePhosphorIconSync(
   slugFallback: string | undefined,
   fallback: Icon,
 ): Icon {
-  const normalized = normalizePhosphorIconKey(iconKey ?? '');
-  if (normalized && ICON_BY_KEY[normalized]) {
-    return ICON_BY_KEY[normalized];
-  }
-  if (normalized && dynamicIconCache.has(normalized)) {
-    return dynamicIconCache.get(normalized)!;
-  }
-  if (slugFallback) {
-    const slugIcon = ICON_BY_SLUG[normalizeSlug(slugFallback)];
-    if (slugIcon) return slugIcon;
-  }
-  return fallback;
+  return resolveKnownPhosphorIcon(iconKey, slugFallback) ?? fallback;
 }
 
 /**
@@ -113,12 +135,13 @@ export async function loadPhosphorIconAsync(
   slugFallback: string | undefined,
   fallback: Icon,
 ): Promise<Icon> {
+  const known = resolveKnownPhosphorIcon(iconKey, slugFallback);
+  if (known) return known;
+
   const normalized = normalizePhosphorIconKey(iconKey);
   if (!normalized) {
     return resolvePhosphorIconSync(null, slugFallback, fallback);
   }
-  if (ICON_BY_KEY[normalized]) return ICON_BY_KEY[normalized];
-  if (dynamicIconCache.has(normalized)) return dynamicIconCache.get(normalized)!;
 
   try {
     const mod = (await import(

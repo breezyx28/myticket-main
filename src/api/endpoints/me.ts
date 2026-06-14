@@ -12,6 +12,8 @@ import type {
   UpdateTalentProfileRequest,
   UpdateUserPreferencesRequest,
   UpdateVendorProfileRequest,
+  UploadProfileImageEnvelope,
+  UploadProfileImageResponse,
   UserDevice,
   UserDeviceListResponse,
   UserMe,
@@ -29,6 +31,14 @@ function unwrapUserMeResponse(response: unknown): UserMe {
   return maybe as UserMe;
 }
 
+function unwrapUploadProfileImageResponse(response: unknown): UploadProfileImageResponse {
+  const maybe = response as UploadProfileImageEnvelope | UploadProfileImageResponse;
+  if (maybe && typeof maybe === 'object' && 'data' in maybe && maybe.data != null) {
+    return maybe.data;
+  }
+  return maybe as UploadProfileImageResponse;
+}
+
 export const meApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
     getMe: build.query<UserMe, void>({
@@ -40,6 +50,15 @@ export const meApi = baseApi.injectEndpoints({
       query: (body) => ({ url: '/me', method: 'PATCH', body }),
       transformResponse: (response: unknown) => unwrapUserMeResponse(response),
       invalidatesTags: ['Me'],
+    }),
+    uploadProfileImage: build.mutation<UploadProfileImageResponse, File>({
+      query: (file) => {
+        const body = new FormData();
+        body.append('image', file);
+        return { url: '/me/profile-image', method: 'POST', body };
+      },
+      transformResponse: (response: unknown) => unwrapUploadProfileImageResponse(response),
+      invalidatesTags: ['Me', 'TalentProfile', 'VendorProfile'],
     }),
     deleteMe: build.mutation<DeleteAccountResponse, DeleteAccountRequest>({
       query: (body) => ({ url: '/me', method: 'DELETE', body }),
@@ -125,6 +144,7 @@ export const {
   useGetMeQuery,
   useLazyGetMeQuery,
   useUpdateMeMutation,
+  useUploadProfileImageMutation,
   useDeleteMeMutation,
   useGetPreferencesQuery,
   useUpdatePreferencesMutation,

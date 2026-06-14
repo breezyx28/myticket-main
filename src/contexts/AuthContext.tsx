@@ -147,6 +147,8 @@ type AuthContextValue = {
       displayName?: string;
     },
   ) => Promise<void>;
+  /** Mirror a hosted profile image URL after `POST /me/profile-image`. */
+  applyProfileImageUrl: (url: string) => void;
   /** Persists via `PATCH /me/preferences` and mirrors the response into `MockUser.preferences`. */
   updatePreferences: (patch: Partial<MockUser["preferences"]>) => Promise<void>;
   /** Local mirror for 2FA toggles until profile security wires real endpoints here. */
@@ -486,6 +488,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const applyProfileImageUrl = useCallback((url: string) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      return { ...prev, profileImage: url.trim() };
+    });
+  }, []);
+
   const updateAccountInfo = useCallback(
     async (
       patch: Partial<
@@ -503,8 +512,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (patch.displayName !== undefined)
         body.display_name = patch.displayName.trim() || undefined;
       if (patch.bio !== undefined) body.bio = patch.bio;
-      if (patch.profileImage !== undefined)
-        body.avatar_url = patch.profileImage || undefined;
+      if (patch.profileImage !== undefined) {
+        const pic = patch.profileImage.trim();
+        if (!pic) {
+          body.avatar_url = undefined;
+        } else if (pic.startsWith('data:') || pic.startsWith('blob:')) {
+          throw toAuthApiError(
+            new Error('Profile photo is still uploading or invalid. Choose a photo and wait for upload to finish.'),
+            'Could not update profile.',
+          );
+        } else {
+          body.avatar_url = pic;
+        }
+      }
       if (patch.phone !== undefined) body.phone = patch.phone;
       if (patch.city !== undefined) body.city = patch.city;
       if (patch.region !== undefined) body.region = patch.region;
@@ -631,6 +651,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       confirmPasswordReset,
       signUp,
       updateProfileName,
+      applyProfileImageUrl,
       updateAccountInfo,
       updatePreferences,
       updateSecuritySettings,
@@ -652,6 +673,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       confirmPasswordReset,
       signUp,
       updateProfileName,
+      applyProfileImageUrl,
       updateAccountInfo,
       updatePreferences,
       updateSecuritySettings,

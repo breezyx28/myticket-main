@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { MapPin } from '@phosphor-icons/react';
 import type { MockEvent } from '@/types/domain';
 import { eventHasPrimaryInventory, isEventSoldOut } from '@/lib/eventMappers';
+import { usableImageSrc } from '@/lib/imageSrc';
 import { cn } from '@/lib/utils';
 
 function formatDate(iso: string) {
@@ -15,6 +16,7 @@ function formatDate(iso: string) {
 export function EventCard({ event }: { event: MockEvent }) {
   const soldOut = isEventSoldOut(event.ticketsLeft);
   const hasInventory = eventHasPrimaryInventory(event.ticketsLeft);
+  const coverImageSrc = usableImageSrc(event.coverImage);
   return (
     <article
       className={cn(
@@ -22,11 +24,15 @@ export function EventCard({ event }: { event: MockEvent }) {
       )}
     >
       <Link to={`/events/${event.id}`} className="relative aspect-[16/10] overflow-hidden bg-ink-10">
-        <img
-          src={event.coverImage}
-          alt=""
-          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-        />
+        {coverImageSrc ? (
+          <img
+            src={coverImageSrc}
+            alt=""
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+          />
+        ) : (
+          <div className="h-full w-full bg-gradient-to-br from-ink-10 via-ink-5 to-white" aria-hidden />
+        )}
         {event.featured && (
           <span className="absolute left-3 top-3 rounded-full bg-lemon px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink">
             Featured

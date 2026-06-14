@@ -22,17 +22,8 @@ export const loginSchema = yup
       .string()
       .trim()
       .email("Enter a valid email address.")
-      .when("phone", {
-        is: (v: string | undefined) => !v || v.trim().length === 0,
-        then: (s) => s.required("Provide email or phone."),
-        otherwise: (s) => s.notRequired(),
-      }),
-    phone: optionalPhone,
+      .required("Email is required."),
     password: password,
-    passwordConfirmation: yup
-      .string()
-      .oneOf([yup.ref("password")], "Passwords must match.")
-      .required("Confirm your password."),
     otp: yup
       .string()
       .trim()

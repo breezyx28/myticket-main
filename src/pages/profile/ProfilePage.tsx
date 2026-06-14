@@ -5,7 +5,8 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import type { RoleOnboardingStatus, TalentOnboardingDraft } from '@/types/domain';
-import { ProfileImageAvatarInput } from '@/components/auth/ProfileImageAvatarInput';
+import { AccountProfileAvatar } from '@/components/profile/AccountProfileAvatar';
+import { DraftProfileImageAvatarInput } from '@/components/auth/DraftProfileImageAvatarInput';
 import { TALENT_BIO_MAX_CHARS, TALENT_BIO_MIN_CHARS } from '@/lib/onboardingValidation';
 import {
   getCitiesForRegionFlexible,
@@ -244,7 +245,6 @@ export function ProfilePage() {
       full_name: '',
       display_name: '',
       bio: '',
-      avatar_url: '',
       phone: '',
       city: '',
       region: '',
@@ -301,7 +301,6 @@ export function ProfilePage() {
       full_name: user.name,
       display_name: user.name,
       bio: user.bio,
-      avatar_url: user.profileImage || undefined,
       phone: normalizedPhone,
       city: user.city,
       region: mappedRegion,
@@ -382,7 +381,6 @@ export function ProfilePage() {
         region: values.region ?? '',
         city: values.city ?? '',
         bio: values.bio ?? '',
-        profileImage: values.avatar_url?.trim() ?? '',
       });
       setSaveMessage('Profile saved.');
     } catch (e) {
@@ -737,29 +735,14 @@ export function ProfilePage() {
         {activeTab === 'info' && (
           <form onSubmit={onSaveProfile} className="mt-10 space-y-4 rounded-2xl border border-ink-10 p-6">
             <h2 className="text-lg font-extrabold text-ink">Profile info</h2>
-            <div className="mb-2">
-              <Controller
-                name="avatar_url"
-                control={profileForm.control}
-                render={({ field }) => (
-                  <ProfileImageAvatarInput
-                    value={field.value ?? ''}
-                    onChange={field.onChange}
-                    displayName={
-                      profileForm.watch('display_name')?.trim() ||
-                      profileForm.watch('full_name')?.trim() ||
-                      user?.name ||
-                      'User'
-                    }
-                  />
-                )}
-              />
-              {profileForm.formState.errors.avatar_url && (
-                <p className="mt-1 text-[12px] font-semibold text-coral">
-                  {profileForm.formState.errors.avatar_url.message}
-                </p>
-              )}
-            </div>
+            <AccountProfileAvatar
+              displayName={
+                profileForm.watch('display_name')?.trim() ||
+                profileForm.watch('full_name')?.trim() ||
+                user?.name ||
+                'User'
+              }
+            />
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block">
                 <span className="text-[12px] font-semibold text-ink-60">Full name</span>
@@ -1317,9 +1300,9 @@ export function ProfilePage() {
                   />
                 </label>
                 <div className="sm:col-span-2">
-                  <ProfileImageAvatarInput
+                  <DraftProfileImageAvatarInput
                     value={draft.profileImage}
-                    onChange={(next) => setDraft((prev) => ({ ...prev, profileImage: next }))}
+                    onChange={(url) => setDraft((prev) => ({ ...prev, profileImage: url }))}
                     displayName={draft.fullName.trim() || user?.name || 'User'}
                     disabled={talentFormLocked}
                   />

@@ -1,23 +1,16 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { X } from '@phosphor-icons/react';
 import { useClaimGiftMutation, useListGiftsQuery, useListMyTicketsQuery } from '@/api/endpoints';
 import type { TicketStatus } from '@/types/domain';
+import { TicketListCard, TicketListCardSkeleton } from '@/components/tickets/TicketListCard';
+import { STATUS_LABEL } from '@/components/tickets/ticketDisplayUtils';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiGiftListItemToInboxRow, apiTicketToMockTicket } from '@/lib/ticketMappers';
 
 const REMINDERS_BANNER_KEY = 'myticket_reminders_banner_dismissed';
-
-const STATUS_LABEL: Record<TicketStatus, string> = {
-  active: 'Active',
-  auction: 'In auction',
-  gifted: 'Gifted',
-  used: 'Used',
-  expired: 'Expired',
-  cancelled: 'Cancelled',
-  refunded: 'Refunded',
-};
 
 type ViewMode = 'tickets' | 'gifts';
 
@@ -112,8 +105,8 @@ export function MyTicketsPage() {
   }
 
   return (
-    <div className="bg-white pb-20 pt-10">
-      <div className="mx-auto max-w-[1280px] px-6 lg:px-8">
+    <div className={cn('pb-20 pt-10', user ? 'bg-ink-5' : 'bg-white')}>
+      <div className={cn('mx-auto px-6 lg:px-8', user ? 'max-w-4xl' : 'max-w-[720px]')}>
         <h1 className="text-[32px] font-extrabold tracking-tight text-ink">My tickets</h1>
         <p className="mt-2 max-w-xl text-[15px] text-ink-60">
           View, download, gift, or list tickets. Gifts you receive show up in the inbox.
@@ -135,10 +128,10 @@ export function MyTicketsPage() {
                 }
                 setRemindersBannerOpen(false);
               }}
-              className="absolute right-3 top-3 rounded-full px-2 py-1 text-[11px] font-bold text-ink-40 hover:bg-white/80"
+              className="absolute right-3 top-3 rounded-full p-1.5 text-ink-40 transition-colors hover:bg-white/80"
               aria-label="Dismiss"
             >
-              ✕
+              <X size={14} weight="bold" />
             </button>
           </div>
         )}
@@ -180,7 +173,11 @@ export function MyTicketsPage() {
             </div>
 
             {ticketsLoading && (
-              <p className="mt-10 text-center text-[13px] text-ink-40">Loading tickets…</p>
+              <ul className="mt-10 space-y-4">
+                {Array.from({ length: 3 }, (_, i) => (
+                  <TicketListCardSkeleton key={i} />
+                ))}
+              </ul>
             )}
             {ticketsError && !ticketsLoading && (
               <p className="mt-10 rounded-lg border border-coral/40 bg-coral/10 px-4 py-3 text-center text-[13px] font-semibold text-coral">
@@ -191,46 +188,8 @@ export function MyTicketsPage() {
             {!ticketsLoading && !ticketsError && (
               <>
                 <ul className="mt-10 space-y-4">
-                  {filteredTickets.map((t) => (
-                    <li key={t.id}>
-                      <Link
-                        to={`/my-tickets/${t.id}`}
-                        className="flex flex-col gap-3 rounded-2xl border border-ink-10 bg-ink-5/30 p-5 transition-colors hover:border-coral sm:flex-row sm:items-center sm:justify-between"
-                      >
-                        <div>
-                          <p className="font-extrabold text-ink">{t.eventTitle || 'Event'}</p>
-                          <p className="mt-1 text-[13px] text-ink-60">
-                            {[t.city, t.venue].filter(Boolean).join(' · ') || 'Venue TBC'}
-                            {t.dateStart ? ` · ${formatDateTime(t.dateStart)}` : ''}
-                          </p>
-                          {t.ticketCode && (
-                            <p className="mt-1 font-mono text-[12px] font-semibold text-ink-50">{t.ticketCode}</p>
-                          )}
-                          <p className="mt-1 text-[12px] text-ink-40">
-                            {t.typeName || 'Ticket'}
-                            {t.seatLabel ? ` · ${t.seatLabel}` : ''}
-                            {t.orderRef ? ` · ${t.orderRef}` : ''}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span
-                            className={cn(
-                              'rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide',
-                              t.status === 'active' && 'bg-mint/40 text-ink',
-                              t.status === 'auction' && 'bg-amber/30 text-ink',
-                              t.status === 'gifted' && 'bg-sky/40 text-ink',
-                              t.status === 'used' && 'bg-ink-10 text-ink-60',
-                              t.status === 'expired' && 'bg-ink-10 text-ink-40',
-                              t.status === 'cancelled' && 'bg-red-100 text-red-800',
-                              t.status === 'refunded' && 'bg-purple-100 text-purple-800'
-                            )}
-                          >
-                            {STATUS_LABEL[t.status]}
-                          </span>
-                          <span className="text-[13px] font-semibold text-coral">View →</span>
-                        </div>
-                      </Link>
-                    </li>
+                  {filteredTickets.map((t, index) => (
+                    <TicketListCard key={t.id} ticket={t} index={index} />
                   ))}
                 </ul>
 

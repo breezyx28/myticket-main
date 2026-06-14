@@ -34,17 +34,42 @@ export type NotificationListResponse = Paginated<AppNotification> & {
   unread_count: number;
 };
 
-/**
- * `GET /me/notifications/stream`. The backend deliberately did NOT add
- * Server-Sent Events; this endpoint returns a guidance payload that tells
- * the SPA which transport to fall back on. Today that is always polling, but
- * keeping the shape a discriminated union lets us add SSE/WebSocket variants
- * without breaking the type.
- */
-export interface NotificationStreamGuidance {
+export type NotificationPollingStreamGuidance = {
   transport: 'polling';
-  message: string;
   since: Iso8601;
   poll_interval_seconds?: number;
-  [key: string]: unknown;
+  message?: string;
+};
+
+export type NotificationReverbStreamGuidance = {
+  transport: 'reverb';
+  channel: string;
+  auth_endpoint?: string;
+  since?: Iso8601;
+  fallback?: {
+    transport: 'polling';
+    path?: string;
+  };
+  poll_interval_seconds?: number;
+};
+
+/**
+ * `GET /me/notifications/stream` — transport guidance for the notification bell.
+ * When `transport` is `reverb`, subscribe to the user channel and reconcile
+ * pushes with REST. Otherwise poll `GET /me/notifications?since=`.
+ */
+export type NotificationStreamGuidance =
+  | NotificationPollingStreamGuidance
+  | NotificationReverbStreamGuidance;
+
+export function isReverbStreamGuidance(
+  guidance: NotificationStreamGuidance | undefined | null,
+): guidance is NotificationReverbStreamGuidance {
+  return guidance?.transport === 'reverb';
+}
+
+export function isPollingStreamGuidance(
+  guidance: NotificationStreamGuidance | undefined | null,
+): guidance is NotificationPollingStreamGuidance {
+  return !guidance || guidance.transport === 'polling';
 }

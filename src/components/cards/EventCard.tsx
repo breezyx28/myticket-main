@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   Calendar,
   Heart,
@@ -20,6 +20,8 @@ import { cn } from '@/lib/utils';
 import { SaudiRiyalIcon } from '@/components/icons/SaudiRiyalIcon';
 import { formatAttendingLabel } from '@/lib/attendingFormat';
 import { formatSaudiRiyalAmountLatin } from '@/lib/saudiCurrency';
+import { usableImageSrc } from '@/lib/imageSrc';
+import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
 
 function hashString(s: string): number {
   let h = 0;
@@ -109,7 +111,7 @@ export function EventCard({
   onClick,
   className,
 }: EventCardProps) {
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = usePrefersReducedMotion();
   const dialogTitleId = useId();
 
   const storageKey = eventId ?? `anon-${hashString(title)}`;
@@ -118,10 +120,12 @@ export function EventCard({
   const attendingCount = attendingCountProp ?? defaultAttendingCount(attendingSeed);
   const attendeeAvatars = useMemo(() => {
     const av = attendeeAvatarsProp?.length
-      ? attendeeAvatarsProp.slice(0, 3)
+      ? attendeeAvatarsProp.map(usableImageSrc).filter((url): url is string => Boolean(url)).slice(0, 3)
       : defaultAvatars(attendingSeed);
-    return av.slice(0, 3);
+    return av.length > 0 ? av : defaultAvatars(attendingSeed);
   }, [attendeeAvatarsProp, attendingSeed]);
+
+  const coverImageSrc = usableImageSrc(image);
 
   const attendingLabel = formatAttendingLabel(attendingCount);
 
@@ -283,12 +287,16 @@ export function EventCard({
       >
         <div className="absolute inset-0 p-3">
           <div className={cn('relative h-full w-full overflow-hidden rounded-2xl', accentColor)}>
-            <img
-              src={image}
-              alt=""
-              className="h-full w-full object-cover transition-transform duration-[200ms] ease-in-out group-hover/card:scale-[1.03]"
-              loading="lazy"
-            />
+            {coverImageSrc ? (
+              <img
+                src={coverImageSrc}
+                alt=""
+                className="h-full w-full object-cover transition-transform duration-[200ms] ease-in-out group-hover/card:scale-[1.03]"
+                loading="lazy"
+              />
+            ) : (
+              <div className="h-full w-full bg-gradient-to-br from-ink-10 via-ink-5 to-white" aria-hidden />
+            )}
             <div className="absolute left-2.5 top-2.5 z-10 flex flex-wrap gap-1.5">
               <span className="rounded-full border border-white/50 bg-white/40 px-2.5 py-0.5 text-[10px] font-bold text-ink shadow-sm backdrop-blur-md backdrop-saturate-150">
                 {category}
