@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import useEmblaCarousel from 'embla-carousel-react';
 import {
   ArrowUpRight,
   Buildings,
@@ -13,7 +12,14 @@ import type { Icon } from '@phosphor-icons/react';
 import { useAuth } from '@/contexts/AuthContext';
 import { roleUpgradeBanners, type UpgradeRole } from '@/data/roleUpgradeBanners';
 import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
+import { getEffectiveLanguage } from '@/lib/language';
 import { cn } from '@/lib/utils';
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  type CarouselApi,
+} from '@/components/ui/shadcn-carousel';
 
 const ROLE_BADGE_ICONS: Record<UpgradeRole, Icon> = {
   organizer: Buildings,
@@ -26,54 +32,29 @@ export function RoleUpgradeBannersSection() {
   const { user } = useAuth();
   const reduceMotion = usePrefersReducedMotion();
 
-  const [emblaRef, emblaApi] = useEmblaCarousel({
-    align: 'start',
-    containScroll: 'trimSnaps',
-    dragFree: true,
-  });
-
+  const [api, setApi] = useState<CarouselApi>();
   const [canScrollPrev, setCanScrollPrev] = useState(false);
   const [canScrollNext, setCanScrollNext] = useState(false);
 
-  const currentLanguage =
-    user?.preferences.language ??
-    (typeof document !== 'undefined' && document.documentElement.lang === 'ar' ? 'ar' : 'en');
+  const currentLanguage = getEffectiveLanguage(user?.preferences.language);
   const isArabic = currentLanguage === 'ar';
 
   const onSelect = useCallback(() => {
-    if (!emblaApi) return;
-    setCanScrollPrev(emblaApi.canScrollPrev());
-    setCanScrollNext(emblaApi.canScrollNext());
-  }, [emblaApi]);
+    if (!api) return;
+    setCanScrollPrev(api.canScrollPrev());
+    setCanScrollNext(api.canScrollNext());
+  }, [api]);
 
   useEffect(() => {
-    if (!emblaApi) return;
+    if (!api) return;
     onSelect();
-    emblaApi.on('select', onSelect);
-    emblaApi.on('reInit', onSelect);
+    api.on('select', onSelect);
+    api.on('reInit', onSelect);
     return () => {
-      emblaApi.off('select', onSelect);
-      emblaApi.off('reInit', onSelect);
+      api.off('select', onSelect);
+      api.off('reInit', onSelect);
     };
-  }, [emblaApi, onSelect]);
-
-  useEffect(() => {
-    if (!emblaApi) return;
-    const viewport = emblaApi.rootNode();
-
-    const onWheel = (event: WheelEvent) => {
-      const delta =
-        Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
-      if (Math.abs(delta) < 1) return;
-
-      event.preventDefault();
-      const { scrollTo, location } = emblaApi.internalEngine();
-      scrollTo.distance(location.get() - delta, false);
-    };
-
-    viewport.addEventListener('wheel', onWheel, { passive: false });
-    return () => viewport.removeEventListener('wheel', onWheel);
-  }, [emblaApi]);
+  }, [api, onSelect]);
 
   const cards = useMemo(
     () =>
@@ -118,7 +99,7 @@ export function RoleUpgradeBannersSection() {
             <button
               type="button"
               aria-label={isArabic ? 'البطاقات السابقة' : 'Previous banners'}
-              onClick={() => emblaApi?.scrollPrev()}
+              onClick={() => api?.scrollPrev()}
               disabled={!canScrollPrev}
               className={cn(
                 'flex h-11 w-11 items-center justify-center rounded-full border border-ink-10 bg-white text-ink transition-colors',
@@ -130,7 +111,7 @@ export function RoleUpgradeBannersSection() {
             <button
               type="button"
               aria-label={isArabic ? 'البطاقات التالية' : 'Next banners'}
-              onClick={() => emblaApi?.scrollNext()}
+              onClick={() => api?.scrollNext()}
               disabled={!canScrollNext}
               className={cn(
                 'flex h-11 w-11 items-center justify-center rounded-full border border-ink-10 bg-white text-ink transition-colors',
@@ -142,102 +123,114 @@ export function RoleUpgradeBannersSection() {
           </div>
         </div>
 
-        <div ref={emblaRef} className="-mx-1 overflow-hidden">
-          <div className="flex gap-4 px-1 pb-1">
+        <Carousel
+          setApi={setApi}
+          opts={{
+            align: 'start',
+            containScroll: 'trimSnaps',
+            dragFree: true,
+          }}
+          className="-mx-1"
+        >
+          <CarouselContent className="-ml-0 gap-4 px-1 pb-1">
             {cards.map(({ banner, copy }, index) => {
               const isLightCard = banner.id === 'vendor';
               const imageAlt = copy.roleLabel;
               const BadgeIcon = ROLE_BADGE_ICONS[banner.id];
 
               return (
-                <article
+                <CarouselItem
                   key={banner.id}
-                  className={cn(
-                    'group relative h-[240px] w-[min(90vw,520px)] shrink-0 overflow-hidden rounded-[1.75rem] sm:h-[260px] sm:w-[min(88vw,560px)]',
-                    banner.cardClass,
-                    reduceMotion ? '' : 'transition-transform duration-300 hover:-translate-y-0.5',
-                  )}
-                  style={reduceMotion ? undefined : { transitionDelay: `${Math.min(index * 40, 120)}ms` }}
+                  className="basis-auto pl-0"
                 >
-                  <div
+                  <article
                     className={cn(
-                      'relative z-10 flex h-full max-w-[58%] flex-col justify-between p-5 sm:max-w-[56%] sm:p-6',
+                      'group relative h-[240px] w-[min(90vw,520px)] overflow-hidden rounded-[1.75rem] sm:h-[260px] sm:w-[min(88vw,560px)]',
+                      banner.cardClass,
+                      reduceMotion ? '' : 'transition-transform duration-300 hover:-translate-y-0.5',
                     )}
+                    style={reduceMotion ? undefined : { transitionDelay: `${Math.min(index * 40, 120)}ms` }}
                   >
-                    <div>
-                      <span
-                        className={cn(
-                          'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em]',
-                          banner.badgeClass,
-                        )}
-                      >
-                        <BadgeIcon size={12} weight="fill" />
-                        {copy.roleLabel}
-                      </span>
-
-                      <h3
-                        className={cn(
-                          'mt-2 text-[clamp(1.35rem,3.2vw,1.75rem)] font-extrabold leading-[1.05] tracking-tight',
-                          isLightCard ? 'text-ink' : 'text-white',
-                        )}
-                      >
-                        {copy.title}
-                        {copy.titleAccent ? (
-                          <span
-                            className={cn(
-                              'block font-semibold',
-                              isLightCard ? 'text-ink-40' : 'text-white/55',
-                            )}
-                          >
-                            {copy.titleAccent}
-                          </span>
-                        ) : null}
-                      </h3>
-
-                      <p
-                        className={cn(
-                          'mt-2 line-clamp-2 text-[11px] leading-snug sm:text-[12px]',
-                          isLightCard ? 'text-ink-60' : 'text-white/75',
-                        )}
-                      >
-                        {copy.summary}
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => navigateWithAuthGuard(banner.route)}
+                    <div
                       className={cn(
-                        'mt-3 inline-flex w-fit items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] transition-opacity hover:opacity-90',
-                        banner.ctaClass,
+                        'relative z-10 flex h-full max-w-[58%] flex-col justify-between p-5 sm:max-w-[56%] sm:p-6',
                       )}
                     >
-                      <ArrowUpRight size={14} weight="bold" />
-                      {copy.cta}
-                    </button>
-                  </div>
+                      <div>
+                        <span
+                          className={cn(
+                            'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em]',
+                            banner.badgeClass,
+                          )}
+                        >
+                          <BadgeIcon size={12} weight="fill" />
+                          {copy.roleLabel}
+                        </span>
 
-                  <div
-                    className="pointer-events-none absolute inset-y-0 end-0 w-[48%] overflow-visible"
-                    aria-hidden
-                  >
-                    <img
-                      src={banner.image3d}
-                      alt={imageAlt}
-                      className={cn(
-                        'absolute object-contain drop-shadow-[0_18px_32px_rgba(13,13,13,0.35)]',
-                        banner.imageClass,
-                        reduceMotion ? '' : 'transition-transform duration-500 group-hover:scale-[1.03]',
-                      )}
-                      loading="lazy"
-                      draggable={false}
-                    />
-                  </div>
-                </article>
+                        <h3
+                          className={cn(
+                            'mt-2 text-[clamp(1.35rem,3.2vw,1.75rem)] font-extrabold leading-[1.05] tracking-tight',
+                            isLightCard ? 'text-ink' : 'text-white',
+                          )}
+                        >
+                          {copy.title}
+                          {copy.titleAccent ? (
+                            <span
+                              className={cn(
+                                'block font-semibold',
+                                isLightCard ? 'text-ink-40' : 'text-white/55',
+                              )}
+                            >
+                              {copy.titleAccent}
+                            </span>
+                          ) : null}
+                        </h3>
+
+                        <p
+                          className={cn(
+                            'mt-2 line-clamp-2 text-[11px] leading-snug sm:text-[12px]',
+                            isLightCard ? 'text-ink-60' : 'text-white/75',
+                          )}
+                        >
+                          {copy.summary}
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => navigateWithAuthGuard(banner.route)}
+                        className={cn(
+                          'mt-3 inline-flex w-fit items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] transition-opacity hover:opacity-90',
+                          banner.ctaClass,
+                        )}
+                      >
+                        <ArrowUpRight size={14} weight="bold" />
+                        {copy.cta}
+                      </button>
+                    </div>
+
+                    <div
+                      className="pointer-events-none absolute inset-y-0 end-0 w-[48%] overflow-visible"
+                      aria-hidden
+                    >
+                      <img
+                        src={banner.image3d}
+                        alt={imageAlt}
+                        className={cn(
+                          'absolute object-contain drop-shadow-[0_18px_32px_rgba(13,13,13,0.35)]',
+                          banner.imageClass,
+                          reduceMotion ? '' : 'transition-transform duration-500 group-hover:scale-[1.03]',
+                        )}
+                        loading="lazy"
+                        draggable={false}
+                      />
+                    </div>
+                  </article>
+                </CarouselItem>
               );
             })}
-          </div>
-        </div>
+          </CarouselContent>
+        </Carousel>
       </div>
     </section>
   );

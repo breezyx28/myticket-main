@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Link,
+  Navigate,
   useLocation,
   useNavigate,
   useSearchParams,
@@ -343,14 +344,6 @@ export function RegisterPage() {
     vendorDraft,
     wizardStep,
   ]);
-
-  useEffect(() => {
-    const rp = searchParams.get("role");
-    if (rp !== "talent" && rp !== "vendor" && rp !== "organizer") return;
-    setRole(rp);
-    setStage("onboarding");
-    setWizardStep(0);
-  }, [searchParams]);
 
   useEffect(() => {
     if (!user) return;
@@ -730,6 +723,11 @@ export function RegisterPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  const roleParam = searchParams.get("role");
+  if (roleParam === "talent" || roleParam === "vendor" || roleParam === "organizer") {
+    return <Navigate to={`/apply/${roleParam}`} replace />;
   }
 
   return (

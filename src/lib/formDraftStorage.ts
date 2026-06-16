@@ -70,6 +70,30 @@ function clearKey(key: string): void {
   }
 }
 
+export type ApplyRoleDraft = 'talent' | 'organizer' | 'vendor';
+
+const APPLY_DRAFT_KEY = 'myticket_apply_draft_v1';
+
+export interface ApplyPageDraft {
+  role: ApplyRoleDraft;
+  wizardStep: number;
+  talentDraft: TalentOnboardingDraft;
+  vendorDraft: VendorOnboardingDraft;
+  organizerDraft: OrganizerOnboardingDraft;
+}
+
+export function readApplyDraft(): ApplyPageDraft | null {
+  return readJson<ApplyPageDraft>(APPLY_DRAFT_KEY);
+}
+
+export function writeApplyDraft(value: ApplyPageDraft): void {
+  writeJson(APPLY_DRAFT_KEY, value);
+}
+
+export function clearApplyDraft(): void {
+  clearKey(APPLY_DRAFT_KEY);
+}
+
 export function readRegisterDraft(): RegisterPageDraft | null {
   return readJson<RegisterPageDraft>(REGISTER_DRAFT_KEY);
 }

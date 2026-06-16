@@ -1,6 +1,7 @@
 import { Suspense, lazy } from 'react';
 import { Route, Routes, useLocation } from 'react-router-dom';
 import { RequireAuth } from '@/components/auth/RequireAuth';
+import { RequireGuestUpgrade } from '@/components/auth/RequireGuestUpgrade';
 import { RequireMarketplaceBrowse } from '@/components/auth/RequireMarketplaceBrowse';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { MainLayout } from '@/layouts/MainLayout';
@@ -11,6 +12,7 @@ import { ForgotPasswordPage } from '@/pages/auth/ForgotPasswordPage';
 import { LoginPage } from '@/pages/auth/LoginPage';
 import { OAuthCallbackPage } from '@/pages/auth/OAuthCallbackPage';
 import { RegisterPage } from '@/pages/auth/RegisterPage';
+import { ApplyRolePage } from '@/pages/auth/ApplyRolePage';
 import { ResetPasswordPage } from '@/pages/auth/ResetPasswordPage';
 import { CookiesPage } from '@/pages/legal/CookiesPage';
 import { PrivacyPage } from '@/pages/legal/PrivacyPage';
@@ -135,6 +137,12 @@ export function App() {
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/cookies" element={<CookiesPage />} />
           <Route path="/tourism-ads/:id" element={<TourismAdDetailPage />} />
+
+          <Route element={<RequireGuestUpgrade />}>
+            <Route path="/apply/talent" element={<ApplyRolePage />} />
+            <Route path="/apply/vendor" element={<ApplyRolePage />} />
+            <Route path="/apply/organizer" element={<ApplyRolePage />} />
+          </Route>
 
           <Route element={<RequireAuth />}>
             <Route path="/tourism-ads/submit" element={<SubmitTourismAdPage />} />

@@ -1,26 +1,24 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import useEmblaCarousel from 'embla-carousel-react';
 import { CaretLeft, CaretRight, Compass, Plus } from '@phosphor-icons/react';
 import { motion } from 'framer-motion';
 import { TourismAdCard } from '@/components/cards/TourismAdCard';
 import { useGetTourismAdsCarouselQuery } from '@/api/endpoints';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  type CarouselApi,
+} from '@/components/ui/shadcn-carousel';
 
 function TourismAdSkeleton({ index }: { index: number }) {
   return (
     <div
-      className="w-[300px] shrink-0 overflow-hidden rounded-[1.75rem] border border-ink-10 bg-white"
+      className="h-[240px] w-[min(92vw,600px)] shrink-0 animate-pulse overflow-hidden rounded-[1.75rem] bg-ink-80/50 sm:h-[260px] sm:w-[min(90vw,640px)]"
       style={{ animationDelay: `${index * 80}ms` }}
-    >
-      <div className="aspect-[5/4] animate-pulse bg-gradient-to-br from-ink-5 via-ink-10/40 to-ink-5" />
-      <div className="space-y-3 p-5">
-        <div className="h-3 w-4/5 animate-pulse rounded bg-ink-10" />
-        <div className="h-3 w-full animate-pulse rounded bg-ink-10" />
-        <div className="h-3 w-2/3 animate-pulse rounded bg-ink-10" />
-      </div>
-    </div>
+    />
   );
 }
 
@@ -29,30 +27,26 @@ export function TourismAdsSection() {
   const { user } = useAuth();
   const { data: ads = [], isFetching, isError } = useGetTourismAdsCarouselQuery();
 
-  const [emblaRef, emblaApi] = useEmblaCarousel({
-    align: 'start',
-    containScroll: 'trimSnaps',
-    dragFree: true,
-  });
+  const [api, setApi] = useState<CarouselApi>();
   const [canScrollPrev, setCanScrollPrev] = useState(false);
   const [canScrollNext, setCanScrollNext] = useState(false);
 
   const onSelect = useCallback(() => {
-    if (!emblaApi) return;
-    setCanScrollPrev(emblaApi.canScrollPrev());
-    setCanScrollNext(emblaApi.canScrollNext());
-  }, [emblaApi]);
+    if (!api) return;
+    setCanScrollPrev(api.canScrollPrev());
+    setCanScrollNext(api.canScrollNext());
+  }, [api]);
 
   useEffect(() => {
-    if (!emblaApi) return;
+    if (!api) return;
     onSelect();
-    emblaApi.on('select', onSelect);
-    emblaApi.on('reInit', onSelect);
+    api.on('select', onSelect);
+    api.on('reInit', onSelect);
     return () => {
-      emblaApi.off('select', onSelect);
-      emblaApi.off('reInit', onSelect);
+      api.off('select', onSelect);
+      api.off('reInit', onSelect);
     };
-  }, [emblaApi, onSelect]);
+  }, [api, onSelect]);
 
   if (isError) {
     return null;
@@ -122,7 +116,7 @@ export function TourismAdsSection() {
               <button
                 type="button"
                 aria-label="Previous ads"
-                onClick={() => emblaApi?.scrollPrev()}
+                onClick={() => api?.scrollPrev()}
                 disabled={!canScrollPrev}
                 className={cn(
                   'flex h-11 w-11 items-center justify-center rounded-full border border-ink-10 bg-white text-ink transition-colors',
@@ -136,7 +130,7 @@ export function TourismAdsSection() {
               <button
                 type="button"
                 aria-label="Next ads"
-                onClick={() => emblaApi?.scrollNext()}
+                onClick={() => api?.scrollNext()}
                 disabled={!canScrollNext}
                 className={cn(
                   'flex h-11 w-11 items-center justify-center rounded-full border border-ink-10 bg-white text-ink transition-colors',
@@ -151,40 +145,53 @@ export function TourismAdsSection() {
           </motion.div>
         </div>
 
-        <div ref={emblaRef} className="-mx-1 overflow-hidden">
-          <div className="flex gap-5 px-1 pb-1">
-            {isFetching ? (
-              [0, 1, 2].map((i) => <TourismAdSkeleton key={i} index={i} />)
-            ) : ads.length === 0 ? (
-              <div className="w-full max-w-[640px] rounded-[1.75rem] border border-dashed border-ink-20 bg-white/70 px-8 py-12 backdrop-blur-sm">
-                <p className="text-[18px] font-extrabold tracking-tight text-ink">
-                  No destinations live yet
-                </p>
-                <p className="mt-2 max-w-[42ch] text-[14px] leading-relaxed text-ink-60">
-                  Be the first to showcase your location. Submit your tourism ad for
-                  admin review and appear in this carousel once approved.
-                </p>
-                <button
-                  type="button"
-                  onClick={goToSubmit}
-                  className="mt-6 inline-flex items-center gap-2 rounded-full bg-coral px-5 py-2.5 text-[13px] font-bold text-white transition-transform active:scale-[0.98]"
-                >
-                  <Plus size={16} weight="bold" />
-                  Add your Ad
-                </button>
-              </div>
-            ) : (
-              ads.map((ad, index) => (
-                <TourismAdCard
-                  key={String(ad.id)}
-                  ad={ad}
-                  index={index}
-                  onClick={() => navigate(`/tourism-ads/${ad.id}`)}
-                />
-              ))
-            )}
+        {isFetching ? (
+          <div className="flex gap-4 px-1 pb-1">
+            {[0, 1, 2].map((i) => (
+              <TourismAdSkeleton key={i} index={i} />
+            ))}
           </div>
-        </div>
+        ) : ads.length === 0 ? (
+          <div className="w-full max-w-[640px] rounded-[1.75rem] border border-dashed border-ink-20 bg-white/70 px-8 py-12 backdrop-blur-sm">
+            <p className="text-[18px] font-extrabold tracking-tight text-ink">
+              No destinations live yet
+            </p>
+            <p className="mt-2 max-w-[42ch] text-[14px] leading-relaxed text-ink-60">
+              Be the first to showcase your location. Submit your tourism ad for
+              admin review and appear in this carousel once approved.
+            </p>
+            <button
+              type="button"
+              onClick={goToSubmit}
+              className="mt-6 inline-flex items-center gap-2 rounded-full bg-coral px-5 py-2.5 text-[13px] font-bold text-white transition-transform active:scale-[0.98]"
+            >
+              <Plus size={16} weight="bold" />
+              Add your Ad
+            </button>
+          </div>
+        ) : (
+          <Carousel
+            setApi={setApi}
+            opts={{
+              align: 'start',
+              containScroll: 'trimSnaps',
+              dragFree: true,
+            }}
+            className="-mx-1"
+          >
+            <CarouselContent className="-ml-0 gap-4 px-1 pb-1">
+              {ads.map((ad, index) => (
+                <CarouselItem key={String(ad.id)} className="basis-auto pl-0">
+                  <TourismAdCard
+                    ad={ad}
+                    index={index}
+                    onClick={() => navigate(`/tourism-ads/${ad.id}`)}
+                  />
+                </CarouselItem>
+              ))}
+            </CarouselContent>
+          </Carousel>
+        )}
       </div>
     </section>
   );

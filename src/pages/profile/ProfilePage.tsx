@@ -635,7 +635,7 @@ export function ProfilePage() {
                     if (kind === 'vendor') {
                       window.location.assign(buildVendorPortalUrl('/application', user));
                     } else {
-                      navigate(`/register?role=${kind}`);
+                      navigate(`/apply/${kind}`);
                     }
                   } catch (e) {
                     setSaveError(readApiErrorMessage(e, 'Could not reopen application.'));

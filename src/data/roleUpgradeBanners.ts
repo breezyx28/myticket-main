@@ -23,7 +23,7 @@ export type RoleUpgradeBanner = {
 export const roleUpgradeBanners: RoleUpgradeBanner[] = [
   {
     id: 'organizer',
-    route: '/register?role=organizer',
+    route: '/apply/organizer',
     cardClass:
       'bg-gradient-to-br from-[#1a2744] via-coral-dark to-coral text-white',
     badgeClass: 'bg-white/20 text-white',
@@ -49,7 +49,7 @@ export const roleUpgradeBanners: RoleUpgradeBanner[] = [
   },
   {
     id: 'vendor',
-    route: '/register?role=vendor',
+    route: '/apply/vendor',
     cardClass:
       'bg-gradient-to-br from-[#8fa8c4] via-[#b4c5d8] to-[#d8e3ef] text-ink',
     badgeClass: 'bg-ink/10 text-ink',
@@ -75,7 +75,7 @@ export const roleUpgradeBanners: RoleUpgradeBanner[] = [
   },
   {
     id: 'talent',
-    route: '/register?role=talent',
+    route: '/apply/talent',
     cardClass:
       'bg-gradient-to-br from-[#0f2618] via-indigo-dark to-indigo text-white',
     badgeClass: 'bg-white/15 text-white',
