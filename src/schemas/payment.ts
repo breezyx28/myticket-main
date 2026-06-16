@@ -61,5 +61,19 @@ export const confirmPaymentSchema = yup
     payment_intent_id: yup.string().notRequired(),
     three_ds_token: yup.string().notRequired(),
     saved_card_id: yup.mixed<string | number>().notRequired(),
+    save_card: yup.boolean().notRequired(),
+    payment_token: yup.string().min(8).max(255).notRequired(),
+    brand: yup.string().oneOf(['visa', 'mastercard', 'mada', 'amex', 'other']).notRequired(),
+    last4: yup
+      .string()
+      .matches(/^\d{4}$/, 'last4 must be exactly 4 digits.')
+      .notRequired(),
+    expiry_month: yup.number().integer().min(1).max(12).notRequired(),
+    expiry_year: yup.number().integer().min(2000).notRequired(),
+    cardholder_name: yup.string().trim().max(120).notRequired(),
+    card_number: yup.mixed().test('no-pan', 'Raw card data must not be sent.', (v) => v == null),
+    pan: yup.mixed().test('no-pan', 'Raw card data must not be sent.', (v) => v == null),
+    cvv: yup.mixed().test('no-cvv', 'CVV must not be sent.', (v) => v == null),
+    cvc: yup.mixed().test('no-cvv', 'CVV must not be sent.', (v) => v == null),
   })
   .strict();

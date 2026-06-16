@@ -667,11 +667,29 @@ Auth: bearer.
 ### `POST /orders/{id}/confirm-payment`
 
 - Hook: `useConfirmOrderPaymentMutation()`. Schema: `confirmPaymentSchema`.
-- Request (gateway-dependent):
+- Request (tokenized — **never** send PAN/CVV):
+
+  **Pay with saved card:**
 
   ```json
-  { "payment_intent_id": "pi_…", "three_ds_token": "…", "saved_card_id": null }
+  { "saved_card_id": 12, "payment_intent_id": "pi_…" }
   ```
+
+  **Pay with new card (token from PSP / local `tok_` adapter):**
+
+  ```json
+  {
+    "payment_token": "tok_…",
+    "brand": "visa",
+    "last4": "4242",
+    "cardholder_name": "Ahmed Ali",
+    "expiry_month": 12,
+    "expiry_year": 2028,
+    "save_card": true
+  }
+  ```
+
+  When `save_card` is `true`, `brand` and `last4` are required. See [`frontend-handoff-saved-cards.md`](frontend-handoff-saved-cards.md).
 
 - Response `200`: updated `Order`. Tickets are emitted on success and become available via `/me/tickets`.
 
@@ -763,14 +781,15 @@ Removed from the main SPA contract. Validation now lives in the scanner audience
 
 ## 13. Saved cards
 
-Auth: bearer.
+Auth: bearer. Full contract: [`frontend-handoff-saved-cards.md`](frontend-handoff-saved-cards.md).
 
 | Method | Path | Hook |
 |---|---|---|
 | `GET` | `/me/saved-cards` | `useListSavedCardsQuery` |
+| `PATCH` | `/me/saved-cards/{id}` | `useUpdateSavedCardDefaultMutation` — body `{ "is_default": true }` |
 | `DELETE` | `/me/saved-cards/{id}` | `useDeleteSavedCardMutation` |
 
-`SavedCard` shape: `{ id, brand, last4, exp_month, exp_year, cardholder_name, is_default }`.
+`SavedCard` shape: `{ id, brand, last4, expiry_month, expiry_year, cardholder_name, is_default, created_at, updated_at }`. The SPA normalizes `expiry_*` to `exp_month` / `exp_year` in [`savedCardMappers.ts`](src/lib/savedCardMappers.ts). `gateway_token` is never returned.
 
 ---
 

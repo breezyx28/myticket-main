@@ -41,11 +41,9 @@ export function displayCardLabel(value: string, fallback = 'My card'): string {
 }
 
 export function savedCardDisplayLabel(
-  card: { brand: string; last4: string; label?: string | null; nickname?: string | null },
+  card: { brand: string; last4: string },
   formatBrand: (brand: string) => string,
 ): string {
-  const custom = card.label?.trim() || card.nickname?.trim();
-  if (custom) return custom.slice(0, 24);
   return `${formatBrand(card.brand)} · ${card.last4}`;
 }
 

@@ -14,6 +14,7 @@ type TicketDetailActionsProps = {
   canAuction: boolean;
   pdfLoading: boolean;
   scanValue: string | null;
+  qrReady?: boolean;
   onDownloadPdf: () => void;
   onWalletHint: () => void;
   onGiftOpen: () => void;
@@ -38,6 +39,7 @@ export function TicketDetailActions({
   canAuction,
   pdfLoading,
   scanValue,
+  qrReady = true,
   onDownloadPdf,
   onWalletHint,
   onGiftOpen,
@@ -56,7 +58,7 @@ export function TicketDetailActions({
               variant="outline"
               size="md"
               icon={DownloadSimple}
-              disabled={!canAct || pdfLoading || !scanValue}
+              disabled={!canAct || pdfLoading || !scanValue || !qrReady}
               loading={pdfLoading}
               onClick={onDownloadPdf}
             >

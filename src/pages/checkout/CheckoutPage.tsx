@@ -48,6 +48,8 @@ import {
   savedCardDisplayLabel,
 } from '@/components/checkout/checkoutCreditCardUtils';
 import { formatSaudiRiyalAmountLatin } from '@/lib/saudiCurrency';
+import { tokenizeCardForPayment } from '@/lib/paymentTokenize';
+import { SAVED_CARDS_MAX } from '@/lib/savedCardMappers';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
@@ -136,6 +138,7 @@ export function CheckoutPage() {
   });
   const [paymentTouched, setPaymentTouched] = useState(false);
   const [paymentErrorMessage, setPaymentErrorMessage] = useState<string | null>(null);
+  const [tokenizingPayment, setTokenizingPayment] = useState(false);
   const [selectedSavedCardId, setSelectedSavedCardId] = useState<Id | null>(null);
   const [savedCardAutoSelected, setSavedCardAutoSelected] = useState(false);
 
@@ -144,7 +147,7 @@ export function CheckoutPage() {
   const [createOrder, { isLoading: creatingOrder }] = useCreateOrderMutation();
   const [confirmOrderPayment, { isLoading: confirmingPayment }] = useConfirmOrderPaymentMutation();
   const [checkOverlap, { isLoading: checkingOverlap }] = useCheckTicketOverlapMutation();
-  const payLoading = creatingOrder || confirmingPayment || checkingOverlap;
+  const payLoading = creatingOrder || confirmingPayment || checkingOverlap || tokenizingPayment;
 
   const {
     data: savedCardsRaw,
@@ -313,7 +316,12 @@ export function CheckoutPage() {
   );
   const paymentValidation = useMemo(() => validatePaymentForm(paymentForm), [paymentForm]);
   const usingSavedCard = selectedSavedCard !== null;
-  const canSubmitPayment = (usingSavedCard || paymentValidation.isValid) && !payLoading && !!user;
+  const atSavedCardLimit = savedCards.length >= SAVED_CARDS_MAX;
+  const canSubmitPayment =
+    (usingSavedCard || paymentValidation.isValid) &&
+    !payLoading &&
+    !!user &&
+    !(paymentForm.saveCard && atSavedCardLimit && !usingSavedCard);
 
   async function handlePay() {
     if (!event || !selectedType || !detail) return;
@@ -374,6 +382,22 @@ export function CheckoutPage() {
     setOverlapDismissed(true);
     setPaymentErrorMessage(null);
 
+    let tokenResult: Awaited<ReturnType<typeof tokenizeCardForPayment>> | null = null;
+    if (!usingSavedCard) {
+      try {
+        setTokenizingPayment(true);
+        tokenResult = await tokenizeCardForPayment(paymentForm);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'We could not secure your card details. Please try again.';
+        setPaymentErrorMessage(message);
+        setPayFailOpen(true);
+        return;
+      } finally {
+        setTokenizingPayment(false);
+      }
+    }
+
     const typeIdKey = String(uiSeatIdToApi(selectedType.id));
     const ticket_type_quantities: CreateOrderRequest['ticket_type_quantities'] = {
       [typeIdKey]: qty,
@@ -414,13 +438,18 @@ export function CheckoutPage() {
       }
       if (selectedSavedCard) {
         confirmBody.saved_card_id = selectedSavedCard.id;
-      }
-      if (paymentForm.saveCard && !usingSavedCard && user) {
-        confirmBody.save_card = true;
-        const holder = paymentForm.cardholder.trim();
-        if (holder) confirmBody.cardholder_name = holder;
-        const label = paymentForm.cardLabel.trim();
-        if (label) confirmBody.label = label.slice(0, 24);
+      } else if (tokenResult) {
+        confirmBody.payment_token = tokenResult.payment_token;
+        confirmBody.brand = tokenResult.brand;
+        confirmBody.last4 = tokenResult.last4;
+        confirmBody.expiry_month = tokenResult.expiry_month;
+        confirmBody.expiry_year = tokenResult.expiry_year;
+        if (tokenResult.cardholder_name) {
+          confirmBody.cardholder_name = tokenResult.cardholder_name;
+        }
+        if (paymentForm.saveCard && user) {
+          confirmBody.save_card = true;
+        }
       }
       const confirmed = await confirmOrderPayment({ id: orderId, body: confirmBody }).unwrap();
       const orderRef =
@@ -783,6 +812,7 @@ export function CheckoutPage() {
                             onChange={(e) => onPaymentFieldChange('expiry', e.target.value)}
                             placeholder="MM/YY"
                             inputMode="numeric"
+                            autoComplete="cc-exp"
                             className="w-full rounded-xl border border-ink-10 bg-white px-4 py-3 font-mono text-[14px] tabular-nums"
                           />
                           {paymentTouched && paymentValidation.errors.expiry && (
@@ -798,6 +828,7 @@ export function CheckoutPage() {
                             onChange={(e) => onPaymentFieldChange('cvv', e.target.value)}
                             placeholder={selectedMethodConfig.cvvPlaceholder}
                             inputMode="numeric"
+                            autoComplete="cc-csc"
                             className="w-full rounded-xl border border-ink-10 bg-white px-4 py-3 font-mono text-[14px] tabular-nums"
                           />
                           {paymentTouched && paymentValidation.errors.cvv && (
@@ -809,37 +840,49 @@ export function CheckoutPage() {
                         <div
                           className={cn(
                             'mt-4 rounded-xl border px-4 py-3 transition-colors',
-                            paymentForm.saveCard
+                            paymentForm.saveCard && !atSavedCardLimit
                               ? 'border-mint/40 bg-mint/10'
                               : 'border-ink-10 bg-white',
                           )}
                         >
-                          <label className="inline-flex min-h-10 cursor-pointer items-start gap-3">
-                            <input
-                              type="checkbox"
-                              checked={paymentForm.saveCard}
-                              onChange={(e) =>
-                                setPaymentForm((prev) => ({ ...prev, saveCard: e.target.checked }))
-                              }
-                              className="mt-0.5 size-4 shrink-0 rounded border-ink-20"
-                            />
-                            <span className="flex flex-col gap-1">
-                              <span className="text-[13px] font-semibold text-ink">
-                                Save this card for next time
-                              </span>
-                              <span className="text-[11px] leading-relaxed text-ink-60">
-                                We store a secure token with your account — never the full card number or
-                                CVV. Only you can use or remove saved cards from your profile.
-                              </span>
-                            </span>
-                          </label>
-                          {paymentForm.saveCard ? (
-                            <p className="mt-3 flex items-start gap-2 text-[11px] font-medium text-mint-dark">
-                              <ShieldCheck className="mt-0.5 size-4 shrink-0" weight="fill" aria-hidden />
-                              Card details are sent over HTTPS and tokenized by our payment provider after
-                              your order is confirmed.
+                          {atSavedCardLimit ? (
+                            <p className="text-[12px] leading-relaxed text-ink-60">
+                              You have reached the maximum of {SAVED_CARDS_MAX} saved cards. Remove one
+                              from your profile to save another at checkout.
                             </p>
-                          ) : null}
+                          ) : (
+                            <>
+                              <label className="inline-flex min-h-10 cursor-pointer items-start gap-3">
+                                <input
+                                  type="checkbox"
+                                  checked={paymentForm.saveCard}
+                                  onChange={(e) =>
+                                    setPaymentForm((prev) => ({ ...prev, saveCard: e.target.checked }))
+                                  }
+                                  className="mt-0.5 size-4 shrink-0 rounded border-ink-20"
+                                />
+                                <span className="flex flex-col gap-1">
+                                  <span className="text-[13px] font-semibold text-ink">
+                                    Save this card for next time
+                                  </span>
+                                  <span className="text-[11px] leading-relaxed text-ink-60">
+                                    Your card is tokenized by our payment provider — we never store the
+                                    full number or CVV. Only you can use saved cards on your account.
+                                  </span>
+                                </span>
+                              </label>
+                              {paymentForm.saveCard ? (
+                                <p className="mt-3 flex items-start gap-2 text-[11px] font-medium text-mint-dark">
+                                  <ShieldCheck
+                                    className="mt-0.5 size-4 shrink-0"
+                                    weight="fill"
+                                    aria-hidden
+                                  />
+                                  A secure token is saved to your account after payment succeeds.
+                                </p>
+                              ) : null}
+                            </>
+                          )}
                         </div>
                       )}
                     </div>
@@ -871,7 +914,11 @@ export function CheckoutPage() {
 
                   {payLoading && (
                     <p className="rounded-xl bg-ink-5 px-4 py-3 text-[12px] font-semibold text-ink-60">
-                      {creatingOrder ? 'Creating your order…' : 'Confirming payment with gateway…'}
+                      {tokenizingPayment
+                        ? 'Securing card details…'
+                        : creatingOrder
+                          ? 'Creating your order…'
+                          : 'Confirming payment with gateway…'}
                     </p>
                   )}
 

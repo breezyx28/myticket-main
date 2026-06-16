@@ -13,8 +13,10 @@
   "dependencies": {
     "@emran-alhaddad/saudi-riyal-font": "^1.1.0",
     "@fontsource-variable/geist": "^5.2.8",
+    "@fontsource/nanum-pen-script": "^5.2.7",
     "@fontsource/plus-jakarta-sans": "^5.2.8",
     "@fontsource/space-grotesk": "^5.2.10",
+    "@fontsource/staatliches": "^5.2.8",
     "@hookform/resolvers": "^5.2.2",
     "@phosphor-icons/react": "^2.1.10",
     "@react-three/drei": "^10.7.7",
@@ -31,6 +33,7 @@
     "laravel-echo": "^2.3.7",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.8.0",
+    "modern-screenshot": "^4.7.0",
     "pusher-js": "^8.5.0",
     "qrcode": "^1.5.4",
     "radix-ui": "^1.4.3",

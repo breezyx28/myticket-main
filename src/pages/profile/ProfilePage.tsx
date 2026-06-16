@@ -24,7 +24,6 @@ import type { UserSession } from '@/api/types/user';
 import {
   useAddTalentMediaMutation,
   useCreateTalentApplicationMutation,
-  useDeleteSavedCardMutation,
   useGetPreferencesQuery,
   useGetRoleApplicationQuery,
   useGetTalentAvailabilityQuery,
@@ -45,8 +44,7 @@ import {
   useResubmitOrganizerApplicationMutation,
 } from '@/api/endpoints';
 import type { SavedCard } from '@/api/types/savedCard';
-import { formatCardBrand, formatSavedCardExpiry } from '@/lib/cardPayment';
-import { savedCardDisplayLabel } from '@/components/checkout/checkoutCreditCardUtils';
+import { SavedCardsSection } from '@/components/profile/SavedCardsSection';
 import { toAuthApiError } from '@/lib/authErrors';
 import {
   deleteAccountSchema,
@@ -163,8 +161,6 @@ export function ProfilePage() {
 
   const { data: savedCardsRaw, isFetching: savedCardsLoading, isError: savedCardsError } =
     useListSavedCardsQuery(undefined, { skip: !user });
-  const [deleteSavedCard, { isLoading: deletingSavedCard }] = useDeleteSavedCardMutation();
-  const [pendingDeleteCardId, setPendingDeleteCardId] = useState<string | null>(null);
   const savedCards: SavedCard[] = useMemo(() => {
     if (!savedCardsRaw) return [];
     if (Array.isArray(savedCardsRaw)) return savedCardsRaw;
@@ -446,20 +442,6 @@ export function ProfilePage() {
       setSaveMessage('Device removed.');
     } catch (e) {
       setSaveError(toAuthApiError(e, 'Could not remove device.').message);
-    }
-  }
-
-  async function onDeleteSavedCard(id: string) {
-    setSaveError(null);
-    setSaveMessage(null);
-    setPendingDeleteCardId(id);
-    try {
-      await deleteSavedCard({ id }).unwrap();
-      setSaveMessage('Saved card removed.');
-    } catch (e) {
-      setSaveError(toAuthApiError(e, 'Could not delete this card.').message);
-    } finally {
-      setPendingDeleteCardId(null);
     }
   }
 
@@ -948,74 +930,19 @@ export function ProfilePage() {
         )}
 
         {activeTab === 'cards' && (
-          <section className="mt-10 space-y-4 rounded-2xl border border-ink-10 p-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-extrabold text-ink">Saved cards</h2>
-                <p className="mt-1 text-[13px] text-ink-60">
-                  Cards you saved during checkout. Remove any you no longer use.
-                </p>
-              </div>
-            </div>
-
-            {savedCardsLoading && (
-              <p className="text-[13px] text-ink-40">Loading saved cards…</p>
-            )}
-            {savedCardsError && !savedCardsLoading && (
-              <p className="rounded-lg border border-coral/40 bg-coral/10 px-3 py-2 text-[12px] font-semibold text-coral">
-                Could not load your saved cards. Please refresh and try again.
-              </p>
-            )}
-            {!savedCardsLoading && !savedCardsError && savedCards.length === 0 && (
-              <p className="rounded-lg border border-ink-10 bg-ink-5/40 px-4 py-6 text-center text-[13px] text-ink-40">
-                No saved cards yet. Cards saved at checkout will appear here.
-              </p>
-            )}
-            {!savedCardsLoading && !savedCardsError && savedCards.length > 0 && (
-              <ul className="space-y-3">
-                {savedCards.map((card) => {
-                  const cardId = String(card.id);
-                  return (
-                    <li
-                      key={cardId}
-                      className="flex flex-col gap-3 rounded-xl border border-ink-10 bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
-                    >
-                      <div>
-                        <p className="text-[14px] font-bold text-ink">
-                          {savedCardDisplayLabel(card, formatCardBrand)}
-                          {card.is_default && (
-                            <span className="ml-2 rounded-full bg-mint/30 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-mint-dark">
-                              Default
-                            </span>
-                          )}
-                        </p>
-                        <p className="mt-1 text-[12px] text-ink-60">
-                          {formatCardBrand(card.brand)} ·{' '}
-                          <span className="font-mono">•••• {card.last4}</span>
-                          {' · '}
-                          Expires {formatSavedCardExpiry(card.exp_month, card.exp_year)}
-                          {card.cardholder_name ? ` · ${card.cardholder_name}` : ''}
-                        </p>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="md"
-                        disabled={deletingSavedCard && pendingDeleteCardId === cardId}
-                        onClick={() => void onDeleteSavedCard(cardId)}
-                      >
-                        {deletingSavedCard && pendingDeleteCardId === cardId ? 'Removing…' : 'Remove'}
-                      </Button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            <p className="text-[12px] text-ink-40">
-              Adding a new card happens at checkout. Direct add-card is not available until the gateway exposes a
-              tokenization endpoint.
-            </p>
-          </section>
+          <SavedCardsSection
+            savedCards={savedCards}
+            loading={savedCardsLoading}
+            error={savedCardsError}
+            onMessage={(msg) => {
+              setSaveError(null);
+              setSaveMessage(msg);
+            }}
+            onError={(msg) => {
+              setSaveMessage(null);
+              setSaveError(msg);
+            }}
+          />
         )}
 
         {activeTab === 'security' && (

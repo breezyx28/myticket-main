@@ -1,0 +1,359 @@
+/* Hex/rgb only — html2canvas cannot parse oklch from global theme variables. */
+.root {
+  --admit-accent: #ff6b4a;
+  --admit-accent-dark: #cc4a2e;
+  --admit-title: #0d0d0d;
+  --admit-muted: #555555;
+  --admit-border: #bbbbbb;
+  --admit-ink-40: #888888;
+  --admit-ink-5: #f5f5f5;
+  --admit-lemon: #f5e642;
+  display: flex;
+  background: #ffffff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  font-family: 'Staatliches', cursive;
+  color: #0d0d0d;
+  font-size: 14px;
+  letter-spacing: 0.1em;
+  position: relative;
+}
+
+.display {
+  max-width: 700px;
+}
+
+.download {
+  width: 700px;
+  flex-shrink: 0;
+}
+
+.frameHost {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+}
+
+.frameScale {
+  transform-origin: top center;
+  flex-shrink: 0;
+}
+
+.left {
+  display: flex;
+  min-width: 0;
+}
+
+.imageWrap {
+  position: relative;
+  height: 250px;
+  width: 250px;
+  flex-shrink: 0;
+  overflow: hidden;
+  background: #f5f5f5;
+}
+
+.image {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  display: block;
+  opacity: 0.92;
+}
+
+.imagePlaceholder {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5e642;
+  padding: 3rem;
+}
+
+.logoPlaceholder {
+  width: 100%;
+  max-width: 112px;
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: contain;
+  display: block;
+}
+
+.brandStrip {
+  position: absolute;
+  inset: 0;
+  color: rgba(255, 255, 255, 0.45);
+  padding: 0 10px;
+  letter-spacing: 0.12em;
+  display: flex;
+  text-align: center;
+  justify-content: space-around;
+  writing-mode: vertical-rl;
+  transform: rotate(-180deg);
+  pointer-events: none;
+  font-size: 13px;
+}
+
+.brandStrip span:nth-child(2) {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.leftTicketNumber {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
+  padding: 5px;
+  pointer-events: none;
+}
+
+.leftTicketNumber p {
+  margin: 0;
+  font-size: 12px;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.ticketInfo {
+  padding: 10px 24px;
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+  justify-content: space-between;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+}
+
+.date {
+  border-top: 1px solid #bbbbbb;
+  border-bottom: 1px solid #bbbbbb;
+  padding: 5px 0;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  width: 100%;
+  gap: 4px;
+}
+
+.date span {
+  flex: 1;
+  min-width: 0;
+}
+
+.date span:first-child {
+  text-align: left;
+}
+
+.date span:last-child {
+  text-align: right;
+}
+
+.monthDay {
+  color: #ff6b4a;
+  font-size: 18px;
+  flex: 1.2;
+  text-align: center;
+}
+
+.showName {
+  font-size: 28px;
+  font-family: 'Nanum Pen Script', cursive;
+  color: #ff6b4a;
+  min-width: 0;
+  width: 100%;
+}
+
+.showName h1 {
+  margin: 0;
+  font-size: clamp(28px, 4vw, 44px);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #0d0d0d;
+  line-height: 1.05;
+  word-break: break-word;
+}
+
+.showName h2 {
+  margin: 0;
+  font-size: clamp(18px, 3vw, 26px);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: #555555;
+}
+
+.time {
+  padding: 8px 0;
+  color: #0d0d0d;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.time p {
+  margin: 0;
+}
+
+.time span {
+  font-weight: 400;
+  color: #555555;
+}
+
+.leftTime {
+  font-size: 15px;
+}
+
+.location {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  padding-top: 8px;
+  border-top: 1px solid #bbbbbb;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.location span {
+  min-width: 0;
+  flex: 1;
+}
+
+.location span:first-child {
+  text-align: right;
+}
+
+.location span:last-child {
+  text-align: left;
+}
+
+.separator {
+  flex-shrink: 0;
+  color: #ff6b4a;
+  display: flex;
+  align-items: center;
+}
+
+.right {
+  width: 180px;
+  flex-shrink: 0;
+  border-left: 1px dashed #888888;
+  position: relative;
+}
+
+.right .brandStrip {
+  color: #888888;
+}
+
+.right .brandStrip span:nth-child(2) {
+  color: #555555;
+}
+
+.rightInfo {
+  height: 250px;
+  padding: 10px 10px 10px 35px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  align-items: center;
+}
+
+.right .showName h1 {
+  font-size: 17px;
+  text-align: center;
+}
+
+.barcode {
+  height: 100px;
+  width: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.barcode img {
+  height: 100%;
+  width: 100%;
+  object-fit: contain;
+}
+
+.barcodePlaceholder {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 10px;
+  color: #555555;
+  letter-spacing: 0.05em;
+  padding: 4px;
+}
+
+.rightTicketNumber {
+  margin: 0;
+  color: #555555;
+  font-size: 12px;
+}
+
+.statusOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.statusRibbon {
+  border: 3px solid #ff6b4a;
+  color: #cc4a2e;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  padding: 8px 24px;
+  transform: rotate(-12deg);
+  background: #ffffff;
+}
+
+@media (max-width: 520px) {
+  .display {
+    flex-direction: column;
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .left {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .imageWrap {
+    width: 100%;
+    height: 200px;
+  }
+
+  .ticketInfo {
+    padding: 12px 16px;
+  }
+
+  .right {
+    width: 100%;
+    border-left: none;
+    border-top: 1px dashed #888888;
+  }
+
+  .rightInfo {
+    height: auto;
+    min-height: 220px;
+    padding: 16px;
+  }
+}

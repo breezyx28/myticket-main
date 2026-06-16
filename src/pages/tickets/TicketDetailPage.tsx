@@ -1,22 +1,29 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
-import { Star } from '@phosphor-icons/react';
+import { Star, DownloadSimple } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/Button';
 import { TicketDetailActions } from '@/components/tickets/TicketDetailActions';
+import { AdmitOneTicket } from '@/components/tickets/admit-one/AdmitOneTicket';
+import { AdmitOneTicketFrame } from '@/components/tickets/admit-one/AdmitOneTicketFrame';
+import { mapAdmitOneTicketViewModel } from '@/components/tickets/admit-one/admitOneTicketModel';
+import { pickCoverUrl, resolveEventSlug } from '@/components/tickets/admit-one/resolveEventCover';
 import { TicketInvoiceDocument } from '@/components/tickets/TicketInvoiceDocument';
 import {
   useCancelAuctionMutation,
   useCancelTicketMutation,
   useCreateMyAuctionMutation,
+  useGetEventBySlugQuery,
   useGetMyTicketQuery,
   useGiftTicketMutation,
+  useListEventsQuery,
   useValidateTicketQrMutation,
 } from '@/api/endpoints';
 import type { CancelTicketResponse } from '@/api/types/ticket';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { apiTicketToMockTicket } from '@/lib/ticketMappers';
-import { downloadTicketPdf } from '@/lib/ticketPdfDownload';
+import { downloadAdmitOneTicketPdf } from '@/lib/admitOneTicketPdf';
+import { toSameOriginStorageUrl } from '@/lib/storageUrl';
 import { uiSeatIdToApi } from '@/lib/seatMappers';
 import { ticketQrScanValue, useTicketQrDataUrl } from '@/lib/ticketQr';
 import { listForAuctionSchema } from '@/schemas/auction';
@@ -61,6 +68,41 @@ export function TicketDetailPage() {
 
   const scanValue = ticketQrScanValue(apiTicket ?? ticket?.ticketCode);
 
+  const eventSlug = useMemo(
+    () => (ticket ? resolveEventSlug(ticket, apiTicket) : null),
+    [ticket, apiTicket],
+  );
+
+  const ticketCoverFromApi = useMemo(() => pickCoverUrl(apiTicket), [apiTicket]);
+
+  const { data: eventDetail } = useGetEventBySlugQuery(
+    { slug: eventSlug! },
+    { skip: !eventSlug || !!ticketCoverFromApi },
+  );
+
+  const { data: eventsPage } = useListEventsQuery(
+    { per_page: 50 },
+    { skip: !ticket || !!ticketCoverFromApi || !!eventSlug },
+  );
+
+  const eventCoverUrl = useMemo(() => {
+    let raw: string | null = null;
+    if (ticketCoverFromApi) raw = ticketCoverFromApi;
+    else if (eventDetail?.cover_image_url) raw = eventDetail.cover_image_url;
+    else if (ticket) {
+      const eventId = apiTicket?.event_id ?? ticket.eventId;
+      const match = eventsPage?.data?.find((row) => String(row.id) === String(eventId));
+      raw = match?.cover_image_url ?? null;
+    }
+    return toSameOriginStorageUrl(raw);
+  }, [ticketCoverFromApi, eventDetail, eventsPage, ticket, apiTicket]);
+
+  const admitOneModel = useMemo(
+    () =>
+      ticket ? mapAdmitOneTicketViewModel(ticket, apiTicket, scanValue, eventCoverUrl) : null,
+    [ticket, apiTicket, scanValue, eventCoverUrl],
+  );
+
   const qr = useTicketQrDataUrl(scanValue);
 
   const [giftTicket, { isLoading: gifting }] = useGiftTicketMutation();
@@ -81,6 +123,8 @@ export function TicketDetailPage() {
   const [cancelSummary, setCancelSummary] = useState<CancelTicketResponse['refund'] | null>(null);
   const [walletHint, setWalletHint] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  const displayTicketRef = useRef<HTMLDivElement>(null);
   /** `mismatch` = HTTP OK but `valid: false`; `error` = request failed */
   const [qrValidateResult, setQrValidateResult] = useState<'valid' | 'mismatch' | 'error' | null>(null);
 
@@ -167,29 +211,23 @@ export function TicketDetailPage() {
 
   async function onDownloadPdf() {
     if (!ticket) return;
-    setError(null);
+    if (!displayTicketRef.current) {
+      setPdfError('Ticket preview is not ready. Refresh the page and try again.');
+      return;
+    }
+    if (!qr.dataUrl) {
+      setPdfError('QR code is not ready yet. Wait a moment and try again.');
+      return;
+    }
+    setPdfError(null);
     setPdfLoading(true);
     try {
-      const dateRangeLabel = ticket.dateStart
-        ? `${new Date(ticket.dateStart).toLocaleString()} — ${new Date(ticket.dateEnd || ticket.dateStart).toLocaleString()}`
-        : 'Event schedule TBC';
-      await downloadTicketPdf({
-        scanValue,
-        dataUrl: qr.dataUrl,
-        meta: {
-          eventTitle: ticket.eventTitle || 'Event',
-          ticketCode: ticket.ticketCode,
-          orderRef: ticket.orderRef,
-          typeName: ticket.typeName || 'Ticket',
-          seatLabel: ticket.seatLabel,
-          venue: ticket.venue,
-          city: ticket.city,
-          dateRangeLabel,
-          pricePaid: ticket.pricePaid,
-        },
-      });
+      await downloadAdmitOneTicketPdf(
+        displayTicketRef.current,
+        ticket.ticketCode ?? ticket.orderRef,
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not build PDF. Try again.');
+      setPdfError(err instanceof Error ? err.message : 'Could not build PDF. Try again.');
     } finally {
       setPdfLoading(false);
     }
@@ -245,6 +283,35 @@ export function TicketDetailPage() {
         </Link>
 
         <div className="mt-8">
+          {admitOneModel && (
+            <section className="mb-8 rounded-3xl bg-coral/10 p-4 sm:p-6">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-[13px] font-semibold text-ink-60">Your event ticket</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  icon={DownloadSimple}
+                  loading={pdfLoading}
+                  disabled={pdfLoading || !qr.dataUrl}
+                  onClick={() => void onDownloadPdf()}
+                >
+                  Download PDF
+                </Button>
+              </div>
+              {pdfError ? <p className="mb-3 text-[13px] text-red-600">{pdfError}</p> : null}
+              <AdmitOneTicketFrame>
+                <AdmitOneTicket
+                  ref={displayTicketRef}
+                  variant="display"
+                  model={admitOneModel}
+                  qrDataUrl={qr.dataUrl}
+                  qrLoading={qr.loading}
+                />
+              </AdmitOneTicketFrame>
+            </section>
+          )}
+
           <TicketInvoiceDocument
             ticket={ticket}
             apiTicket={apiTicket}
@@ -393,6 +460,7 @@ export function TicketDetailPage() {
             canAuction={canAuction}
             pdfLoading={pdfLoading}
             scanValue={scanValue}
+            qrReady={Boolean(qr.dataUrl)}
             ticketStatus={ticket.status}
             onDownloadPdf={() => void onDownloadPdf()}
             onWalletHint={() => setWalletHint(true)}

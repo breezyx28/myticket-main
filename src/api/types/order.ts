@@ -64,9 +64,13 @@ export interface ConfirmOrderPaymentRequest {
   three_ds_token?: string;
   saved_card_id?: Id;
   save_card?: boolean;
-  /** Sent with save_card — holder name only; never PAN/CVV. */
+  /** Opaque token from PSP / local gateway — never PAN/CVV. */
+  payment_token?: string;
+  brand?: string;
+  last4?: string;
+  expiry_month?: number;
+  expiry_year?: number;
   cardholder_name?: string;
-  label?: string;
   [key: string]: unknown;
 }
 

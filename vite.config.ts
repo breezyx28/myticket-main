@@ -8,7 +8,7 @@ const API_TARGET = 'https://myticket-api.kat-jr.com'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   optimizeDeps: {
-    include: ['framer-motion', '@phosphor-icons/react', 'laravel-echo', 'pusher-js'],
+    include: ['framer-motion', '@phosphor-icons/react', 'laravel-echo', 'pusher-js', 'modern-screenshot', 'jspdf'],
   },
   resolve: {
     alias: {
@@ -23,6 +23,11 @@ export default defineConfig({
         secure: true,
       },
       '/broadcasting': {
+        target: API_TARGET,
+        changeOrigin: true,
+        secure: true,
+      },
+      '/storage': {
         target: API_TARGET,
         changeOrigin: true,
         secure: true,
