@@ -5,19 +5,45 @@ import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { cn } from '@/lib/utils';
+import {
+  applyDocumentLanguage,
+  getEffectiveLanguage,
+  setGuestLanguage,
+  type AppLanguage,
+} from '@/lib/language';
 import { canAccessEngagementsInbox, canBrowseMarketplace } from '@/lib/marketplaceAccess';
 import { isOrganizerUser } from '@/lib/organizerPortal';
 import { isTalentUser } from '@/lib/talentPortal';
 import { isVendorUser } from '@/lib/vendorPortal';
 
 export function Navbar() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, updatePreferences } = useAuth();
   const { items, unreadCount, markRead, markAllRead } = useNotifications();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
   const [scrolled, setScrolled] = useState(false);
+  const [langBusy, setLangBusy] = useState(false);
+
+  const currentLanguage = getEffectiveLanguage(user?.preferences.language);
+
+  async function toggleLanguage() {
+    if (langBusy) return;
+    const nextLanguage: AppLanguage = currentLanguage === 'ar' ? 'en' : 'ar';
+    setLangBusy(true);
+    try {
+      if (user) {
+        await updatePreferences({ language: nextLanguage });
+      } else {
+        setGuestLanguage(nextLanguage);
+      }
+    } catch {
+      applyDocumentLanguage(currentLanguage);
+    } finally {
+      setLangBusy(false);
+    }
+  }
 
   useEffect(() => {
     if (!notifOpen) return;
@@ -189,10 +215,18 @@ export function Navbar() {
               </div>
               <button
                 type="button"
-                className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-ink-40 transition-colors hover:bg-ink-5 hover:text-ink"
-                aria-label="Language"
+                onClick={() => void toggleLanguage()}
+                disabled={langBusy}
+                className="flex h-9 min-w-9 cursor-pointer items-center justify-center gap-1 rounded-full px-2 text-ink-40 transition-colors hover:bg-ink-5 hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
+                aria-label={
+                  currentLanguage === 'ar' ? 'Switch language to English' : 'Switch language to Arabic'
+                }
+                title={currentLanguage === 'ar' ? 'English' : 'العربية'}
               >
                 <Globe size={18} />
+                <span className="text-[10px] font-bold uppercase tracking-wide">
+                  {currentLanguage}
+                </span>
               </button>
               {user ? (
                 <div className="ml-1 hidden items-center gap-2 sm:flex">

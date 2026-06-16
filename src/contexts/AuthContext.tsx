@@ -48,6 +48,10 @@ import { logout as logoutAction, setCredentials } from "@/store/authSlice";
 import { useAppDispatch } from "@/store/hooks";
 import { mapUserMeToMockUser, parseAuthResponse } from "@/lib/authMapper";
 import {
+  applyDocumentLanguage,
+  getEffectiveLanguage,
+} from "@/lib/language";
+import {
   EmailVerificationRequiredError,
   TwoFactorRequiredError,
   toAuthApiError,
@@ -300,6 +304,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
     };
   }, [dispatch, triggerGetMe]);
+
+  useEffect(() => {
+    const language = getEffectiveLanguage(user?.preferences.language);
+    applyDocumentLanguage(language);
+  }, [user?.preferences.language, user]);
 
   const signIn = useCallback(
     async (email: string, password: string) => {
