@@ -14,6 +14,8 @@ export interface PaymentFormState {
   cardNumber: string;
   expiry: string;
   cvv: string;
+  /** User-facing nickname on the card preview (e.g. "Personal"). Not the PAN. */
+  cardLabel: string;
   saveCard: boolean;
 }
 
@@ -67,8 +69,10 @@ export const CARD_PAYMENT_METHODS: CardMethodUiConfig[] = [
   },
 ];
 
-export function formatCardNumber(value: string, method: CardPaymentMethod) {
-  const config = CARD_PAYMENT_METHODS.find((m) => m.id === method);
+export function formatCardNumber(value: string, method?: CardPaymentMethod | null) {
+  const detected = detectCardMethod(value);
+  const effectiveMethod = detected ?? method ?? 'visa';
+  const config = CARD_PAYMENT_METHODS.find((m) => m.id === effectiveMethod);
   const maxDigits = config?.cardNumberMaxLength ?? 19;
   return onlyDigits(value)
     .slice(0, maxDigits)
@@ -113,8 +117,6 @@ export function validatePaymentForm(form: PaymentFormState): PaymentValidationRe
   }
   if (digits.length < 16 || digits.length > 19 || !luhnCheck(digits)) {
     errors.cardNumber = 'Enter a valid card number.';
-  } else if (detectedMethod && detectedMethod !== form.method) {
-    errors.cardNumber = `This card looks like ${detectedMethod.toUpperCase()}. Switch method or use matching card.`;
   }
   if (!isValidExpiry(form.expiry)) {
     errors.expiry = 'Enter a valid expiry date (MM/YY).';

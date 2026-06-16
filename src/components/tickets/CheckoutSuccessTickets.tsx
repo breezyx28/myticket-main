@@ -46,7 +46,7 @@ export function CheckoutSuccessTickets({ tickets, className }: CheckoutSuccessTi
   return (
     <div
       className={cn(
-        'max-h-[min(52vh,420px)] space-y-0 overflow-y-auto',
+        'max-h-[min(52vh,420px)] space-y-0 overflow-y-auto rounded-xl outline outline-1 outline-black/10',
         tickets.length > 1 && 'pr-1',
         className,
       )}

@@ -11,9 +11,14 @@ import {
 import type { Id } from '@/api/types/common';
 import type { SeatLock } from '@/api/types/seat';
 import { Button } from '@/components/ui/Button';
+import { CheckoutAlertBanner } from '@/components/checkout/CheckoutAlertBanner';
+import { CheckoutMainPanel, CheckoutShell, CHECKOUT_MODAL_OVERLAY } from '@/components/checkout/CheckoutShell';
+import { CheckoutPageHeader } from '@/components/checkout/CheckoutPageHeader';
+import { CheckoutSkeleton } from '@/components/checkout/CheckoutSkeleton';
+import { SaudiRiyalIcon } from '@/components/icons/SaudiRiyalIcon';
 import { SeatGridRaw } from '@/components/seats/SeatGridRaw';
 import { SeatLegend } from '@/components/seats/SeatLegend';
-import { useAuth } from '@/contexts/AuthContext';
+import { formatSaudiRiyalAmountLatin } from '@/lib/saudiCurrency';
 import { mergeEventTicketTypes } from '@/lib/eventMappers';
 import { apiSeatsToSeatRecords, ticketTypeRowHints, uiSeatIdToApi } from '@/lib/seatMappers';
 import {
@@ -24,6 +29,7 @@ import {
   toSelectedSeat,
 } from '@/lib/seating';
 import { formatTicketRemainingLabel } from '@/lib/ticketTypeFromApi';
+import { useAuth } from '@/contexts/AuthContext';
 import type { SeatRecord } from '@/types/seating';
 
 const DEFAULT_LOCK_TTL_SECONDS = 180;
@@ -96,7 +102,6 @@ export function SeatSelectionPage() {
   const [selectedTicketTypeId, setSelectedTicketTypeId] = useState('');
   const [selectedSeatIds, setSelectedSeatIds] = useState<string[]>([]);
   const [pendingCrossTypeSeat, setPendingCrossTypeSeat] = useState<SeatRecord | null>(null);
-  const [holdInfoOpen, setHoldInfoOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [activeLockId, setActiveLockId] = useState<Id | null>(null);
   const [lockExpiresAt, setLockExpiresAt] = useState<string | null>(null);
@@ -307,7 +312,7 @@ export function SeatSelectionPage() {
   }
 
   if (eventLoading || (!event && !eventError) || waitingForLock) {
-    return <div className="px-6 py-24 text-center text-ink-40">Loading…</div>;
+    return <CheckoutSkeleton />;
   }
   if (eventError || !event) {
     return <Navigate to="/events" replace />;
@@ -337,246 +342,242 @@ export function SeatSelectionPage() {
     : '';
   const pendingCurrentTypeName = currentTicketType?.name ?? 'the highlighted type';
 
+  const loginReturnPath = `/checkout/${eventId}/seats`;
+
   return (
-    <div className="bg-ink-5/40 pb-20 pt-10">
-      <div className="mx-auto max-w-[1140px] px-6">
-        <Link to={`/events/${event.id}`} className="text-[13px] font-semibold text-coral hover:underline">
-          ← Back to event
-        </Link>
-        <h1 className="mt-4 text-2xl font-extrabold text-ink">Select your seats</h1>
-        <p className="mt-1 text-[14px] text-ink-60">
-          {event.title} · Choose seats on the map. Highlighted seats match the ticket type below; other seats are still
-          selectable.
-        </p>
+    <CheckoutShell>
+      <CheckoutPageHeader
+        backTo={`/events/${event.id}`}
+        title="Select your seats"
+        subtitle={`${event.title} · Choose seats on the map. Highlighted seats match the ticket type below; other seats are still selectable.`}
+      />
 
-        <div className="mt-4 rounded-xl border border-ink-10 bg-white/90 px-4 py-3 text-[13px] text-ink-60 shadow-sm">
-          <button
-            type="button"
-            onClick={() => setHoldInfoOpen((o) => !o)}
-            className="flex w-full items-center justify-between gap-2 text-left font-semibold text-ink"
-          >
-            <span>Seat hold &amp; checkout</span>
-            <span className="text-ink-40">{holdInfoOpen ? '−' : '+'}</span>
-          </button>
-          {holdInfoOpen && (
-            <div className="mt-2 space-y-2 border-t border-ink-10 pt-2 text-[12px] leading-relaxed text-ink-60">
-              <p>
-                Selected seats are held server-side while you complete payment. If you walk away, the hold expires and
-                seats become available to others. See our{' '}
-                <Link to="/terms" className="font-semibold text-coral hover:underline">
-                  Terms
-                </Link>{' '}
-                for details.
-              </p>
-            </div>
-          )}
+      <details className="mt-4 overflow-hidden rounded-2xl border border-ink-10/80 bg-white shadow-[0_8px_24px_-12px_rgba(26,26,26,0.08)]">
+        <summary className="cursor-pointer px-4 py-3.5 text-[13px] font-semibold text-ink sm:px-5">
+          Seat hold &amp; checkout
+        </summary>
+        <div className="border-t border-ink-10 px-4 py-3 text-[12px] leading-relaxed text-ink-60 sm:px-5">
+          <p>
+            Selected seats are held server-side while you complete payment. If you walk away, the hold
+            expires and seats become available to others. See our{' '}
+            <Link to="/terms" className="font-semibold text-coral hover:underline">
+              Terms
+            </Link>{' '}
+            for details.
+          </p>
         </div>
+      </details>
 
-        {!user && (
-          <div className="mt-4 rounded-xl border border-amber/40 bg-amber/10 p-4 text-[13px] text-ink">
-            <p className="font-semibold">Sign in to hold seats</p>
-            <p className="mt-1 text-ink-60">
-              Seat holds are tied to your account.{' '}
-              <Link
-                to={`/login?next=${encodeURIComponent(`/checkout/${eventId}/seats`)}`}
-                className="font-semibold text-coral hover:underline"
-              >
-                Log in or create an account
-              </Link>{' '}
-              to continue.
-            </p>
-          </div>
-        )}
-
-        {secondsLeft != null && (
-          <div
-            className={`mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 text-[13px] ${
-              lowTime
-                ? 'border-coral/40 bg-coral/10 text-coral'
-                : 'border-ink-10 bg-white text-ink-60'
-            }`}
+      {!user && (
+        <CheckoutAlertBanner title="Sign in to hold seats">
+          Seat holds are tied to your account.{' '}
+          <Link
+            to="/login"
+            state={{ from: { pathname: loginReturnPath } }}
+            className="font-semibold text-coral hover:underline"
           >
-            <span className="font-semibold">
-              {secondsLeft > 0
-                ? `Seats held · ${formatCountdown(secondsLeft)} remaining`
-                : 'Hold expired — please re-select your seats.'}
-            </span>
-            {secondsLeft > 0 && activeLockId != null && (
-              <button
-                type="button"
-                onClick={onExtend}
-                disabled={extendingLock}
-                className="rounded-full border border-current px-3 py-1 text-[12px] font-semibold disabled:opacity-50"
+            Log in or create an account
+          </Link>{' '}
+          to continue.
+        </CheckoutAlertBanner>
+      )}
+
+      {secondsLeft != null && (
+        <CheckoutAlertBanner
+          title={
+            secondsLeft > 0
+              ? `Seats held · ${formatCountdown(secondsLeft)} remaining`
+              : 'Hold expired — please re-select your seats.'
+          }
+          variant={lowTime ? 'coral' : 'neutral'}
+          action={
+            secondsLeft > 0 && activeLockId != null ? (
+              <Button
+                variant="outline"
+                size="sm"
+                loading={extendingLock}
+                onClick={() => void onExtend()}
               >
                 Extend hold
-              </button>
-            )}
-          </div>
-        )}
+              </Button>
+            ) : undefined
+          }
+        >
+          <span className="tabular-nums">
+            {secondsLeft > 0
+              ? 'Your selection is reserved while you complete checkout.'
+              : 'Select seats again to continue.'}
+          </span>
+        </CheckoutAlertBanner>
+      )}
 
-        {lockError && (
-          <div className="mt-4 rounded-xl border border-coral/40 bg-coral/10 px-4 py-3 text-[13px] text-coral">
-            {lockError}
-          </div>
-        )}
+      {lockError && (
+        <CheckoutAlertBanner title="Could not lock seats" variant="coral">
+          {lockError}
+        </CheckoutAlertBanner>
+      )}
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
-          <section className="rounded-2xl border border-ink-10 bg-white p-5 shadow-sm">
-            <label className="block">
-              <span className="text-[12px] font-semibold text-ink-60">Highlight ticket type</span>
-              <select
-                value={selectedTicketTypeId}
-                onChange={(e) => setSelectedTicketTypeId(e.target.value)}
-                className="mt-1.5 w-full rounded-xl border border-ink-10 px-4 py-2.5 text-[14px]"
-              >
-                {event.ticketTypes.map((ticketType) => (
-                  <option key={ticketType.id} value={ticketType.id}>
-                    {ticketType.name} — {ticketType.price} SAR ({formatTicketRemainingLabel(ticketType.remaining)})
-                  </option>
-                ))}
-              </select>
-            </label>
-            {rowHints.length > 0 && (
-              <ul className="mt-2 space-y-0.5 text-[11px] text-ink-40">
-                {rowHints.map((hint) => (
-                  <li key={hint}>{hint}</li>
-                ))}
-              </ul>
-            )}
+      <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
+        <CheckoutMainPanel className="mt-0">
+          <label className="flex flex-col gap-2">
+            <span className="text-[12px] font-semibold text-ink-60">Highlight ticket type</span>
+            <select
+              value={selectedTicketTypeId}
+              onChange={(e) => setSelectedTicketTypeId(e.target.value)}
+              className="w-full rounded-xl border border-ink-10 bg-white px-4 py-2.5 text-[14px]"
+            >
+              {event.ticketTypes.map((ticketType) => (
+                <option key={ticketType.id} value={ticketType.id}>
+                  {ticketType.name} — {ticketType.price} SAR (
+                  {formatTicketRemainingLabel(ticketType.remaining)})
+                </option>
+              ))}
+            </select>
+          </label>
+          {rowHints.length > 0 && (
+            <ul className="mt-2 space-y-0.5 text-[11px] text-ink-40">
+              {rowHints.map((hint) => (
+                <li key={hint}>{hint}</li>
+              ))}
+            </ul>
+          )}
 
-            <SeatLegend className="mt-4" />
+          <SeatLegend className="mt-4" />
 
-            <div className="mt-4">
-              {seatsFetching && inventory.length === 0 ? (
-                <p className="py-12 text-center text-[12px] text-ink-40">Loading seat map…</p>
-              ) : !seatsFetching && displaySeats.length === 0 ? (
-                <div className="py-12 text-center">
-                  <p className="text-[14px] font-semibold text-ink">No seats available</p>
-                  <p className="mt-2 text-[12px] text-ink-40">
-                    {seatsError
-                      ? 'We could not load the seat map. Try again or return to the event.'
-                      : 'All seats are currently held or sold.'}
-                  </p>
-                  <Link
-                    to={`/events/${event.id}`}
-                    className="mt-4 inline-flex text-[13px] font-semibold text-coral hover:underline"
-                  >
-                    Back to event
-                  </Link>
-                </div>
-              ) : (
-                <SeatGridRaw
-                  seats={displaySeats}
-                  selectedSeatIds={selectedSeatIds}
-                  highlightTicketTypeId={selectedTicketTypeId}
-                  onToggleSeat={toggleSeat}
-                />
-              )}
-            </div>
-          </section>
-
-          <aside className="rounded-2xl border border-ink-10 bg-white p-5 shadow-sm">
-            <h2 className="text-[15px] font-extrabold text-ink">Selection</h2>
-            <p className="mt-1 text-[12px] text-ink-40">
-              {selectedSeats.length > 0
-                ? (ticketTypeNameById.get(lockTicketTypeId) ?? currentTicketType?.name ?? '—')
-                : `Highlighting ${currentTicketType?.name ?? '—'}`}
-            </p>
-
-            <div className="mt-4 space-y-2 rounded-xl bg-ink-5/70 p-3 text-[12px] text-ink-60">
-              <div className="flex items-center justify-between">
-                <span>Available on map</span>
-                <span className="font-semibold text-ink">{seatStats.available}</span>
+          <div className="mt-4">
+            {seatsFetching && inventory.length === 0 ? (
+              <div className="space-y-3 py-12" aria-hidden>
+                <div className="mx-auto h-4 w-32 animate-pulse rounded-lg bg-ink-10/80" />
+                <div className="mx-auto h-48 w-full max-w-md animate-pulse rounded-2xl bg-ink-10/60" />
               </div>
-              <div className="flex items-center justify-between">
-                <span>Held on map</span>
-                <span className="font-semibold text-ink">{seatStats.held}</span>
+            ) : !seatsFetching && displaySeats.length === 0 ? (
+              <div className="py-12 text-center">
+                <p className="text-[14px] font-semibold text-ink">No seats available</p>
+                <p className="mt-2 text-[12px] text-ink-40">
+                  {seatsError
+                    ? 'We could not load the seat map. Try again or return to the event.'
+                    : 'All seats are currently held or sold.'}
+                </p>
+                <Link
+                  to={`/events/${event.id}`}
+                  className="mt-4 inline-flex min-h-10 items-center text-[13px] font-semibold text-coral hover:underline"
+                >
+                  Back to event
+                </Link>
               </div>
-              <div className="flex items-center justify-between">
-                <span>Booked on map</span>
-                <span className="font-semibold text-ink">{seatStats.booked}</span>
-              </div>
-            </div>
-
-            <p className="mt-4 text-[12px] font-semibold text-ink">
-              {selectedSeats.length} seat{selectedSeats.length === 1 ? '' : 's'} selected
-            </p>
-            {selectedSeats.length > 0 ? (
-              <ul className="mt-2 max-h-[220px] space-y-1 overflow-auto text-[12px] text-ink-60">
-                {selectedSeats.map((seat) => (
-                  <li key={seat.id} className="rounded-lg border border-ink-10 px-2 py-1.5">
-                    {seat.label}
-                    {seat.priceOverride != null ? (
-                      <span className="ml-1 font-mono text-ink">{seat.priceOverride} SAR</span>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
             ) : (
-              <p className="mt-2 text-[12px] text-ink-40">Choose seats from the map to continue.</p>
+              <SeatGridRaw
+                seats={displaySeats}
+                selectedSeatIds={selectedSeatIds}
+                highlightTicketTypeId={selectedTicketTypeId}
+                onToggleSeat={toggleSeat}
+              />
             )}
+          </div>
+        </CheckoutMainPanel>
 
-            <button
-              type="button"
-              onClick={() => setSelectedSeatIds([])}
-              className="mt-3 text-[12px] font-semibold text-coral hover:underline"
-            >
-              Clear selection
-            </button>
+        <aside className="lg:sticky lg:top-24">
+          <article className="overflow-hidden rounded-[2rem] border border-ink-10 bg-white shadow-[0_24px_48px_-20px_rgba(26,26,26,0.12)]">
+            <div className="border-b border-ink-10 px-6 py-5">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-ink-40">Selection</p>
+              <h2 className="mt-1 text-[17px] font-extrabold tracking-tight text-ink">
+                {selectedSeats.length} seat{selectedSeats.length === 1 ? '' : 's'} selected
+              </h2>
+              <p className="mt-1 text-[12px] text-ink-40">
+                {selectedSeats.length > 0
+                  ? (ticketTypeNameById.get(lockTicketTypeId) ?? currentTicketType?.name ?? '—')
+                  : `Highlighting ${currentTicketType?.name ?? '—'}`}
+              </p>
+            </div>
 
-            <Button
-              variant="dark"
-              size="md"
-              className="mt-4 w-full"
-              loading={creatingLock}
-              disabled={continueDisabled}
-              onClick={continueToCheckout}
-            >
-              Continue to checkout
-            </Button>
-          </aside>
-        </div>
+            <div className="divide-y divide-ink-10 px-6 py-2 text-[12px] text-ink-60">
+              <div className="flex items-center justify-between py-2.5">
+                <span>Available on map</span>
+                <span className="font-semibold tabular-nums text-ink">{seatStats.available}</span>
+              </div>
+              <div className="flex items-center justify-between py-2.5">
+                <span>Held on map</span>
+                <span className="font-semibold tabular-nums text-ink">{seatStats.held}</span>
+              </div>
+              <div className="flex items-center justify-between py-2.5">
+                <span>Booked on map</span>
+                <span className="font-semibold tabular-nums text-ink">{seatStats.booked}</span>
+              </div>
+            </div>
+
+            <div className="border-t border-ink-10 px-6 py-4">
+              {selectedSeats.length > 0 ? (
+                <ul className="max-h-[220px] divide-y divide-ink-10 overflow-auto text-[12px] text-ink-60">
+                  {selectedSeats.map((seat) => (
+                    <li key={seat.id} className="flex items-center justify-between gap-2 py-2.5">
+                      <span>{seat.label}</span>
+                      {seat.priceOverride != null ? (
+                        <span className="inline-flex items-center gap-0.5 font-semibold tabular-nums text-ink">
+                          <SaudiRiyalIcon className="h-[0.8em] w-[0.8em]" />
+                          {formatSaudiRiyalAmountLatin(seat.priceOverride)}
+                        </span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-[12px] text-ink-40">Choose seats from the map to continue.</p>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setSelectedSeatIds([])}
+                className="mt-3 inline-flex min-h-10 items-center text-[12px] font-semibold text-coral transition-colors hover:text-coral/80"
+              >
+                Clear selection
+              </button>
+
+              <Button
+                variant="dark"
+                size="md"
+                className="mt-4 w-full"
+                loading={creatingLock}
+                disabled={continueDisabled}
+                onClick={continueToCheckout}
+              >
+                Continue to checkout
+              </Button>
+            </div>
+          </article>
+        </aside>
       </div>
 
       {pendingCrossTypeSeat && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6"
+          className={CHECKOUT_MODAL_OVERLAY}
           role="dialog"
           aria-modal="true"
           aria-labelledby="cross-type-seat-title"
         >
-          <div className="w-full max-w-md rounded-2xl border border-ink-10 bg-white p-6 shadow-lg">
-            <h2 id="cross-type-seat-title" className="text-[17px] font-extrabold text-ink">
+          <div className="w-full max-w-md rounded-[2rem] bg-white p-6 shadow-[0_24px_48px_-20px_rgba(26,26,26,0.18)]">
+            <h2 id="cross-type-seat-title" className="text-balance text-[17px] font-extrabold text-ink">
               Different ticket type
             </h2>
-            <p className="mt-3 text-[14px] leading-relaxed text-ink-60">
+            <p className="mt-3 text-pretty text-[14px] leading-relaxed text-ink-60">
               Seat <span className="font-semibold text-ink">{pendingCrossTypeSeat.label}</span> is{' '}
               <span className="font-semibold text-ink">{pendingTargetTypeName}</span>, not{' '}
               <span className="font-semibold text-ink">{pendingCurrentTypeName}</span>.
             </p>
             <p className="mt-2 text-[13px] text-ink-60">
-              Continue will switch the highlight to {pendingTargetTypeName} and update your selection. Seats from other
-              types will be removed.
+              Continue will switch the highlight to {pendingTargetTypeName} and update your selection.
+              Seats from other types will be removed.
             </p>
             <div className="mt-6 flex flex-wrap justify-end gap-3">
-              <button
-                type="button"
-                onClick={cancelCrossTypeSeat}
-                className="h-10 rounded-full border border-ink-10 px-5 text-[13px] font-semibold text-ink hover:bg-ink-5"
-              >
+              <Button variant="outline" size="md" onClick={cancelCrossTypeSeat}>
                 Cancel
-              </button>
-              <button
-                type="button"
-                onClick={confirmCrossTypeSeat}
-                className="h-10 rounded-full bg-ink px-5 text-[13px] font-semibold text-white hover:bg-ink-80"
-              >
+              </Button>
+              <Button variant="dark" size="md" onClick={confirmCrossTypeSeat}>
                 Continue
-              </button>
+              </Button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </CheckoutShell>
   );
 }

@@ -9,6 +9,9 @@ export interface SavedCard {
   exp_month: number;
   exp_year: number;
   cardholder_name?: string | null;
+  /** Optional user label (e.g. "Personal", "Work"). */
+  label?: string | null;
+  nickname?: string | null;
   is_default?: boolean;
   created_at?: Iso8601;
   [key: string]: unknown;

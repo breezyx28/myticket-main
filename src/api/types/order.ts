@@ -64,6 +64,9 @@ export interface ConfirmOrderPaymentRequest {
   three_ds_token?: string;
   saved_card_id?: Id;
   save_card?: boolean;
+  /** Sent with save_card — holder name only; never PAN/CVV. */
+  cardholder_name?: string;
+  label?: string;
   [key: string]: unknown;
 }
 

@@ -139,6 +139,7 @@ export function AuctionEventPage() {
     cardNumber: '',
     expiry: '',
     cvv: '',
+    cardLabel: '',
     saveCard: false,
   });
   const [paymentTouched, setPaymentTouched] = useState(false);
@@ -227,6 +228,7 @@ export function AuctionEventPage() {
       cardNumber: '',
       expiry: '',
       cvv: '',
+      cardLabel: '',
       saveCard: false,
     });
   }
@@ -250,6 +252,7 @@ export function AuctionEventPage() {
       cardNumber: '',
       expiry: '',
       cvv: '',
+      cardLabel: '',
       saveCard: false,
     });
   }

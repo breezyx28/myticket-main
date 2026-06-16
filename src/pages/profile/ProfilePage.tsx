@@ -46,6 +46,7 @@ import {
 } from '@/api/endpoints';
 import type { SavedCard } from '@/api/types/savedCard';
 import { formatCardBrand, formatSavedCardExpiry } from '@/lib/cardPayment';
+import { savedCardDisplayLabel } from '@/components/checkout/checkoutCreditCardUtils';
 import { toAuthApiError } from '@/lib/authErrors';
 import {
   deleteAccountSchema,
@@ -981,8 +982,7 @@ export function ProfilePage() {
                     >
                       <div>
                         <p className="text-[14px] font-bold text-ink">
-                          {formatCardBrand(card.brand)} ·{' '}
-                          <span className="font-mono">•••• {card.last4}</span>
+                          {savedCardDisplayLabel(card, formatCardBrand)}
                           {card.is_default && (
                             <span className="ml-2 rounded-full bg-mint/30 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-mint-dark">
                               Default
@@ -990,6 +990,9 @@ export function ProfilePage() {
                           )}
                         </p>
                         <p className="mt-1 text-[12px] text-ink-60">
+                          {formatCardBrand(card.brand)} ·{' '}
+                          <span className="font-mono">•••• {card.last4}</span>
+                          {' · '}
                           Expires {formatSavedCardExpiry(card.exp_month, card.exp_year)}
                           {card.cardholder_name ? ` · ${card.cardholder_name}` : ''}
                         </p>
