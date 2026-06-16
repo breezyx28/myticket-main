@@ -3,6 +3,7 @@ import { Footer } from '@/components/layout/Footer';
 import { HeroSection } from '@/components/sections/HeroSection';
 import { CategorySection } from '@/components/sections/CategorySection';
 import { TourismAdsSection } from '@/components/sections/TourismAdsSection';
+import { RoleUpgradeBannersSection } from '@/components/sections/RoleUpgradeBannersSection';
 import { FeaturedSection } from '@/components/sections/FeaturedSection';
 import { UpcomingSection } from '@/components/sections/UpcomingSection';
 import { ArtistSection } from '@/components/sections/ArtistSection';
@@ -19,6 +20,7 @@ export function LandingPage() {
         <TrustedBySection />
         <CategorySection />
         <TourismAdsSection />
+        <RoleUpgradeBannersSection />
         <FeaturedSection />
         <UpcomingSection />
         <ArtistSection />

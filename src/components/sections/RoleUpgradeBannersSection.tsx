@@ -1,0 +1,244 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import useEmblaCarousel from 'embla-carousel-react';
+import {
+  ArrowUpRight,
+  Buildings,
+  CaretLeft,
+  CaretRight,
+  MicrophoneStage,
+  Storefront,
+} from '@phosphor-icons/react';
+import type { Icon } from '@phosphor-icons/react';
+import { useAuth } from '@/contexts/AuthContext';
+import { roleUpgradeBanners, type UpgradeRole } from '@/data/roleUpgradeBanners';
+import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
+import { cn } from '@/lib/utils';
+
+const ROLE_BADGE_ICONS: Record<UpgradeRole, Icon> = {
+  organizer: Buildings,
+  vendor: Storefront,
+  talent: MicrophoneStage,
+};
+
+export function RoleUpgradeBannersSection() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const reduceMotion = usePrefersReducedMotion();
+
+  const [emblaRef, emblaApi] = useEmblaCarousel({
+    align: 'start',
+    containScroll: 'trimSnaps',
+    dragFree: true,
+  });
+
+  const [canScrollPrev, setCanScrollPrev] = useState(false);
+  const [canScrollNext, setCanScrollNext] = useState(false);
+
+  const currentLanguage =
+    user?.preferences.language ??
+    (typeof document !== 'undefined' && document.documentElement.lang === 'ar' ? 'ar' : 'en');
+  const isArabic = currentLanguage === 'ar';
+
+  const onSelect = useCallback(() => {
+    if (!emblaApi) return;
+    setCanScrollPrev(emblaApi.canScrollPrev());
+    setCanScrollNext(emblaApi.canScrollNext());
+  }, [emblaApi]);
+
+  useEffect(() => {
+    if (!emblaApi) return;
+    onSelect();
+    emblaApi.on('select', onSelect);
+    emblaApi.on('reInit', onSelect);
+    return () => {
+      emblaApi.off('select', onSelect);
+      emblaApi.off('reInit', onSelect);
+    };
+  }, [emblaApi, onSelect]);
+
+  useEffect(() => {
+    if (!emblaApi) return;
+    const viewport = emblaApi.rootNode();
+
+    const onWheel = (event: WheelEvent) => {
+      const delta =
+        Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+      if (Math.abs(delta) < 1) return;
+
+      event.preventDefault();
+      const { scrollTo, location } = emblaApi.internalEngine();
+      scrollTo.distance(location.get() - delta, false);
+    };
+
+    viewport.addEventListener('wheel', onWheel, { passive: false });
+    return () => viewport.removeEventListener('wheel', onWheel);
+  }, [emblaApi]);
+
+  const cards = useMemo(
+    () =>
+      roleUpgradeBanners.map((banner) => {
+        const copy = isArabic ? banner.ar : banner.en;
+        return { banner, copy };
+      }),
+    [isArabic],
+  );
+
+  function navigateWithAuthGuard(route: string) {
+    if (!user) {
+      navigate('/login', { state: { from: { pathname: route } } });
+      return;
+    }
+    if (user.role !== 'guest') {
+      navigate('/profile');
+      return;
+    }
+    navigate(route);
+  }
+
+  return (
+    <section
+      dir={isArabic ? 'rtl' : 'ltr'}
+      className="relative overflow-hidden border-t border-ink-10 bg-ink-5 px-6 py-16 lg:px-8 lg:py-24"
+    >
+      <div className="relative mx-auto max-w-[1280px]">
+        <div className="mb-8 flex flex-col gap-6 lg:mb-10 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-50">
+              {isArabic ? 'ترقية الدور' : 'Upgrade your role'}
+            </span>
+            <h2 className="mt-3 text-[clamp(2rem,3.8vw,2.75rem)] font-extrabold leading-[1.05] tracking-tight text-ink">
+              {isArabic
+                ? 'اختر المسار المناسب لك وابدأ الرحلة'
+                : 'Pick your path and start onboarding'}
+            </h2>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              aria-label={isArabic ? 'البطاقات السابقة' : 'Previous banners'}
+              onClick={() => emblaApi?.scrollPrev()}
+              disabled={!canScrollPrev}
+              className={cn(
+                'flex h-11 w-11 items-center justify-center rounded-full border border-ink-10 bg-white text-ink transition-colors',
+                canScrollPrev ? 'hover:border-ink-20 hover:bg-ink-5' : 'cursor-not-allowed opacity-35',
+              )}
+            >
+              <CaretLeft size={18} weight="bold" />
+            </button>
+            <button
+              type="button"
+              aria-label={isArabic ? 'البطاقات التالية' : 'Next banners'}
+              onClick={() => emblaApi?.scrollNext()}
+              disabled={!canScrollNext}
+              className={cn(
+                'flex h-11 w-11 items-center justify-center rounded-full border border-ink-10 bg-white text-ink transition-colors',
+                canScrollNext ? 'hover:border-ink-20 hover:bg-ink-5' : 'cursor-not-allowed opacity-35',
+              )}
+            >
+              <CaretRight size={18} weight="bold" />
+            </button>
+          </div>
+        </div>
+
+        <div ref={emblaRef} className="-mx-1 overflow-hidden">
+          <div className="flex gap-4 px-1 pb-1">
+            {cards.map(({ banner, copy }, index) => {
+              const isLightCard = banner.id === 'vendor';
+              const imageAlt = copy.roleLabel;
+              const BadgeIcon = ROLE_BADGE_ICONS[banner.id];
+
+              return (
+                <article
+                  key={banner.id}
+                  className={cn(
+                    'group relative h-[240px] w-[min(90vw,520px)] shrink-0 overflow-hidden rounded-[1.75rem] sm:h-[260px] sm:w-[min(88vw,560px)]',
+                    banner.cardClass,
+                    reduceMotion ? '' : 'transition-transform duration-300 hover:-translate-y-0.5',
+                  )}
+                  style={reduceMotion ? undefined : { transitionDelay: `${Math.min(index * 40, 120)}ms` }}
+                >
+                  <div
+                    className={cn(
+                      'relative z-10 flex h-full max-w-[58%] flex-col justify-between p-5 sm:max-w-[56%] sm:p-6',
+                    )}
+                  >
+                    <div>
+                      <span
+                        className={cn(
+                          'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em]',
+                          banner.badgeClass,
+                        )}
+                      >
+                        <BadgeIcon size={12} weight="fill" />
+                        {copy.roleLabel}
+                      </span>
+
+                      <h3
+                        className={cn(
+                          'mt-2 text-[clamp(1.35rem,3.2vw,1.75rem)] font-extrabold leading-[1.05] tracking-tight',
+                          isLightCard ? 'text-ink' : 'text-white',
+                        )}
+                      >
+                        {copy.title}
+                        {copy.titleAccent ? (
+                          <span
+                            className={cn(
+                              'block font-semibold',
+                              isLightCard ? 'text-ink-40' : 'text-white/55',
+                            )}
+                          >
+                            {copy.titleAccent}
+                          </span>
+                        ) : null}
+                      </h3>
+
+                      <p
+                        className={cn(
+                          'mt-2 line-clamp-2 text-[11px] leading-snug sm:text-[12px]',
+                          isLightCard ? 'text-ink-60' : 'text-white/75',
+                        )}
+                      >
+                        {copy.summary}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => navigateWithAuthGuard(banner.route)}
+                      className={cn(
+                        'mt-3 inline-flex w-fit items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] transition-opacity hover:opacity-90',
+                        banner.ctaClass,
+                      )}
+                    >
+                      <ArrowUpRight size={14} weight="bold" />
+                      {copy.cta}
+                    </button>
+                  </div>
+
+                  <div
+                    className="pointer-events-none absolute inset-y-0 end-0 w-[48%] overflow-visible"
+                    aria-hidden
+                  >
+                    <img
+                      src={banner.image3d}
+                      alt={imageAlt}
+                      className={cn(
+                        'absolute object-contain drop-shadow-[0_18px_32px_rgba(13,13,13,0.35)]',
+                        banner.imageClass,
+                        reduceMotion ? '' : 'transition-transform duration-500 group-hover:scale-[1.03]',
+                      )}
+                      loading="lazy"
+                      draggable={false}
+                    />
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
