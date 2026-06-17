@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router-dom';
 import { CheckCircle, ClockCounterClockwise } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/Button';
@@ -37,6 +38,7 @@ function readApiErrorMessage(err: unknown, fallback: string): string {
 }
 
 export function EngagementsPage() {
+  const { t, i18n } = useTranslation(['marketplace', 'common']);
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -92,7 +94,7 @@ export function EngagementsPage() {
     try {
       await acceptEngagement({ id }).unwrap();
     } catch (err) {
-      setActionError(readApiErrorMessage(err, 'Could not accept engagement.'));
+      setActionError(readApiErrorMessage(err, t('marketplace:engagement.couldNotAccept')));
     }
   }
 
@@ -101,7 +103,7 @@ export function EngagementsPage() {
     try {
       await declineEngagement({ id }).unwrap();
     } catch (err) {
-      setActionError(readApiErrorMessage(err, 'Could not decline engagement.'));
+      setActionError(readApiErrorMessage(err, t('marketplace:engagement.couldNotDecline')));
     }
   }
 
@@ -113,14 +115,14 @@ export function EngagementsPage() {
     try {
       await engagementMessageSchema.validate({ body: trimmed });
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'Message is invalid.');
+      setActionError(err instanceof Error ? err.message : t('marketplace:engagement.messageInvalid'));
       return;
     }
     try {
       await postEngagementMessage({ id: selected.id, body: { body: trimmed } }).unwrap();
       setMessage('');
     } catch (err) {
-      setActionError(readApiErrorMessage(err, 'Could not send message.'));
+      setActionError(readApiErrorMessage(err, t('marketplace:engagement.couldNotSend')));
     }
   }
 
@@ -129,15 +131,15 @@ export function EngagementsPage() {
       <div className="bg-ink-5/40 pb-20 pt-10">
         <div className="mx-auto max-w-[1200px] px-6 lg:px-8">
           <div className="rounded-3xl border border-ink-10 bg-white p-8 text-center">
-            <h1 className="text-[28px] font-extrabold text-ink">Engagements</h1>
+            <h1 className="text-[28px] font-extrabold text-ink">{t('marketplace:engagement.title')}</h1>
             <p className="mt-3 text-[14px] text-ink-60">
-              Sign in to view engagements between organizers and service providers.
+              {t('marketplace:engagement.signInPrompt')}
             </p>
             <Link
               to="/login"
               className="mt-5 inline-flex h-11 items-center justify-center rounded-full bg-ink px-6 text-[13px] font-semibold text-white hover:bg-ink-80"
             >
-              Sign in
+              {t('common:signIn')}
             </Link>
           </div>
         </div>
@@ -152,34 +154,41 @@ export function EngagementsPage() {
           to={canBrowseMarketplace(user) ? '/marketplace' : '/'}
           className="text-[13px] font-semibold text-coral hover:underline"
         >
-          ← {canBrowseMarketplace(user) ? 'Marketplace' : 'Home'}
+          {i18n.dir() === 'rtl' ? '→' : '←'} {canBrowseMarketplace(user) ? t('marketplace:title', 'Marketplace') : t('common:home', 'Home')}
         </Link>
 
         <div className="mt-4 rounded-3xl border border-ink-10 bg-white p-6 md:p-8">
-          <h1 className="text-[32px] font-extrabold text-ink">Engagements</h1>
+          <h1 className="text-[32px] font-extrabold text-ink">{t('marketplace:engagement.title')}</h1>
           <p className="mt-2 max-w-3xl text-[14px] leading-relaxed text-ink-60">
-            Organizers may start chats from organizer tooling. Negotiation is in-thread. MyTicket does not
-            process off-platform payments between parties.
+            {t('marketplace:engagement.lead')}
           </p>
 
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl border border-ink-10 bg-ink-5/50 px-4 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-40">Pending</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-40">
+                {t('marketplace:engagement.pending')}
+              </p>
               <p className="mt-1 text-xl font-extrabold text-ink">{statusCounts.pending}</p>
             </div>
             <div className="rounded-xl border border-ink-10 bg-mint/20 px-4 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-40">Accepted</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-40">
+                {t('marketplace:engagement.accepted')}
+              </p>
               <p className="mt-1 text-xl font-extrabold text-ink">{statusCounts.accepted}</p>
             </div>
             <div className="rounded-xl border border-ink-10 bg-coral/10 px-4 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-40">Declined</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-40">
+                {t('marketplace:engagement.declined')}
+              </p>
               <p className="mt-1 text-xl font-extrabold text-ink">{statusCounts.declined}</p>
             </div>
           </div>
 
           {talentReady && (
             <div className="mt-5 flex flex-wrap items-center gap-2 rounded-xl border border-ink-10 bg-ink-5/40 px-3 py-2">
-              <span className="text-[12px] font-semibold text-ink-60">Availability status</span>
+              <span className="text-[12px] font-semibold text-ink-60">
+                {t('marketplace:engagement.availabilityLabel')}
+              </span>
               <span
                 className={cn(
                   'rounded-full px-3 py-1.5 text-[12px] font-semibold',
@@ -188,12 +197,14 @@ export function EngagementsPage() {
                     : 'bg-mint text-ink'
                 )}
               >
-                {talentAvailability?.status === 'reserved' ? 'Reserved' : 'Available'}
+                {talentAvailability?.status === 'reserved'
+                  ? t('marketplace:engagement.reserved')
+                  : t('marketplace:engagement.available')}
               </span>
               <span className="text-[12px] text-ink-40">
-                Manage from{' '}
+                {t('marketplace:engagement.manageFrom')}{' '}
                 <Link to="/profile" className="font-semibold text-coral hover:underline">
-                  Account → Roles
+                  {t('marketplace:engagement.accountRoles')}
                 </Link>
               </span>
             </div>
@@ -201,14 +212,8 @@ export function EngagementsPage() {
 
           {!canRespond && (
             <div className="mt-4 rounded-xl border border-lemon bg-lemon/15 p-4 text-[13px] text-ink-60">
-              <p className="font-semibold text-ink">Talent approval required for engagement actions.</p>
-              <p className="mt-1">
-                Go to{' '}
-                <Link to="/profile" className="font-semibold text-coral hover:underline">
-                  Account
-                </Link>{' '}
-                and complete Talent onboarding first.
-              </p>
+              <p className="font-semibold text-ink">{t('marketplace:engagement.talentRequiredTitle')}</p>
+              <p className="mt-1">{t('marketplace:engagement.talentRequiredBody')}</p>
             </div>
           )}
 
@@ -222,22 +227,24 @@ export function EngagementsPage() {
         <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,360px)_1fr]">
           <aside className="rounded-2xl border border-ink-10 bg-white p-4 md:p-5">
             <div className="mb-3 flex items-center justify-between">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-40">Conversations</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-40">
+                {t('marketplace:engagement.conversations')}
+              </p>
               <span className="rounded-full bg-ink-5 px-2.5 py-1 text-[11px] font-semibold text-ink-60">
-                {list.length} total
+                {t('marketplace:engagement.total', { count: list.length })}
               </span>
             </div>
             {isLoading ? (
               <div className="rounded-xl border border-dashed border-ink-20 bg-ink-5/40 px-4 py-8 text-center text-[13px] text-ink-40">
-                Loading engagements…
+                {t('marketplace:engagement.loading')}
               </div>
             ) : isError ? (
               <div className="rounded-xl border border-coral/30 bg-coral/10 px-4 py-6 text-center text-[13px] font-semibold text-coral">
-                Could not load engagements. Please retry.
+                {t('marketplace:engagement.loadError')}
               </div>
             ) : list.length === 0 ? (
               <div className="rounded-xl border border-dashed border-ink-20 bg-ink-5/40 px-4 py-8 text-center text-[13px] text-ink-40">
-                No engagements yet.
+                {t('marketplace:engagement.empty')}
               </div>
             ) : (
               <ul className="space-y-2">
@@ -247,7 +254,7 @@ export function EngagementsPage() {
                       type="button"
                       onClick={() => setSelectedId(e.id)}
                       className={cn(
-                        'w-full rounded-xl border p-3 text-left transition-colors',
+                        'w-full rounded-xl border p-3 text-start transition-colors',
                         selectedId === e.id ? 'border-coral bg-coral/5' : 'border-ink-10 hover:border-ink-20'
                       )}
                     >
@@ -259,7 +266,7 @@ export function EngagementsPage() {
                             STATUS_PILL[e.status] ?? 'bg-ink-5 text-ink-60'
                           )}
                         >
-                          {e.status}
+                          {t(`marketplace:engagement.${e.status}` as const, e.status)}
                         </span>
                       </div>
                       <p className="mt-1 line-clamp-2 text-[12px] text-ink-60">{isOrganizer ? e.preview : e.topic}</p>
@@ -278,8 +285,10 @@ export function EngagementsPage() {
                   <div>
                     <h2 className="text-xl font-extrabold text-ink">{selected.topic}</h2>
                     <p className="mt-1 text-[13px] text-ink-40">
-                      {isOrganizer ? 'Started' : `From ${selected.organizerName}`} ·{' '}
-                      {new Date(selected.createdAt).toLocaleString()}
+                      {isOrganizer
+                        ? t('marketplace:engagement.started')
+                        : t('marketplace:engagement.from', { name: selected.organizerName })}{' '}
+                      · {new Date(selected.createdAt).toLocaleString()}
                     </p>
                   </div>
                   <span
@@ -288,7 +297,7 @@ export function EngagementsPage() {
                       STATUS_PILL[selected.status] ?? 'bg-ink-5 text-ink-60'
                     )}
                   >
-                    {selected.status}
+                    {t(`marketplace:engagement.${selected.status}` as const, selected.status)}
                   </span>
                 </div>
 
@@ -299,10 +308,10 @@ export function EngagementsPage() {
                 )}
 
                 <div className="mt-5 rounded-xl border border-ink-10 bg-ink-5/30 p-4">
-                  <p className="text-[12px] font-semibold text-ink-60">Negotiation thread</p>
+                  <p className="text-[12px] font-semibold text-ink-60">{t('marketplace:engagement.thread')}</p>
                   {selected.messages.length === 0 ? (
                     <p className="mt-3 rounded-xl border border-dashed border-ink-20 bg-white px-3 py-6 text-center text-[12px] text-ink-40">
-                      No messages yet — start the conversation below.
+                      {t('marketplace:engagement.noMessages')}
                     </p>
                   ) : (
                     <ul className="mt-3 max-h-[280px] space-y-2 overflow-y-auto pr-1">
@@ -312,8 +321,8 @@ export function EngagementsPage() {
                           className={cn(
                             'rounded-xl px-3 py-2 text-[12px]',
                             msg.sender === 'talent'
-                              ? 'ml-8 bg-ink text-white'
-                              : 'mr-8 border border-ink-10 bg-white text-ink-60'
+                              ? 'ms-8 bg-ink text-white'
+                              : 'me-8 border border-ink-10 bg-white text-ink-60'
                           )}
                         >
                           <p>{msg.text}</p>
@@ -330,7 +339,9 @@ export function EngagementsPage() {
                       disabled={!canRespond || posting}
                       onChange={(e) => setMessage(e.target.value)}
                       placeholder={
-                        canRespond ? 'Reply with pricing, terms, or schedule...' : 'Talent approval required'
+                        canRespond
+                          ? t('marketplace:engagement.replyPlaceholder')
+                          : t('marketplace:engagement.replyDisabled')
                       }
                       className="w-full rounded-xl border border-ink-10 bg-white px-4 py-2.5 text-[13px]"
                     />
@@ -340,7 +351,7 @@ export function EngagementsPage() {
                       disabled={!canRespond || posting || message.trim().length < 1}
                       onClick={onSendMessage}
                     >
-                      {posting ? 'Sending…' : 'Send'}
+                      {posting ? t('marketplace:engagement.sending') : t('marketplace:engagement.send')}
                     </Button>
                   </div>
                 </div>
@@ -353,7 +364,7 @@ export function EngagementsPage() {
                       onClick={() => onAccept(selected.id)}
                       disabled={!canRespond || accepting || declining}
                     >
-                      {accepting ? 'Accepting…' : 'Accept'}
+                      {accepting ? t('marketplace:engagement.accepting') : t('marketplace:engagement.accept')}
                     </Button>
                     <Button
                       variant="outline"
@@ -361,7 +372,7 @@ export function EngagementsPage() {
                       onClick={() => onDecline(selected.id)}
                       disabled={!canRespond || accepting || declining}
                     >
-                      {declining ? 'Declining…' : 'Decline'}
+                      {declining ? t('marketplace:engagement.declining') : t('marketplace:engagement.decline')}
                     </Button>
                   </div>
                 )}
@@ -369,36 +380,38 @@ export function EngagementsPage() {
                   <p className="mt-6 inline-flex items-center gap-2 text-[13px] font-semibold text-mint-dark">
                     <CheckCircle size={16} weight="fill" />
                     {isOrganizer
-                      ? 'Accepted by service provider. Continue coordination in this thread.'
-                      : 'You accepted — continue coordination in this thread.'}
+                      ? t('marketplace:engagement.acceptedOrganizer')
+                      : t('marketplace:engagement.acceptedTalent')}
                   </p>
                 )}
                 {selected.status === 'declined' && (
                   <p className="mt-6 inline-flex items-center gap-2 text-[13px] text-ink-60">
                     <ClockCounterClockwise size={16} weight="fill" className="text-ink-40" />
-                    {isOrganizer ? 'Declined by service provider.' : 'Declined — organizer notified.'}
+                    {isOrganizer
+                      ? t('marketplace:engagement.declinedOrganizer')
+                      : t('marketplace:engagement.declinedTalent')}
                   </p>
                 )}
                 {selected.status === 'completed' && (
                   <p className="mt-6 inline-flex items-center gap-2 text-[13px] font-semibold text-mint-dark">
                     <CheckCircle size={16} weight="fill" />
-                    Engagement marked complete.
+                    {t('marketplace:engagement.completedMsg')}
                   </p>
                 )}
                 {selected.status === 'cancelled' && (
                   <p className="mt-6 inline-flex items-center gap-2 text-[13px] text-ink-60">
                     <ClockCounterClockwise size={16} weight="fill" className="text-ink-40" />
-                    Engagement cancelled.
+                    {t('marketplace:engagement.cancelledMsg')}
                   </p>
                 )}
               </>
             ) : isFetching ? (
               <div className="rounded-xl border border-dashed border-ink-20 bg-ink-5/40 px-4 py-12 text-center text-[14px] text-ink-40">
-                Loading…
+                {t('common:loading')}
               </div>
             ) : (
               <div className="rounded-xl border border-dashed border-ink-20 bg-ink-5/40 px-4 py-12 text-center text-[14px] text-ink-40">
-                Select a conversation to view the full engagement thread.
+                {t('marketplace:engagement.selectConversation')}
               </div>
             )}
           </section>

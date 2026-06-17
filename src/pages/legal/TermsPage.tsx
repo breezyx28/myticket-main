@@ -1,18 +1,38 @@
+import { useTranslation } from 'react-i18next';
+import { InfoPageLayout, InfoSection } from '@/components/layout/InfoPageLayout';
+
 export function TermsPage() {
+  const { t } = useTranslation('legal');
+
   return (
-    <div className="bg-white pb-20 pt-10">
-      <div className="mx-auto max-w-[720px] px-6 lg:px-8">
-        <h1 className="text-3xl font-extrabold text-ink">Terms of Service</h1>
-        <p className="mt-4 text-[15px] leading-relaxed text-ink-60">
-          Placeholder for MyTicket Terms. Overlapping event purchases may be non-refundable. Auction and resale rules
-          apply as described in the product specification. Replace this page with legal content from your counsel.
-        </p>
-        <h2 className="mt-10 text-xl font-extrabold text-ink">Overlapping events</h2>
-        <p className="mt-2 text-[15px] leading-relaxed text-ink-60">
-          Users who purchase tickets for events that overlap in time do so at their own risk. MyTicket is not
-          responsible for scheduling conflicts.
-        </p>
-      </div>
-    </div>
+    <InfoPageLayout
+      title={t('terms.title')}
+      lead={t('terms.lead')}
+      lastUpdated="June 2026"
+      legalDisclaimer
+    >
+      <InfoSection title={t('terms.accountsTitle')}>
+        <p>{t('terms.accountsBody')}</p>
+      </InfoSection>
+      <InfoSection title={t('terms.purchasesTitle')}>
+        <p>{t('terms.purchasesBody1')}</p>
+        <p>{t('terms.purchasesBody2')}</p>
+      </InfoSection>
+      <InfoSection title={t('terms.overlappingTitle')}>
+        <p>{t('terms.overlappingBody')}</p>
+      </InfoSection>
+      <InfoSection title={t('terms.cancellationsTitle')}>
+        <p>{t('terms.cancellationsBody')}</p>
+      </InfoSection>
+      <InfoSection title={t('terms.auctionTitle')}>
+        <p>{t('terms.auctionBody')}</p>
+      </InfoSection>
+      <InfoSection title={t('terms.liabilityTitle')}>
+        <p>{t('terms.liabilityBody')}</p>
+      </InfoSection>
+      <InfoSection title={t('terms.changesTitle')}>
+        <p>{t('terms.changesBody')}</p>
+      </InfoSection>
+    </InfoPageLayout>
   );
 }

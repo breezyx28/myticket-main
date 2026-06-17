@@ -1,30 +1,12 @@
 import type { OrganizerRatingsSummary } from '@/api/types/organizer';
-import type { Talent, TalentRatingsSummary } from '@/api/types/talent';
+import type { TalentRatingsSummary } from '@/api/types/talent';
 import type { Vendor, VendorRatingsSummary } from '@/api/types/vendor';
-import type { MarketplaceTalent, MarketplaceVendor, TalentAvailability } from '@/types/domain';
+import type { MarketplaceVendor } from '@/types/domain';
 
-function toAvailability(raw: string | undefined): TalentAvailability {
-  return raw === 'reserved' ? 'reserved' : 'available';
-}
+export { talentToMarketplaceTalent } from '@/lib/talentMappers';
 
 function toDisplayRating(average: number | null | undefined, fallback: number): number {
   return typeof average === 'number' && !Number.isNaN(average) ? average : fallback;
-}
-
-export function talentToMarketplaceTalent(t: Talent, fallback?: MarketplaceTalent | null): MarketplaceTalent {
-  const fbRating = fallback?.rating ?? 0;
-  return {
-    id: t.slug,
-    slug: t.slug,
-    name: t.stage_name,
-    image: t.image_url ?? fallback?.image ?? '',
-    bio: t.bio ?? fallback?.bio ?? '',
-    city: t.city ?? fallback?.city ?? '',
-    categories: t.categories ?? fallback?.categories ?? [],
-    rating: toDisplayRating(t.rating_average ?? null, fbRating),
-    gallery: t.gallery ?? fallback?.gallery ?? [],
-    availability: toAvailability((t.availability as string | undefined) ?? fallback?.availability),
-  };
 }
 
 export function vendorToMarketplaceVendor(v: Vendor, fallback?: MarketplaceVendor | null): MarketplaceVendor {

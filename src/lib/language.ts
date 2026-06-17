@@ -36,3 +36,7 @@ export function getEffectiveLanguage(
   if (userLanguage === 'en' || userLanguage === 'ar') return userLanguage;
   return getGuestLanguage() ?? 'en';
 }
+
+export function languageToLocale(language: AppLanguage): string {
+  return language === 'ar' ? 'ar-SA' : 'en-US';
+}

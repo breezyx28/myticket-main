@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
@@ -12,6 +13,7 @@ import { TextInput } from '@/components/ui/form/inputs';
 import { resetPasswordSchema, type ResetPasswordSchema } from '@/schemas/auth';
 
 export function ResetPasswordPage() {
+  const { t } = useTranslation(['authPages', 'common']);
   const [searchParams] = useSearchParams();
   const tokenFromUrl = searchParams.get('token') ?? '';
   const { confirmPasswordReset } = useAuth();
@@ -39,22 +41,22 @@ export function ResetPasswordPage() {
       await confirmPasswordReset(values.token, values.password);
       setDone(true);
     } catch (e) {
-      setError(authErrorMessage(e, 'Could not reset your password. Try requesting a new link.'));
+      setError(authErrorMessage(e, t('authPages:reset.failed')));
     }
   });
 
   return (
     <FormSectionCard
-      eyebrow="Account access"
-      title="Set new password"
-      description="Choose a strong new password for your account."
+      eyebrow={t('authPages:reset.eyebrow')}
+      title={t('authPages:reset.title')}
+      description={t('authPages:reset.description')}
     >
       {!tokenFromUrl && !done && (
-        <InlineNotice variant="warning" title="Reset link is missing">
+        <InlineNotice variant="warning" title={t('authPages:reset.missingTokenTitle')}>
           <p className="text-[13px] text-ink-60">
-            Open the link from your inbox to reset your password.{' '}
+            {t('authPages:reset.missingTokenBody')}{' '}
             <Link to="/forgot-password" className="font-semibold text-coral hover:underline">
-              Request a new link
+              {t('authPages:reset.requestNew')}
             </Link>
             .
           </p>
@@ -62,13 +64,12 @@ export function ResetPasswordPage() {
       )}
 
       {done ? (
-        <InlineNotice variant="success" title="Password updated">
+        <InlineNotice variant="success" title={t('authPages:reset.successTitle')}>
           <p className="text-[13px] text-ink-60">
-            Your password has been reset. You can now{' '}
+            {t('authPages:reset.successBody')}{' '}
             <Link to="/login" className="font-semibold text-coral hover:underline">
-              sign in
-            </Link>{' '}
-            with your new credentials.
+              {t('common:signIn')}
+            </Link>
           </p>
         </InlineNotice>
       ) : (
@@ -83,7 +84,12 @@ export function ResetPasswordPage() {
           )}
           <form onSubmit={onSubmit} className="space-y-4" noValidate>
             <input type="hidden" {...register('token')} />
-            <Field label="New password" htmlFor="new-password" helperText="At least 8 characters." errorText={errors.password?.message}>
+            <Field
+              label={t('authPages:reset.password')}
+              htmlFor="new-password"
+              helperText={t('authPages:reset.passwordHelper')}
+              errorText={errors.password?.message}
+            >
               <TextInput
                 id="new-password"
                 type="password"
@@ -93,7 +99,7 @@ export function ResetPasswordPage() {
               />
             </Field>
             <Field
-              label="Confirm new password"
+              label={t('authPages:reset.passwordConfirm')}
               htmlFor="confirm-password"
               errorText={errors.password_confirmation?.message}
             >
@@ -116,7 +122,7 @@ export function ResetPasswordPage() {
               loading={isSubmitting}
               disabled={!tokenFromUrl}
             >
-              Update password
+              {t('authPages:reset.submit')}
             </Button>
           </form>
         </>

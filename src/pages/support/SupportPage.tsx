@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -20,13 +21,9 @@ import { cn } from '@/lib/utils';
 
 const CHAT_SESSION_STORAGE_KEY = 'myticket_support_chat_session_id';
 
-const SUPPORT_CATEGORY_LABELS: Record<(typeof SUPPORT_CATEGORIES)[number], string> = {
-  technical: 'Technical / app issue',
-  ticket: 'Ticket / booking',
-  dispute_organizer: 'Dispute with organizer',
-  account: 'Account / profile',
-  other: 'Other',
-};
+function categoryLabel(t: (key: string) => string, c: (typeof SUPPORT_CATEGORIES)[number]) {
+  return t(`categories.${c}`);
+}
 
 function readApiErrorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object') {
@@ -59,14 +56,34 @@ function writeStoredSessionId(id: string | null) {
   }
 }
 
+function parseSupportTab(value: string | null): 'chat' | 'request' {
+  return value === 'request' ? 'request' : 'chat';
+}
+
 export function SupportPage() {
+  const { t } = useTranslation(['support', 'common']);
   const { user } = useAuth();
-  const [tab, setTab] = useState<'chat' | 'request'>('chat');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [tab, setTab] = useState<'chat' | 'request'>(() =>
+    parseSupportTab(searchParams.get('tab')),
+  );
+
+  useEffect(() => {
+    setTab(parseSupportTab(searchParams.get('tab')));
+  }, [searchParams]);
+
+  function selectTab(next: 'chat' | 'request') {
+    setTab(next);
+    const nextParams = new URLSearchParams(searchParams);
+    if (next === 'chat') nextParams.delete('tab');
+    else nextParams.set('tab', 'request');
+    setSearchParams(nextParams, { replace: true });
+  }
 
   return (
     <div className="bg-white pb-20 pt-10">
       <div className="mx-auto max-w-[720px] px-6 lg:px-8">
-        <h1 className="text-[32px] font-extrabold text-ink">Support</h1>
+        <h1 className="text-[32px] font-extrabold text-ink">{t('support:title')}</h1>
         <p className="mt-2 text-[15px] text-ink-60">
           Live chat and tracked requests both reach our support team. Sign in to keep a single
           thread across reloads.
@@ -75,23 +92,23 @@ export function SupportPage() {
         <div className="mt-8 inline-flex rounded-full border border-ink-10 bg-ink-5/50 p-1">
           <button
             type="button"
-            onClick={() => setTab('chat')}
+            onClick={() => selectTab('chat')}
             className={cn(
               'rounded-full px-5 py-2 text-[13px] font-bold',
               tab === 'chat' ? 'bg-ink text-white' : 'text-ink-60'
             )}
           >
-            Live chat
+            {t('chatTab', 'Live chat')}
           </button>
           <button
             type="button"
-            onClick={() => setTab('request')}
+            onClick={() => selectTab('request')}
             className={cn(
               'rounded-full px-5 py-2 text-[13px] font-bold',
               tab === 'request' ? 'bg-ink text-white' : 'text-ink-60'
             )}
           >
-            Open a request
+            {t('requestTab', 'Open a request')}
           </button>
         </div>
 
@@ -102,6 +119,7 @@ export function SupportPage() {
 }
 
 function ChatTab() {
+  const { t } = useTranslation('support');
   const { user } = useAuth();
   const listEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -170,7 +188,7 @@ function ChatTab() {
     try {
       await supportMessageSchema.validate({ body: text });
     } catch (err) {
-      setChatError(err instanceof Error ? err.message : 'Message is invalid.');
+      setChatError(err instanceof Error ? err.message : t('chat.messageInvalid'));
       return;
     }
 
@@ -182,7 +200,7 @@ function ChatTab() {
         writeStoredSessionId(newId);
         setChatInput('');
       } catch (err) {
-        setChatError(readApiErrorMessage(err, 'Could not start the chat session.'));
+        setChatError(readApiErrorMessage(err, t('chat.startFailed')));
       }
       return;
     }
@@ -191,7 +209,7 @@ function ChatTab() {
       await postSupportChatMessage({ sessionId, body: { body: text } }).unwrap();
       setChatInput('');
     } catch (err) {
-      setChatError(readApiErrorMessage(err, 'Could not send the message.'));
+      setChatError(readApiErrorMessage(err, t('chat.sendFailed')));
     }
   }
 
@@ -202,7 +220,7 @@ function ChatTab() {
       const created = await promoteSupportChat({ sessionId }).unwrap();
       setPromotedCaseId(String(created.id));
     } catch (err) {
-      setPromoteError(readApiErrorMessage(err, 'Could not escalate this chat.'));
+      setPromoteError(readApiErrorMessage(err, t('chat.escalateFailed')));
     }
   }
 
@@ -265,7 +283,9 @@ function ChatTab() {
             <input
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              placeholder={sessionPromoted ? 'Chat is closed — see your tracked case' : 'Type a message…'}
+              placeholder={
+                sessionPromoted ? t('chat.closedPlaceholder') : t('chat.messagePlaceholder')
+              }
               className="min-w-0 flex-1 rounded-xl border border-ink-10 px-4 py-3 text-[14px] outline-none focus:border-coral disabled:bg-ink-5/40 disabled:text-ink-40"
               disabled={starting || posting || sessionPromoted}
             />
@@ -275,7 +295,7 @@ function ChatTab() {
               size="md"
               disabled={starting || posting || sessionPromoted || !chatInput.trim()}
             >
-              {starting || posting ? 'Sending…' : 'Send'}
+              {starting || posting ? t('chat.sending') : t('chat.send')}
             </Button>
           </form>
 
@@ -290,7 +310,7 @@ function ChatTab() {
                 onClick={onPromote}
                 disabled={promoting}
               >
-                {promoting ? 'Escalating…' : 'Escalate to tracked case'}
+                {promoting ? t('chat.escalating') : t('chat.escalate')}
               </Button>
               {promoteError && (
                 <span className="text-[12px] font-semibold text-coral">{promoteError}</span>
@@ -355,6 +375,7 @@ function RequestTab({ user }: RequestTabProps) {
 }
 
 function SupportCaseForm() {
+  const { t } = useTranslation('support');
   const [category, setCategory] = useState<SupportCategory>('ticket');
   const [subject, setSubject] = useState('');
   const [orderRef, setOrderRef] = useState('');
@@ -378,7 +399,7 @@ function SupportCaseForm() {
     try {
       await createSupportCaseSchema.validate(payload, { abortEarly: false });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Please review the form.');
+      setError(err instanceof Error ? err.message : t('case.formReview'));
       return;
     }
 
@@ -389,7 +410,7 @@ function SupportCaseForm() {
       setOrderRef('');
       setMessage('');
     } catch (err) {
-      setError(readApiErrorMessage(err, 'Could not submit the support case.'));
+      setError(readApiErrorMessage(err, t('case.submitFailed')));
     }
   }
 
@@ -426,7 +447,7 @@ function SupportCaseForm() {
         >
           {SUPPORT_CATEGORIES.map((c) => (
             <option key={c} value={c}>
-              {SUPPORT_CATEGORY_LABELS[c]}
+              {categoryLabel(t, c)}
             </option>
           ))}
         </select>
@@ -439,7 +460,7 @@ function SupportCaseForm() {
           value={subject}
           onChange={(e) => setSubject(e.target.value)}
           className="mt-1.5 w-full rounded-xl border border-ink-10 px-4 py-3 text-[14px] outline-none focus:border-coral"
-          placeholder="Short summary"
+          placeholder={t('case.summaryPlaceholder')}
         />
       </label>
 
@@ -461,7 +482,7 @@ function SupportCaseForm() {
           onChange={(e) => setMessage(e.target.value)}
           rows={6}
           className="mt-1.5 w-full rounded-xl border border-ink-10 px-4 py-3 text-[14px] outline-none focus:border-coral"
-          placeholder="Describe the issue. Include order references and screenshots if helpful."
+          placeholder={t('case.descriptionPlaceholder')}
         />
       </label>
 
@@ -472,13 +493,14 @@ function SupportCaseForm() {
       )}
 
       <Button type="submit" variant="dark" size="md" disabled={submitting}>
-        {submitting ? 'Submitting…' : 'Submit'}
+        {submitting ? t('case.submitting') : t('case.submit')}
       </Button>
     </form>
   );
 }
 
 function ComplaintForm() {
+  const { t } = useTranslation('support');
   const {
     data: categoriesResponse,
     isLoading: categoriesLoading,
@@ -519,11 +541,11 @@ function ComplaintForm() {
     setError(null);
 
     if (!parentId) {
-      setError('Pick a category to continue.');
+      setError(t('complaint.pickCategory'));
       return;
     }
     if (subcategories.length > 0 && !subId) {
-      setError('Pick a subcategory to continue.');
+      setError(t('complaint.pickSubcategory'));
       return;
     }
 
@@ -540,7 +562,7 @@ function ComplaintForm() {
     try {
       await createComplaintSchema.validate(payload, { abortEarly: false });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Please review the form.');
+      setError(err instanceof Error ? err.message : t('complaint.formReview'));
       return;
     }
 
@@ -552,7 +574,7 @@ function ComplaintForm() {
       setOrderId('');
       setEventId('');
     } catch (err) {
-      setError(readApiErrorMessage(err, 'Could not submit the complaint.'));
+      setError(readApiErrorMessage(err, t('complaint.submitFailed')));
     }
   }
 
@@ -630,7 +652,7 @@ function ComplaintForm() {
           value={subject}
           onChange={(e) => setSubject(e.target.value)}
           className="mt-1.5 w-full rounded-xl border border-ink-10 px-4 py-3 text-[14px] outline-none focus:border-coral"
-          placeholder="Short summary"
+          placeholder={t('complaint.summaryPlaceholder')}
         />
       </label>
 
@@ -642,7 +664,7 @@ function ComplaintForm() {
           onChange={(e) => setBody(e.target.value)}
           rows={6}
           className="mt-1.5 w-full rounded-xl border border-ink-10 px-4 py-3 text-[14px] outline-none focus:border-coral"
-          placeholder="Describe what happened. Include event names, dates, and any relevant detail."
+          placeholder={t('complaint.descriptionPlaceholder')}
         />
       </label>
 
@@ -674,7 +696,7 @@ function ComplaintForm() {
       )}
 
       <Button type="submit" variant="dark" size="md" disabled={submitting || categoriesLoading}>
-        {submitting ? 'Submitting…' : 'Submit complaint'}
+        {submitting ? t('complaint.submitting') : t('complaint.submit')}
       </Button>
     </form>
   );

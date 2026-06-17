@@ -48,9 +48,10 @@ import { logout as logoutAction, setCredentials } from "@/store/authSlice";
 import { useAppDispatch } from "@/store/hooks";
 import { mapUserMeToMockUser, parseAuthResponse } from "@/lib/authMapper";
 import {
-  applyDocumentLanguage,
   getEffectiveLanguage,
 } from "@/lib/language";
+import { changeAppLanguage } from "@/i18n";
+import i18n from "@/i18n";
 import {
   EmailVerificationRequiredError,
   TwoFactorRequiredError,
@@ -258,7 +259,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (error) {
         // Drop optimistic session mirror; token stays until the user signs out or retries.
         setUser(null);
-        throw toAuthApiError(error, "Failed to load your profile.");
+        throw toAuthApiError(error, i18n.t('auth:loadProfileFailed', 'Failed to load your profile.'));
       }
     },
     [dispatch, triggerGetMe],
@@ -307,7 +308,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const language = getEffectiveLanguage(user?.preferences.language);
-    applyDocumentLanguage(language);
+    changeAppLanguage(language);
   }, [user?.preferences.language, user]);
 
   const signIn = useCallback(
@@ -326,7 +327,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (error) {
         if (error instanceof TwoFactorRequiredError) throw error;
         if (error instanceof EmailVerificationRequiredError) throw error;
-        throw toAuthApiError(error, "Sign-in failed.");
+        throw toAuthApiError(error, i18n.t('auth:signInFailed', 'Sign-in failed.'));
       }
     },
     [loginMutation, persistCredentialsAndHydrate],
@@ -351,7 +352,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (error) {
         if (error instanceof TwoFactorRequiredError) throw error;
         if (error instanceof EmailVerificationRequiredError) throw error;
-        throw toAuthApiError(error, "OTP verification failed.");
+        throw toAuthApiError(error, i18n.t('auth:otpFailed', 'OTP verification failed.'));
       }
     },
     [twoFactorChallengeMutation, persistCredentialsAndHydrate],
@@ -363,7 +364,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const response = await oauthStartMutation({ provider }).unwrap();
         const redirect = response?.redirect_url;
         if (!redirect)
-          throw new Error("Provider did not return a redirect URL.");
+          throw new Error(i18n.t('auth:providerRedirectMissing', 'Provider did not return a redirect URL.'));
         if (response.state)
           sessionStorage.setItem(OAUTH_STATE_KEY, response.state);
         else sessionStorage.removeItem(OAUTH_STATE_KEY);
@@ -372,7 +373,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         sessionStorage.setItem(OAUTH_REDIRECT_KEY, here);
         window.location.href = redirect;
       } catch (error) {
-        throw toAuthApiError(error, `Could not start ${provider} sign-in.`);
+        throw toAuthApiError(error, i18n.t('auth:oauthStartFailed', { provider, defaultValue: `Could not start ${provider} sign-in.` }));
       }
     },
     [oauthStartMutation],

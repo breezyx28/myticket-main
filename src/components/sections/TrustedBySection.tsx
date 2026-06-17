@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Marquee } from '@/components/ui/Marquee';
 
 const partners: { name: string; file: string }[] = [
@@ -11,12 +12,13 @@ const partners: { name: string; file: string }[] = [
 ];
 
 export function TrustedBySection() {
+  const { t } = useTranslation('landing');
   return (
     <section className="bg-[#F7F6F2] px-6 lg:px-8 pb-12 lg:pb-16">
       <div className="max-w-[1280px] mx-auto">
         <div className="border-t border-ink-10 pt-10">
           <p className="text-center text-[13px] sm:text-[14px] font-semibold text-ink-60 mb-8">
-            Trusted by leading event organizers
+            {t('trustedBy.title')}
           </p>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { CaretLeft, CaretRight, Compass, Plus } from '@phosphor-icons/react';
 import { motion } from 'framer-motion';
@@ -23,6 +24,7 @@ function TourismAdSkeleton({ index }: { index: number }) {
 }
 
 export function TourismAdsSection() {
+  const { t } = useTranslation('landing');
   const navigate = useNavigate();
   const { user } = useAuth();
   const { data: ads = [], isFetching, isError } = useGetTourismAdsCarouselQuery();
@@ -84,14 +86,13 @@ export function TourismAdsSection() {
           >
             <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-50">
               <Compass size={14} weight="fill" className="text-teal-dark" />
-              Discover Saudi destinations
+              {t('tourismAds.eyebrow')}
             </span>
             <h2 className="mt-3 text-[clamp(2rem,4vw,2.75rem)] font-extrabold leading-[1.05] tracking-tight text-ink">
-              Tourism Ads
+              {t('tourismAds.title')}
             </h2>
             <p className="mt-3 max-w-[52ch] text-[15px] leading-relaxed text-ink-60">
-              Curated places to visit, explore, and book experiences. Promote your
-              destination and reach travelers across the platform.
+              {t('tourismAds.subtitle')}
             </p>
           </motion.div>
 
@@ -110,12 +111,12 @@ export function TourismAdsSection() {
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-coral text-white transition-transform duration-200 group-hover:rotate-90">
                 <Plus size={16} weight="bold" />
               </span>
-              Add your Ad
+              {t('tourismAds.addAd')}
             </button>
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                aria-label="Previous ads"
+                aria-label={t('tourismAds.prevAria')}
                 onClick={() => api?.scrollPrev()}
                 disabled={!canScrollPrev}
                 className={cn(
@@ -129,7 +130,7 @@ export function TourismAdsSection() {
               </button>
               <button
                 type="button"
-                aria-label="Next ads"
+                aria-label={t('tourismAds.nextAria')}
                 onClick={() => api?.scrollNext()}
                 disabled={!canScrollNext}
                 className={cn(
@@ -154,11 +155,10 @@ export function TourismAdsSection() {
         ) : ads.length === 0 ? (
           <div className="w-full max-w-[640px] rounded-[1.75rem] border border-dashed border-ink-20 bg-white/70 px-8 py-12 backdrop-blur-sm">
             <p className="text-[18px] font-extrabold tracking-tight text-ink">
-              No destinations live yet
+              {t('tourismAds.emptyTitle')}
             </p>
             <p className="mt-2 max-w-[42ch] text-[14px] leading-relaxed text-ink-60">
-              Be the first to showcase your location. Submit your tourism ad for
-              admin review and appear in this carousel once approved.
+              {t('tourismAds.emptyBody')}
             </p>
             <button
               type="button"
@@ -166,7 +166,7 @@ export function TourismAdsSection() {
               className="mt-6 inline-flex items-center gap-2 rounded-full bg-coral px-5 py-2.5 text-[13px] font-bold text-white transition-transform active:scale-[0.98]"
             >
               <Plus size={16} weight="bold" />
-              Add your Ad
+              {t('tourismAds.addAd')}
             </button>
           </div>
         ) : (

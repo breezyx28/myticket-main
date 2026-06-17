@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
@@ -12,6 +13,7 @@ import { TextInput } from '@/components/ui/form/inputs';
 import { forgotPasswordSchema, type ForgotPasswordSchema } from '@/schemas/auth';
 
 export function ForgotPasswordPage() {
+  const { t } = useTranslation(['authPages', 'common']);
   const { requestPasswordReset } = useAuth();
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -33,25 +35,22 @@ export function ForgotPasswordPage() {
       await requestPasswordReset(values.email);
       setSentTo(values.email);
     } catch (e) {
-      setError(authErrorMessage(e, 'Could not send the reset email. Please try again.'));
+      setError(authErrorMessage(e, t('authPages:forgot.sendFailed')));
     }
   });
 
   return (
     <FormSectionCard
-      eyebrow="Account access"
-      title="Reset password"
-      description="Enter your email and we’ll send you a link to choose a new password."
+      eyebrow={t('authPages:forgot.eyebrow')}
+      title={t('authPages:forgot.title')}
+      description={t('authPages:forgot.description')}
     >
       {sentTo ? (
-        <InlineNotice variant="success" title="Check your inbox">
-          <p className="text-[13px] text-ink-60">
-            If an account exists for <strong className="text-ink">{sentTo}</strong>, you’ll receive reset instructions in
-            a moment.
-          </p>
+        <InlineNotice variant="success" title={t('authPages:forgot.successTitle')}>
+          <p className="text-[13px] text-ink-60">{t('authPages:forgot.successBody', { email: sentTo })}</p>
           <div className="mt-3">
             <Link to="/login" className="font-semibold text-coral hover:underline">
-              Back to sign in
+              {t('authPages:forgot.backToSignIn')}
             </Link>
           </div>
         </InlineNotice>
@@ -66,18 +65,18 @@ export function ForgotPasswordPage() {
             </div>
           )}
           <form onSubmit={onSubmit} className="space-y-4" noValidate>
-            <Field label="Email" htmlFor="forgot-email" errorText={errors.email?.message}>
+            <Field label={t('authPages:forgot.email')} htmlFor="forgot-email" errorText={errors.email?.message}>
               <TextInput
                 id="forgot-email"
                 type="email"
                 autoComplete="email"
-                placeholder="you@example.com"
+                placeholder={t('authPages:login.emailPlaceholder')}
                 aria-invalid={Boolean(errors.email)}
                 {...register('email')}
               />
             </Field>
             <Button type="submit" variant="dark" size="md" className="w-full" loading={isSubmitting}>
-              Send reset link
+              {t('authPages:forgot.submit')}
             </Button>
           </form>
         </>
@@ -85,7 +84,7 @@ export function ForgotPasswordPage() {
 
       <p className="mt-6 text-center text-[13px] text-ink-40">
         <Link to="/login" className="font-semibold text-coral hover:underline">
-          Sign in
+          {t('common:signIn')}
         </Link>
       </p>
     </FormSectionCard>

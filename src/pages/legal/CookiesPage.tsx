@@ -1,12 +1,39 @@
+import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
+import { InfoPageLayout, InfoSection } from '@/components/layout/InfoPageLayout';
+
 export function CookiesPage() {
+  const { t } = useTranslation('legal');
+
   return (
-    <div className="bg-white pb-20 pt-10">
-      <div className="mx-auto max-w-[720px] px-6 lg:px-8">
-        <h1 className="text-3xl font-extrabold text-ink">Cookie Policy</h1>
-        <p className="mt-4 text-[15px] leading-relaxed text-ink-60">
-          Placeholder cookie policy. List essential vs analytics cookies and consent controls for your deployment.
+    <InfoPageLayout
+      title={t('cookies.title')}
+      lead={t('cookies.lead')}
+      lastUpdated="June 2026"
+      legalDisclaimer
+    >
+      <InfoSection title={t('cookies.whatTitle')}>
+        <p>{t('cookies.whatBody')}</p>
+      </InfoSection>
+      <InfoSection title={t('cookies.essentialTitle')}>
+        <p>{t('cookies.essentialBody')}</p>
+      </InfoSection>
+      <InfoSection title={t('cookies.preferenceTitle')}>
+        <p>{t('cookies.preferenceBody')}</p>
+      </InfoSection>
+      <InfoSection title={t('cookies.analyticsTitle')}>
+        <p>{t('cookies.analyticsBody')}</p>
+      </InfoSection>
+      <InfoSection title={t('cookies.managingTitle')}>
+        <p>{t('cookies.managingBody1')}</p>
+        <p>
+          {t('cookies.managingBody2')}{' '}
+          <Link to="/privacy" className="font-semibold text-coral hover:underline">
+            {t('cookies.privacyLink')}
+          </Link>
+          .
         </p>
-      </div>
-    </div>
+      </InfoSection>
+    </InfoPageLayout>
   );
 }

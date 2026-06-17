@@ -1,4 +1,5 @@
 import { ArrowRight, MusicNotes } from '@phosphor-icons/react';
+import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 
 export interface HotArtistCardProps {
@@ -78,8 +79,8 @@ export function HotArtistCard({
             className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/35 via-black/5 to-transparent"
             aria-hidden
           />
-          <a
-            href={href}
+          <Link
+            to={href}
             className="absolute bottom-3.5 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/55 bg-white/30 py-1.5 pl-5 pr-1.5 shadow-lg backdrop-blur-xl backdrop-saturate-150 transition-colors hover:bg-white/45"
           >
             <span className="whitespace-nowrap text-[11px] font-bold tracking-wide text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.45)]">
@@ -88,7 +89,7 @@ export function HotArtistCard({
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-ink shadow-md ring-1 ring-black/5">
               <ArrowRight size={16} weight="bold" />
             </span>
-          </a>
+          </Link>
         </div>
       </div>
     </article>

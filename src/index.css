@@ -2,8 +2,13 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
+@import "@fontsource/noto-sans-arabic";
 
 @custom-variant dark (&:is(.dark *));
+
+[dir="rtl"] {
+  font-family: "Noto Sans Arabic", "Plus Jakarta Sans", system-ui, sans-serif;
+}
 
 @theme {
   /* ── Fonts ───────────────────────────────────────────────── */

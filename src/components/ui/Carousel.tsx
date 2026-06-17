@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import useEmblaCarousel from 'embla-carousel-react';
 import { CaretLeft, CaretRight } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
@@ -24,6 +25,8 @@ export function Carousel({
   loop = false,
   variant = 'light',
 }: CarouselProps) {
+  const { t, i18n } = useTranslation();
+  const isRtl = i18n.dir() === 'rtl';
   const [emblaRef, emblaApi] = useEmblaCarousel({
     align: 'start',
     containScroll: 'trimSnaps',
@@ -82,11 +85,11 @@ export function Carousel({
               <a
                 href={viewAllHref}
                 className={cn(
-                  'text-[14px] font-semibold hover:underline underline-offset-2 mr-2 hidden sm:block',
+                  'text-[14px] font-semibold hover:underline underline-offset-2 me-2 hidden sm:block',
                   isDark ? 'text-white' : 'text-ink'
                 )}
               >
-                View All
+                {t('landing:carousel.viewAll')}
               </a>
             )}
             <button
@@ -102,7 +105,7 @@ export function Carousel({
                   : 'opacity-30 cursor-not-allowed'
               )}
             >
-              <CaretLeft size={18} weight="bold" />
+              {isRtl ? <CaretRight size={18} weight="bold" /> : <CaretLeft size={18} weight="bold" />}
             </button>
             <button
               onClick={() => emblaApi?.scrollNext()}
@@ -117,7 +120,7 @@ export function Carousel({
                   : 'opacity-30 cursor-not-allowed'
               )}
             >
-              <CaretRight size={18} weight="bold" />
+              {isRtl ? <CaretLeft size={18} weight="bold" /> : <CaretRight size={18} weight="bold" />}
             </button>
           </div>
         </div>

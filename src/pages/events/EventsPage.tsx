@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CaretDown, MagnifyingGlass, SlidersHorizontal } from '@phosphor-icons/react';
 import { EventCard } from '@/components/cards/EventCard';
@@ -22,6 +23,7 @@ const PER_PAGE = 12;
 const EMPTY_EVENT_CATEGORIES: EventCategoryRef[] = [];
 
 export function EventsPage() {
+  const { t } = useTranslation('eventsPage');
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -233,15 +235,13 @@ export function EventsPage() {
     <div className="bg-white">
       <div className="border-b border-ink-10 bg-ink-5/50">
         <div className="mx-auto max-w-[1280px] px-6 py-10 lg:px-8">
-          <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-ink-40">Discover</span>
+          <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-ink-40">{t('eyebrow')}</span>
           <h1 className="mt-2 text-[32px] font-extrabold leading-tight tracking-[-0.02em] text-ink md:text-[40px]">
-            Events
+            {t('title')}
           </h1>
           <p className="mt-2 max-w-xl text-[13px] leading-relaxed text-ink-60">
-            {advancedOpen
-              ? 'Combine search with category, dates, location, price, and layout.'
-              : 'Search by name, description, or artist — or open advanced filters to go deeper.'}{' '}
-            {featured && <span className="font-semibold text-ink">Showing featured picks.</span>}
+            {advancedOpen ? t('leadAdvanced') : t('leadSimple')}{' '}
+            {featured && <span className="font-semibold text-ink">{t('featuredBanner')}</span>}
           </p>
 
           <div className="mt-8 rounded-[28px] border border-ink-10 bg-surface-card p-5 md:p-8">
@@ -254,7 +254,7 @@ export function EventsPage() {
                 />
                 <input
                   type="search"
-                  placeholder="Search title, description, artist…"
+                  placeholder={t('searchPlaceholder')}
                   value={keyword}
                   onChange={(e) => {
                     const v = e.target.value;
@@ -287,7 +287,7 @@ export function EventsPage() {
                 )}
               >
                 <SlidersHorizontal size={16} weight="bold" className="shrink-0" />
-                <span className="whitespace-nowrap">Advanced filters</span>
+                <span className="whitespace-nowrap">{t('advancedFilters')}</span>
                 <CaretDown
                   size={14}
                   weight="bold"
@@ -305,10 +305,10 @@ export function EventsPage() {
                 <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-40">
-                      Refine results
+                      {t('refineResults')}
                     </span>
                     <span className="rounded-full bg-lemon/90 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink">
-                      Optional
+                      {t('optional')}
                     </span>
                   </div>
                   {featured && (
@@ -323,7 +323,7 @@ export function EventsPage() {
                       }}
                       className="text-[11px] font-semibold text-coral underline underline-offset-2 transition-colors hover:text-coral-dark"
                     >
-                      Clear featured filter
+                      {t('clearFeatured')}
                     </button>
                   )}
                 </div>
@@ -331,7 +331,7 @@ export function EventsPage() {
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <label className="flex flex-col gap-1.5">
                     <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-40">
-                      Category
+                      {t('category')}
                     </span>
                     <select
                       value={categorySelectValue}
@@ -350,7 +350,7 @@ export function EventsPage() {
                         'outline-none transition-colors focus:border-coral'
                       )}
                     >
-                      <option value="all">All categories</option>
+                      <option value="all">{t('allCategories')}</option>
                       {category !== 'all' &&
                         !/^\d+$/.test(category) &&
                         categories.length === 0 && (
@@ -364,13 +364,13 @@ export function EventsPage() {
                     </select>
                   </label>
                   <label className="flex flex-col gap-1.5">
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-40">City</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-40">{t('city')}</span>
                     <select
                       value={city}
                       onChange={(e) => setCity(e.target.value)}
                       className="h-10 rounded-xl border-2 border-ink-10 bg-white px-3 text-[12px] font-medium text-ink outline-none transition-colors focus:border-coral"
                     >
-                      <option value="all">All cities</option>
+                      <option value="all">{t('allCities')}</option>
                       {cities.map((c) => (
                         <option key={c.slug} value={c.slug}>
                           {c.name}
@@ -379,7 +379,7 @@ export function EventsPage() {
                     </select>
                   </label>
                   <label className="flex flex-col gap-1.5">
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-40">From</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-40">{t('dateFrom')}</span>
                     <input
                       type="date"
                       value={dateFrom}
@@ -388,7 +388,7 @@ export function EventsPage() {
                     />
                   </label>
                   <label className="flex flex-col gap-1.5">
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-40">To</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-40">{t('dateTo')}</span>
                     <input
                       type="date"
                       value={dateTo}
@@ -398,7 +398,7 @@ export function EventsPage() {
                   </label>
                   <label className="flex flex-col gap-1.5">
                     <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-40">
-                      Min price (SAR)
+                      {t('minPrice')}
                     </span>
                     <input
                       type="number"
@@ -411,32 +411,32 @@ export function EventsPage() {
                   </label>
                   <label className="flex flex-col gap-1.5">
                     <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-40">
-                      Max price (SAR)
+                      {t('maxPrice')}
                     </span>
                     <input
                       type="number"
                       min={0}
-                      placeholder="Any"
+                      placeholder={t('priceAny')}
                       value={priceMax}
                       onChange={(e) => setPriceMax(e.target.value)}
                       className="font-mono h-10 rounded-xl border-2 border-ink-10 bg-white px-3 text-[12px] text-ink outline-none focus:border-coral"
                     />
                   </label>
                   <label className="flex flex-col gap-1.5">
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-40">Layout</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-40">{t('layout')}</span>
                     <select
                       value={layoutType}
                       onChange={(e) => setLayoutType(e.target.value as typeof layoutType)}
                       className="h-10 rounded-xl border-2 border-ink-10 bg-white px-3 text-[12px] font-medium text-ink outline-none focus:border-coral"
                     >
-                      <option value="all">Any</option>
-                      <option value="free">Free layout</option>
-                      <option value="seated">Seated</option>
+                      <option value="all">{t('layoutAny')}</option>
+                      <option value="free">{t('layoutFree')}</option>
+                      <option value="seated">{t('layoutSeated')}</option>
                     </select>
                   </label>
                   <label className="flex flex-col justify-end gap-1.5 sm:col-span-2 lg:col-span-1">
                     <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-40">
-                      Availability
+                      {t('availability')}
                     </span>
                     <div className="flex h-10 items-center gap-2.5 rounded-xl border-2 border-ink-10 bg-ink-5/50 px-3">
                       <input
@@ -447,7 +447,7 @@ export function EventsPage() {
                         className="h-3.5 w-3.5 rounded border-ink-20 text-coral"
                       />
                       <label htmlFor="avail-only" className="cursor-pointer text-[11px] font-medium text-ink">
-                        Only events with tickets left
+                        {t('availabilityOnly')}
                       </label>
                     </div>
                   </label>
@@ -475,7 +475,7 @@ export function EventsPage() {
                 onClick={clearAllFilters}
                 className="inline-flex h-12 shrink-0 items-center justify-center rounded-full border-2 border-ink-10 bg-white px-5 text-[12px] font-semibold text-ink transition-colors duration-150 hover:border-ink/25 hover:bg-ink-5"
               >
-                Clear all
+                {t('clearAll')}
               </button>
               </div>
             )}
@@ -485,11 +485,11 @@ export function EventsPage() {
 
       <div className="mx-auto max-w-[1280px] px-6 py-12 lg:px-8">
         {isFetching && events.length === 0 ? (
-          <p className="text-center text-[12px] text-ink-40">Loading events…</p>
+          <p className="text-center text-[12px] text-ink-40">{t('loading')}</p>
         ) : isError ? (
-          <p className="text-center text-[13px] text-coral">Could not load events. Please try again.</p>
+          <p className="text-center text-[13px] text-coral">{t('error')}</p>
         ) : events.length === 0 ? (
-          <p className="text-center text-[13px] text-ink-60">No events match your filters.</p>
+          <p className="text-center text-[13px] text-ink-60">{t('empty')}</p>
         ) : (
           <>
             <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
@@ -511,7 +511,7 @@ export function EventsPage() {
 
             <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-ink-10 pt-6 sm:flex-row">
               <span className="text-[12px] font-medium text-ink-60">
-                Page {currentPage} of {lastPage} · {total} {total === 1 ? 'event' : 'events'}
+                {t('pagination', { current: currentPage, last: lastPage, total })}
               </span>
               <div className="flex items-center gap-2">
                 <button
@@ -520,7 +520,7 @@ export function EventsPage() {
                   disabled={currentPage <= 1 || isFetching}
                   className="rounded-full border-2 border-ink-10 bg-white px-4 py-2 text-[12px] font-semibold text-ink transition-colors hover:border-ink/25 hover:bg-ink-5 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  Previous
+                  {t('previous')}
                 </button>
                 <button
                   type="button"
@@ -528,7 +528,7 @@ export function EventsPage() {
                   disabled={currentPage >= lastPage || isFetching}
                   className="rounded-full border-2 border-ink bg-ink px-4 py-2 text-[12px] font-semibold text-white transition-colors hover:bg-ink-80 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  Next
+                  {t('next')}
                 </button>
               </div>
             </div>

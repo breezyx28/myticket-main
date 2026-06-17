@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { Ticket, MagnifyingGlass, Bell, Hamburger, X, Globe, IconContext } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/Button';
@@ -6,17 +7,18 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { cn } from '@/lib/utils';
 import {
-  applyDocumentLanguage,
   getEffectiveLanguage,
   setGuestLanguage,
   type AppLanguage,
 } from '@/lib/language';
+import { changeAppLanguage } from '@/i18n';
 import { canAccessEngagementsInbox, canBrowseMarketplace } from '@/lib/marketplaceAccess';
 import { isOrganizerUser } from '@/lib/organizerPortal';
 import { isTalentUser } from '@/lib/talentPortal';
 import { isVendorUser } from '@/lib/vendorPortal';
 
 export function Navbar() {
+  const { t } = useTranslation(['common', 'nav']);
   const { user, signOut, updatePreferences } = useAuth();
   const { items, unreadCount, markRead, markAllRead } = useNotifications();
   const navigate = useNavigate();
@@ -37,9 +39,10 @@ export function Navbar() {
         await updatePreferences({ language: nextLanguage });
       } else {
         setGuestLanguage(nextLanguage);
+        changeAppLanguage(nextLanguage);
       }
     } catch {
-      applyDocumentLanguage(currentLanguage);
+      changeAppLanguage(currentLanguage);
     } finally {
       setLangBusy(false);
     }
@@ -62,19 +65,19 @@ export function Navbar() {
   }, []);
 
   const navLinks = useMemo(() => {
-    const links: { label: string; to: string }[] = [{ label: 'Events', to: '/events' }];
+    const links: { label: string; to: string }[] = [{ label: t('nav:events'), to: '/events' }];
     if (canBrowseMarketplace(user)) {
-      links.push({ label: 'Marketplace', to: '/marketplace' });
+      links.push({ label: t('nav:marketplace'), to: '/marketplace' });
     }
     if (canAccessEngagementsInbox(user)) {
-      links.push({ label: 'Engagements', to: '/engagements' });
+      links.push({ label: t('nav:engagements'), to: '/engagements' });
     }
     links.push(
-      { label: 'Auction', to: '/auction' },
-      { label: 'My Tickets', to: '/my-tickets' }
+      { label: t('nav:auction'), to: '/auction' },
+      { label: t('nav:myTickets'), to: '/my-tickets' }
     );
     return links;
-  }, [user]);
+  }, [t, user]);
   const profilePath = isOrganizerUser(user)
     ? '/organizer-portal'
     : isTalentUser(user)
@@ -102,7 +105,7 @@ export function Navbar() {
           )}
         >
           <div className="relative z-10 flex h-[60px] w-full items-center px-6 lg:px-8">
-            <Link to="/" className="mr-12 flex flex-shrink-0 items-center gap-2.5">
+            <Link to="/" className="me-12 flex flex-shrink-0 items-center gap-2.5">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-lemon">
                 <Ticket size={18} className="text-ink" />
               </div>
@@ -123,12 +126,12 @@ export function Navbar() {
               ))}
             </div>
 
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ms-auto flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => navigate('/events')}
                 className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-ink-40 transition-colors hover:bg-ink-5 hover:text-ink"
-                aria-label="Search events"
+                aria-label={t('nav:searchEvents')}
               >
                 <MagnifyingGlass size={18} />
               </button>
@@ -137,44 +140,44 @@ export function Navbar() {
                   type="button"
                   onClick={() => setNotifOpen((o) => !o)}
                   className="relative flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-ink-40 transition-colors hover:bg-ink-5 hover:text-ink"
-                  aria-label="Notifications"
+                  aria-label={t('common:notifications')}
                   aria-expanded={notifOpen}
                 >
                   <Bell size={18} />
                   {unreadCount > 0 && (
-                    <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-coral px-1 text-[10px] font-bold text-white">
+                    <span className="absolute -end-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-coral px-1 text-[10px] font-bold text-white">
                       {unreadCount > 9 ? '9+' : unreadCount}
                     </span>
                   )}
                 </button>
                 {notifOpen && (
-                  <div className="absolute right-0 top-[calc(100%+8px)] z-[60] w-[min(100vw-2rem,20rem)] rounded-2xl border border-ink-10 bg-white py-2 shadow-card-lg">
+                  <div className="absolute end-0 top-[calc(100%+8px)] z-[60] w-[min(100vw-2rem,20rem)] rounded-2xl border border-ink-10 bg-white py-2 shadow-card-lg">
                     <div className="flex items-center justify-between border-b border-ink-10 px-3 pb-2">
-                      <span className="text-[11px] font-bold uppercase tracking-wide text-ink-40">Notifications</span>
+                      <span className="text-[11px] font-bold uppercase tracking-wide text-ink-40">{t('common:notifications')}</span>
                       {user && (
                         <button
                           type="button"
                           className="text-[11px] font-semibold text-coral hover:underline"
                           onClick={() => markAllRead()}
                         >
-                          Mark all read
+                          {t('common:markAllRead')}
                         </button>
                       )}
                     </div>
                     <div className="max-h-72 overflow-y-auto">
                       {!user ? (
                         <div className="px-3 py-6 text-center">
-                          <p className="text-[13px] text-ink-40">Sign in to see notifications.</p>
+                          <p className="text-[13px] text-ink-40">{t('common:signInToSeeNotifications')}</p>
                           <Link
                             to="/login"
                             onClick={() => setNotifOpen(false)}
                             className="mt-3 inline-flex h-9 items-center justify-center rounded-full bg-ink px-4 text-[12px] font-semibold text-white hover:bg-ink-80"
                           >
-                            Sign in
+                            {t('common:signIn')}
                           </Link>
                         </div>
                       ) : items.length === 0 ? (
-                        <p className="px-3 py-6 text-center text-[13px] text-ink-40">No notifications yet.</p>
+                        <p className="px-3 py-6 text-center text-[13px] text-ink-40">{t('common:noNotifications')}</p>
                       ) : (
                         items.map((n) => (
                           <div
@@ -187,7 +190,7 @@ export function Navbar() {
                             {n.href ? (
                               <Link
                                 to={n.href}
-                                className="block text-left"
+                                className="block text-start"
                                 onClick={() => {
                                   markRead(n.id);
                                   setNotifOpen(false);
@@ -199,7 +202,7 @@ export function Navbar() {
                             ) : (
                               <button
                                 type="button"
-                                className="w-full text-left"
+                                className="w-full text-start"
                                 onClick={() => markRead(n.id)}
                               >
                                 <p className="text-[13px] font-bold text-ink">{n.title}</p>
@@ -219,7 +222,9 @@ export function Navbar() {
                 disabled={langBusy}
                 className="flex h-9 min-w-9 cursor-pointer items-center justify-center gap-1 rounded-full px-2 text-ink-40 transition-colors hover:bg-ink-5 hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
                 aria-label={
-                  currentLanguage === 'ar' ? 'Switch language to English' : 'Switch language to Arabic'
+                  currentLanguage === 'ar'
+                    ? t('nav:switchToEnglish')
+                    : t('nav:switchToArabic')
                 }
                 title={currentLanguage === 'ar' ? 'English' : 'العربية'}
               >
@@ -229,7 +234,7 @@ export function Navbar() {
                 </span>
               </button>
               {user ? (
-                <div className="ml-1 hidden items-center gap-2 sm:flex">
+                <div className="ms-1 hidden items-center gap-2 sm:flex">
                   <Link
                     to={profilePath}
                     className="max-w-[140px] truncate text-[12px] font-bold text-ink hover:text-coral"
@@ -237,17 +242,17 @@ export function Navbar() {
                     {user.name}
                   </Link>
                   <Button variant="ghost" size="sm" className="!px-3" onClick={() => signOut()}>
-                    Out
+                    {t('common:signOut')}
                   </Button>
                 </div>
               ) : (
                 <>
-                  <Link to="/register" className="ml-1 hidden text-[12px] font-bold text-ink-60 hover:text-coral sm:inline">
-                    Register
+                  <Link to="/register" className="ms-1 hidden text-[12px] font-bold text-ink-60 hover:text-coral sm:inline">
+                    {t('common:register')}
                   </Link>
-                  <Link to="/login" className="ml-1 hidden sm:inline-flex">
+                  <Link to="/login" className="ms-1 hidden sm:inline-flex">
                     <span className="inline-flex h-8 items-center rounded-full bg-ink px-4 text-[12px] font-semibold text-white transition-colors hover:bg-ink-80">
-                      Sign In
+                      {t('common:signIn')}
                     </span>
                   </Link>
                 </>
@@ -255,7 +260,7 @@ export function Navbar() {
               <button
                 type="button"
                 onClick={() => setMobileOpen(!mobileOpen)}
-                className="ml-1 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-ink transition-colors hover:bg-ink-5 md:hidden"
+                className="ms-1 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-ink transition-colors hover:bg-ink-5 md:hidden"
               >
                 {mobileOpen ? <X size={20} /> : <Hamburger size={20} />}
               </button>
@@ -265,7 +270,7 @@ export function Navbar() {
           {mobileOpen && (
             <div
               className={cn(
-                'absolute left-0 right-0 z-20 bg-white shadow-card-md md:hidden',
+                'absolute start-0 end-0 z-20 bg-white shadow-card-md md:hidden',
                 'top-[calc(100%+12px)]',
                 scrolled
                   ? 'rounded-2xl border border-t-0 border-ink-10 shadow-card-lg'
@@ -290,10 +295,10 @@ export function Navbar() {
                       className="text-[14px] font-bold text-ink hover:text-coral"
                       onClick={() => setMobileOpen(false)}
                     >
-                      Profile
+                      {t('common:profile')}
                     </Link>
                     <Button variant="ghost" size="md" className="w-full" onClick={() => signOut()}>
-                      Sign out
+                      {t('common:signOut')}
                     </Button>
                   </>
                 ) : (
@@ -303,7 +308,7 @@ export function Navbar() {
                       className="text-[14px] font-bold text-ink hover:text-coral"
                       onClick={() => setMobileOpen(false)}
                     >
-                      Register
+                      {t('common:register')}
                     </Link>
                     <Button
                       variant="dark"
@@ -314,7 +319,7 @@ export function Navbar() {
                         navigate('/login');
                       }}
                     >
-                      Sign In
+                      {t('common:signIn')}
                     </Button>
                   </>
                 )}

@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import {
   Buildings,
@@ -149,6 +150,8 @@ function previousEventsList(o: Organizer): EventListItem[] {
 }
 
 export function OrganizerProfilePage() {
+  const { i18n } = useTranslation();
+  const language = i18n.language === 'ar' ? 'ar' : 'en';
   const { slug: slugParam } = useParams<{ slug: string }>();
   const slug = useMemo(() => {
     if (!slugParam) return '';
@@ -512,7 +515,7 @@ export function OrganizerProfilePage() {
             <ul className="mt-4 divide-y divide-ink-10 rounded-2xl border border-ink-10 bg-white">
               {eventRows.map((e) => {
                 const startAt = e.date_start ?? e.starts_at ?? '';
-                const { date, time } = formatCardDateTime(startAt);
+                const { date, time } = formatCardDateTime(startAt, language);
                 return (
                   <li key={String(e.id)}>
                     <Link
@@ -542,7 +545,7 @@ export function OrganizerProfilePage() {
             <ul className="mt-4 divide-y divide-ink-10 rounded-2xl border border-ink-10 bg-white">
               {pastEvents.map((e) => {
                 const startAt = e.date_start ?? e.starts_at ?? '';
-                const { date, time } = formatCardDateTime(startAt);
+                const { date, time } = formatCardDateTime(startAt, language);
                 return (
                   <li key={String(e.id)}>
                     <Link

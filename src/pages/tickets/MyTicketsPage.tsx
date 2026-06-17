@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { X } from '@phosphor-icons/react';
 import { useClaimGiftMutation, useListGiftsQuery, useListMyTicketsQuery } from '@/api/endpoints';
 import type { TicketStatus } from '@/types/domain';
 import { TicketListCard, TicketListCardSkeleton } from '@/components/tickets/TicketListCard';
-import { STATUS_LABEL } from '@/components/tickets/ticketDisplayUtils';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -19,18 +19,30 @@ function readApiErrorMessage(err: unknown): string | null {
   return (err as ApiError | undefined)?.data?.message ?? null;
 }
 
-function formatDateTime(iso: string): string {
-  if (!iso.trim()) return 'Date TBC';
+function formatDateTime(iso: string, fallback: string): string {
+  if (!iso.trim()) return fallback;
   try {
     const t = new Date(iso).getTime();
-    if (Number.isNaN(t)) return 'Date TBC';
+    if (Number.isNaN(t)) return fallback;
     return new Date(iso).toLocaleString();
   } catch {
-    return 'Date TBC';
+    return fallback;
   }
 }
 
+const FILTER_KEYS = {
+  all: 'filterAll',
+  active: 'filterActive',
+  auction: 'filterAuction',
+  gifted: 'filterGifted',
+  used: 'filterUsed',
+  expired: 'filterExpired',
+  cancelled: 'filterCancelled',
+  refunded: 'filterRefunded',
+} as const satisfies Record<TicketStatus | 'all', string>;
+
 export function MyTicketsPage() {
+  const { t } = useTranslation('tickets');
   const { user } = useAuth();
   const [view, setView] = useState<ViewMode>('tickets');
   const [filter, setFilter] = useState<TicketStatus | 'all'>('all');
@@ -79,7 +91,7 @@ export function MyTicketsPage() {
       await claimGift({ id }).unwrap();
       setView('tickets');
     } catch (err) {
-      setClaimError(readApiErrorMessage(err) ?? 'Could not claim this gift. Please try again.');
+      setClaimError(readApiErrorMessage(err) ?? t('claimError'));
     } finally {
       setClaimingId(null);
     }
@@ -89,15 +101,13 @@ export function MyTicketsPage() {
     return (
       <div className="bg-white pb-20 pt-10">
         <div className="mx-auto max-w-[720px] px-6 lg:px-8">
-          <h1 className="text-[32px] font-extrabold tracking-tight text-ink">My tickets</h1>
-          <p className="mt-4 text-[14px] text-ink-60">
-            Sign in to view your tickets and gifts inbox.
-          </p>
+          <h1 className="text-[32px] font-extrabold tracking-tight text-ink">{t('guestTitle')}</h1>
+          <p className="mt-4 text-[14px] text-ink-60">{t('guestDescription')}</p>
           <Link
             to="/login?next=%2Fmy-tickets"
             className="mt-6 inline-flex items-center justify-center rounded-full bg-ink px-5 py-2.5 text-[13px] font-semibold text-white hover:bg-ink-80"
           >
-            Log in
+            {t('logIn')}
           </Link>
         </div>
       </div>
@@ -107,16 +117,13 @@ export function MyTicketsPage() {
   return (
     <div className={cn('pb-20 pt-10', user ? 'bg-ink-5' : 'bg-white')}>
       <div className={cn('mx-auto px-6 lg:px-8', user ? 'max-w-4xl' : 'max-w-[720px]')}>
-        <h1 className="text-[32px] font-extrabold tracking-tight text-ink">My tickets</h1>
-        <p className="mt-2 max-w-xl text-[15px] text-ink-60">
-          View, download, gift, or list tickets. Gifts you receive show up in the inbox.
-        </p>
+        <h1 className="text-[32px] font-extrabold tracking-tight text-ink">{t('title')}</h1>
+        <p className="mt-2 max-w-xl text-[15px] text-ink-60">{t('description')}</p>
 
         {remindersBannerOpen && (
-          <div className="relative mt-6 rounded-2xl border border-sky/40 bg-sky/15 px-4 py-3 pr-12 text-[13px] leading-relaxed text-ink-60">
+          <div className="relative mt-6 rounded-2xl border border-sky/40 bg-sky/15 px-4 py-3 pe-12 text-[13px] leading-relaxed text-ink-60">
             <p>
-              <strong className="text-ink">Event reminders</strong> (24h / 1h) shown elsewhere in this demo are
-              illustrative only. In production they would be delivered by email and push based on your preferences.
+              <strong className="text-ink">{t('remindersTitle')}</strong> {t('remindersBody')}
             </p>
             <button
               type="button"
@@ -128,8 +135,8 @@ export function MyTicketsPage() {
                 }
                 setRemindersBannerOpen(false);
               }}
-              className="absolute right-3 top-3 rounded-full p-1.5 text-ink-40 transition-colors hover:bg-white/80"
-              aria-label="Dismiss"
+              className="absolute end-3 top-3 rounded-full p-1.5 text-ink-40 transition-colors hover:bg-white/80"
+              aria-label={t('dismiss')}
             >
               <X size={14} weight="bold" />
             </button>
@@ -147,7 +154,7 @@ export function MyTicketsPage() {
                 view === v ? 'bg-ink text-white' : 'text-ink-60 hover:bg-white'
               )}
             >
-              {v === 'tickets' ? 'Tickets' : 'Gifts inbox'}
+              {v === 'tickets' ? t('tabTickets') : t('tabGifts')}
             </button>
           ))}
         </div>
@@ -167,7 +174,7 @@ export function MyTicketsPage() {
                     filter === s ? 'bg-ink text-white' : 'bg-ink-5 text-ink-60 hover:bg-ink-10'
                   )}
                 >
-                  {s === 'all' ? 'All' : STATUS_LABEL[s]}
+                  {t(FILTER_KEYS[s])}
                 </button>
               ))}
             </div>
@@ -181,7 +188,7 @@ export function MyTicketsPage() {
             )}
             {ticketsError && !ticketsLoading && (
               <p className="mt-10 rounded-lg border border-coral/40 bg-coral/10 px-4 py-3 text-center text-[13px] font-semibold text-coral">
-                Could not load your tickets. Please refresh and try again.
+                {t('errorLoad')}
               </p>
             )}
 
@@ -195,9 +202,9 @@ export function MyTicketsPage() {
 
                 {filteredTickets.length === 0 && (
                   <p className="mt-12 text-center text-[15px] text-ink-40">
-                    No tickets in this view.{' '}
+                    {t('empty')}{' '}
                     <Link to="/events" className="font-semibold text-coral hover:underline">
-                      Browse events
+                      {t('browseEvents')}
                     </Link>
                   </p>
                 )}
@@ -214,17 +221,17 @@ export function MyTicketsPage() {
               </p>
             )}
             {giftsLoading && (
-              <p className="mt-10 text-center text-[13px] text-ink-40">Loading gifts…</p>
+              <p className="mt-10 text-center text-[13px] text-ink-40">{t('giftsLoading')}</p>
             )}
             {giftsError && !giftsLoading && (
               <p className="mt-10 rounded-lg border border-coral/40 bg-coral/10 px-4 py-3 text-center text-[13px] font-semibold text-coral">
-                Could not load your gifts inbox. Please refresh and try again.
+                {t('giftsError')}
               </p>
             )}
             {!giftsLoading && !giftsError && (
               <ul className="mt-8 space-y-4">
                 {gifts.map((g) => {
-                  const expiresLabel = g.expiresAt ? formatDateTime(g.expiresAt) : null;
+                  const expiresLabel = g.expiresAt ? formatDateTime(g.expiresAt, t('dateTbc')) : null;
                   const canClaim = g.status === 'pending';
                   return (
                     <li
@@ -233,12 +240,14 @@ export function MyTicketsPage() {
                     >
                       <div>
                         <p className="font-extrabold text-ink">{g.eventTitle}</p>
-                        <p className="mt-1 text-[13px] text-ink-60">From {g.senderName}</p>
+                        <p className="mt-1 text-[13px] text-ink-60">{t('giftsFrom', { sender: g.senderName })}</p>
                         {g.message && (
                           <p className="mt-1 text-[12px] italic text-ink-40">&ldquo;{g.message}&rdquo;</p>
                         )}
                         {expiresLabel && g.status === 'pending' && (
-                          <p className="mt-1 text-[12px] text-ink-40">Expires {expiresLabel}</p>
+                          <p className="mt-1 text-[12px] text-ink-40">
+                            {t('giftsExpires', { date: expiresLabel })}
+                          </p>
                         )}
                       </div>
                       <div className="flex items-center gap-3">
@@ -260,7 +269,7 @@ export function MyTicketsPage() {
                             disabled={claiming && claimingId === g.id}
                             onClick={() => void onClaim(g.id)}
                           >
-                            {claiming && claimingId === g.id ? 'Claiming…' : 'Claim'}
+                            {claiming && claimingId === g.id ? t('giftsClaiming') : t('giftsClaim')}
                           </Button>
                         )}
                       </div>
@@ -272,7 +281,7 @@ export function MyTicketsPage() {
 
             {!giftsLoading && !giftsError && gifts.length === 0 && (
               <p className="mt-12 text-center text-[15px] text-ink-40">
-                No gifts waiting in your inbox.
+                {t('giftsEmpty')}
               </p>
             )}
           </>

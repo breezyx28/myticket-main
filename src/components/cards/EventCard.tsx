@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -18,6 +19,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { SaudiRiyalIcon } from '@/components/icons/SaudiRiyalIcon';
+import { Ltr } from '@/components/ui/Ltr';
 import { formatAttendingLabel } from '@/lib/attendingFormat';
 import { formatSaudiRiyalAmountLatin } from '@/lib/saudiCurrency';
 import { usableImageSrc } from '@/lib/imageSrc';
@@ -111,6 +113,7 @@ export function EventCard({
   onClick,
   className,
 }: EventCardProps) {
+  const { t } = useTranslation(['common', 'events']);
   const reduceMotion = usePrefersReducedMotion();
   const dialogTitleId = useId();
 
@@ -200,7 +203,7 @@ export function EventCard({
       if (typeof navigator !== 'undefined' && navigator.share) {
         try {
           await navigator.share({ title, text: title, url });
-          setShareHint('Shared');
+          setShareHint(t('events:shared'));
           window.setTimeout(() => setShareHint(null), 2000);
           return;
         } catch {
@@ -209,13 +212,13 @@ export function EventCard({
       }
       try {
         await navigator.clipboard.writeText(url);
-        setShareHint('Copied');
+        setShareHint(t('events:copied'));
         window.setTimeout(() => setShareHint(null), 2000);
       } catch {
         setShareHint(null);
       }
     },
-    [resolvedShareUrl, title]
+    [resolvedShareUrl, t, title]
   );
 
   const openRate = useCallback((e: React.MouseEvent) => {
@@ -297,13 +300,13 @@ export function EventCard({
             ) : (
               <div className="h-full w-full bg-gradient-to-br from-ink-10 via-ink-5 to-white" aria-hidden />
             )}
-            <div className="absolute left-2.5 top-2.5 z-10 flex flex-wrap gap-1.5">
+            <div className="absolute start-2.5 top-2.5 z-10 flex flex-wrap gap-1.5">
               <span className="rounded-full border border-white/50 bg-white/40 px-2.5 py-0.5 text-[10px] font-bold text-ink shadow-sm backdrop-blur-md backdrop-saturate-150">
                 {category}
               </span>
               {isFeatured && (
                 <span className="rounded-full border border-lemon/60 bg-lemon/45 px-2.5 py-0.5 text-[10px] font-bold text-ink shadow-sm backdrop-blur-md">
-                  Featured
+                  {t('events:featured')}
                 </span>
               )}
             </div>
@@ -311,13 +314,13 @@ export function EventCard({
             {/* Instagram-style actions */}
             <div
               className={cn(
-                'absolute right-2.5 top-2.5 z-30 flex items-center gap-1.5 transition-all duration-[200ms] ease-in-out',
+                'absolute end-2.5 top-2.5 z-30 flex items-center gap-1.5 transition-all duration-[200ms] ease-in-out',
                 actionBarClasses
               )}
             >
               <button
                 type="button"
-                aria-label="Share"
+                aria-label={t('events:share')}
                 onClick={handleShare}
                 className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-white/50 bg-white/45 text-ink shadow-sm backdrop-blur-md transition-colors hover:bg-white/75"
               >
@@ -326,7 +329,7 @@ export function EventCard({
               {isAuthenticated && eventId && (
                 <button
                   type="button"
-                  aria-label={liked ? 'Remove from favorites' : 'Save to favorites'}
+                  aria-label={liked ? t('events:removeFromFavorites') : t('events:saveToFavorites')}
                   aria-pressed={liked}
                   onClick={toggleLike}
                   disabled={togglingFavorite}
@@ -341,7 +344,7 @@ export function EventCard({
               {canRate && (
                 <button
                   type="button"
-                  aria-label="Rate this event"
+                  aria-label={t('events:rateThisEvent')}
                   onClick={openRate}
                   className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-white/50 bg-white/45 text-ink shadow-sm backdrop-blur-md transition-colors hover:bg-white/75"
                 >
@@ -350,7 +353,7 @@ export function EventCard({
               )}
             </div>
             {shareHint && (
-              <div className="absolute left-1/2 top-14 z-30 -translate-x-1/2 rounded-full bg-ink/90 px-3 py-1 text-[10px] font-semibold text-white">
+              <div className="absolute start-1/2 top-14 z-30 -translate-x-1/2 rounded-full bg-ink/90 px-3 py-1 text-[10px] font-semibold text-white">
                 {shareHint}
               </div>
             )}
@@ -358,14 +361,14 @@ export function EventCard({
             {isSoldOut && (
               <div className="absolute inset-0 z-[5] flex items-center justify-center bg-ink/55 backdrop-blur-[2px]">
                 <span className="rotate-[-8deg] rounded-full bg-white px-4 py-1.5 text-[12px] font-black text-ink shadow-lg">
-                  SOLD OUT
+                  {t('events:soldOut')}
                 </span>
               </div>
             )}
 
             {/* Bottom content — inside image clip; mirage + top→bottom fade mask */}
             <div
-              className="pointer-events-none absolute bottom-3 left-3 right-3 z-20 max-w-full"
+              className="pointer-events-none absolute bottom-3 start-3 end-3 z-20 max-w-full"
               style={{
                 transform: reduceMotion ? 'translateY(0)' : showMirage ? 'translateY(46%)' : 'translateY(0)',
                 transition: reduceMotion ? undefined : panelMoveTransition,
@@ -469,15 +472,12 @@ export function EventCard({
                         lightAccent ? 'text-ink/50' : 'text-white/70'
                       )}
                     >
-                      From
+                      {t('events:from')}
                     </span>
-                    <span
-                      className="inline-flex items-baseline gap-0.5 font-mono text-[18px] font-black leading-none tracking-tight sm:text-[19px]"
-                      dir="ltr"
-                    >
+                    <Ltr className="inline-flex items-baseline gap-0.5 font-mono text-[18px] font-black leading-none tracking-tight sm:text-[19px]">
                       <span>{priceAmount}</span>
                       <SaudiRiyalIcon className="h-[1.05em] w-[1.05em] translate-y-[0.06em]" />
-                    </span>
+                    </Ltr>
                   </>
                 ) : (
                   <>
@@ -487,7 +487,7 @@ export function EventCard({
                         lightAccent ? 'text-ink/50' : 'text-white/70'
                       )}
                     >
-                      Tickets
+                      {t('events:tickets')}
                     </span>
                     <span
                       className={cn(
@@ -495,7 +495,7 @@ export function EventCard({
                         lightAccent ? 'text-ink/90' : 'text-white'
                       )}
                     >
-                      See event for pricing
+                      {t('events:seeEventForPricing')}
                     </span>
                   </>
                 )}
@@ -509,7 +509,7 @@ export function EventCard({
                 className="flex shrink-0 cursor-pointer items-center gap-1 rounded-full bg-ink px-2.5 py-1.5 text-[10px] font-bold text-white transition-colors hover:bg-ink-80"
               >
                 <Ticket size={11} weight="fill" />
-                {isSoldOut ? 'Sold Out' : 'Get Tickets'}
+                {isSoldOut ? t('events:soldOut') : t('events:getTickets')}
               </button>
             </div>
               </div>
@@ -532,7 +532,7 @@ export function EventCard({
               >
                 <button
                   type="button"
-                  aria-label="Close"
+                  aria-label={t('events:close')}
                   className="absolute inset-0 bg-ink/50 backdrop-blur-[2px]"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -564,13 +564,13 @@ export function EventCard({
                       <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-lemon text-ink">
                         <Star size={32} weight="fill" />
                       </div>
-                      <p className="text-[18px] font-extrabold text-ink">Thank you!</p>
-                      <p className="mt-1 text-[13px] text-ink-60">Your rating has been saved.</p>
+                      <p className="text-[18px] font-extrabold text-ink">{t('events:thankYou')}</p>
+                      <p className="mt-1 text-[13px] text-ink-60">{t('events:ratingSaved')}</p>
                     </motion.div>
                   ) : (
                     <>
                       <h2 id={dialogTitleId} className="text-[17px] font-extrabold text-ink">
-                        Rate this event
+                        {t('events:rateThisEvent')}
                       </h2>
                       <p className="mt-1 text-[12px] text-ink-60 line-clamp-2">{title}</p>
                       <div className="mt-5 flex justify-center gap-1">
@@ -580,7 +580,7 @@ export function EventCard({
                             type="button"
                             onClick={() => setRatePick(n)}
                             className="rounded-lg p-1 transition-transform hover:scale-110"
-                            aria-label={`${n} stars`}
+                            aria-label={t('events:nStars', { count: n })}
                           >
                             <Star
                               size={32}
@@ -597,7 +597,7 @@ export function EventCard({
                           onClick={() => setRateOpen(false)}
                           disabled={ratingSubmitting}
                         >
-                          Cancel
+                          {t('common:cancel', 'Cancel')}
                         </button>
                         <button
                           type="button"
@@ -605,7 +605,7 @@ export function EventCard({
                           className="flex-1 rounded-full bg-ink py-2.5 text-[13px] font-semibold text-white transition-colors enabled:hover:bg-ink-80 disabled:opacity-40"
                           onClick={submitRate}
                         >
-                          {ratingSubmitting ? 'Saving…' : 'Submit'}
+                          {ratingSubmitting ? t('events:saving') : t('common:submit', 'Submit')}
                         </button>
                       </div>
                     </>

@@ -1,13 +1,50 @@
+import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
+import { InfoPageLayout, InfoSection } from '@/components/layout/InfoPageLayout';
+
 export function PrivacyPage() {
+  const { t } = useTranslation('legal');
+
   return (
-    <div className="bg-white pb-20 pt-10">
-      <div className="mx-auto max-w-[720px] px-6 lg:px-8">
-        <h1 className="text-3xl font-extrabold text-ink">Privacy Policy</h1>
-        <p className="mt-4 text-[15px] leading-relaxed text-ink-60">
-          Placeholder privacy policy. Describe data collection, retention, KSA PDPL alignment, and user rights. Replace
-          with finalized legal text.
+    <InfoPageLayout
+      title={t('privacy.title')}
+      lead={t('privacy.lead')}
+      lastUpdated="June 2026"
+      legalDisclaimer
+    >
+      <InfoSection title={t('privacy.collectTitle')}>
+        <p>{t('privacy.collectBody1')}</p>
+        <p>{t('privacy.collectBody2')}</p>
+      </InfoSection>
+      <InfoSection title={t('privacy.useTitle')}>
+        <p>{t('privacy.useBody1')}</p>
+        <p>{t('privacy.useBody2')}</p>
+      </InfoSection>
+      <InfoSection title={t('privacy.sharingTitle')}>
+        <p>{t('privacy.sharingBody1')}</p>
+        <p>{t('privacy.sharingBody2')}</p>
+      </InfoSection>
+      <InfoSection title={t('privacy.retentionTitle')}>
+        <p>{t('privacy.retentionBody')}</p>
+      </InfoSection>
+      <InfoSection title={t('privacy.rightsTitle')}>
+        <p>
+          {t('privacy.rightsBody')}{' '}
+          <Link to="/support?tab=request" className="font-semibold text-coral hover:underline">
+            {t('privacy.supportLink')}
+          </Link>
+          .
         </p>
-      </div>
-    </div>
+      </InfoSection>
+      <InfoSection title={t('privacy.cookiesTitle')}>
+        <p>
+          {t('privacy.cookiesBody')}{' '}
+          <Link to="/cookies" className="font-semibold text-coral hover:underline">
+            {t('privacy.cookiesLink')}
+          </Link>
+          .
+        </p>
+      </InfoSection>
+    </InfoPageLayout>
   );
 }

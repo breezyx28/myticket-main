@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
@@ -16,6 +17,7 @@ import { TextInput } from '@/components/ui/form/inputs';
 import { loginSchema } from '@/schemas/auth';
 
 export function LoginPage() {
+  const { t } = useTranslation('authPages');
   const { signIn, signInWithOtp, signInWithOAuth } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -45,7 +47,7 @@ export function LoginPage() {
       if (challengeToken) {
         const otp = (values.otp ?? '').trim();
         if (!/^\d{6}$/.test(otp)) {
-          setFieldError('otp', { type: 'manual', message: 'Enter the 6-digit verification code.' });
+          setFieldError('otp', { type: 'manual', message: t('login.otpInvalid') });
           return;
         }
         await signInWithOtp(otp, challengeToken);
@@ -62,7 +64,7 @@ export function LoginPage() {
         setChallengeToken(e.challengeToken);
         return;
       }
-      setError(authErrorMessage(e, 'Sign-in failed.'));
+      setError(authErrorMessage(e, t('login.signInFailed')));
     }
   });
 
@@ -73,7 +75,7 @@ export function LoginPage() {
       await signInWithOAuth('google');
       // Navigation happens via window.location, so we don't navigate here.
     } catch (e) {
-      setError(authErrorMessage(e, 'Could not start Google sign-in.'));
+      setError(authErrorMessage(e, t('login.googleFailed')));
     } finally {
       setOauthLoading(false);
     }
@@ -89,19 +91,15 @@ export function LoginPage() {
 
   return (
     <FormSectionCard
-      eyebrow={challengeToken ? 'Two-factor required' : 'Welcome back'}
-      title={challengeToken ? 'Verify it’s you' : 'Sign in'}
-      description={
-        challengeToken
-          ? 'Enter the 6-digit code from your authenticator app to finish signing in.'
-          : 'Use your email and password to continue.'
-      }
+      eyebrow={challengeToken ? t('login.eyebrow2fa') : t('login.eyebrowWelcome')}
+      title={challengeToken ? t('login.titleVerify') : t('login.titleSignIn')}
+      description={challengeToken ? t('login.desc2fa') : t('login.descDefault')}
     >
       {!challengeToken && (
         <p className="-mt-4 text-[14px] text-ink-60">
-          New to MyTicket?{' '}
+          {t('login.newUser')}{' '}
           <Link to="/register" state={registerState} className="font-semibold text-coral hover:underline">
-            Create an account
+            {t('login.createAccount')}
           </Link>
         </p>
       )}
@@ -118,17 +116,17 @@ export function LoginPage() {
       <form onSubmit={onSubmit} className="mt-6 space-y-4" noValidate>
         {!challengeToken ? (
           <>
-            <Field label="Email" htmlFor="login-email" errorText={errors.email?.message}>
+            <Field label={t('login.email')} htmlFor="login-email" errorText={errors.email?.message}>
               <TextInput
                 id="login-email"
                 type="email"
                 autoComplete="email"
-                placeholder="you@example.com"
+                placeholder={t('login.emailPlaceholder')}
                 aria-invalid={Boolean(errors.email)}
                 {...register('email')}
               />
             </Field>
-            <Field label="Password" htmlFor="login-password" errorText={errors.password?.message}>
+            <Field label={t('login.password')} htmlFor="login-password" errorText={errors.password?.message}>
               <TextInput
                 id="login-password"
                 type="password"
@@ -140,19 +138,19 @@ export function LoginPage() {
             </Field>
             <div className="flex items-center justify-end">
               <Link to="/forgot-password" className="text-[13px] font-semibold text-coral hover:underline">
-                Forgot password?
+                {t('login.forgotPassword')}
               </Link>
             </div>
             <Button type="submit" variant="dark" size="md" className="w-full" loading={isSubmitting} disabled={submitDisabled}>
-              Sign in
+              {t('login.submit')}
             </Button>
           </>
         ) : (
           <>
             <Field
-              label="Verification code"
+              label={t('login.otpLabel')}
               htmlFor="login-otp"
-              helperText="6-digit code from your authenticator app."
+              helperText={t('login.otpHelper')}
               errorText={errors.otp?.message}
             >
               <TextInput
@@ -160,7 +158,7 @@ export function LoginPage() {
                 type="text"
                 inputMode="numeric"
                 autoComplete="one-time-code"
-                placeholder="123456"
+                placeholder={t('login.otpPlaceholder')}
                 maxLength={6}
                 aria-invalid={Boolean(errors.otp)}
                 {...register('otp')}
@@ -175,7 +173,7 @@ export function LoginPage() {
                 onClick={resetTwoFactorStep}
                 disabled={submitDisabled}
               >
-                Back
+                {t('login.back')}
               </Button>
               <Button
                 type="submit"
@@ -185,7 +183,7 @@ export function LoginPage() {
                 loading={isSubmitting}
                 disabled={submitDisabled}
               >
-                Verify and sign in
+                {t('login.verifyAndSignIn')}
               </Button>
             </div>
           </>
@@ -199,7 +197,7 @@ export function LoginPage() {
               <div className="w-full border-t border-ink-10" />
             </div>
             <div className="relative flex justify-center">
-              <span className="bg-white px-3 text-[12px] font-medium text-ink-40">or</span>
+              <span className="bg-white px-3 text-[12px] font-medium text-ink-40">{t('login.or')}</span>
             </div>
           </div>
 
@@ -212,7 +210,7 @@ export function LoginPage() {
             loading={oauthLoading}
             disabled={submitDisabled}
           >
-            Continue with Google
+            {t('login.continueGoogle')}
           </Button>
         </>
       )}

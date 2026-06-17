@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { EventCard } from '@/components/cards/EventCard';
 import { useListEventsQuery } from '@/api/endpoints';
@@ -46,7 +47,16 @@ function dateRangeForFilter(filter: DateFilter): { date_from?: string; date_to?:
   return {};
 }
 
+const filterLabelKeys: Record<DateFilter, string> = {
+  All: 'upcoming.filterAll',
+  Today: 'upcoming.filterToday',
+  'This Week': 'upcoming.filterThisWeek',
+  'This Month': 'upcoming.filterThisMonth',
+  Weekend: 'upcoming.filterWeekend',
+};
+
 export function UpcomingSection() {
+  const { t } = useTranslation('landing');
   const navigate = useNavigate();
   const [activeFilter, setActiveFilter] = useState<DateFilter>('All');
 
@@ -70,10 +80,10 @@ export function UpcomingSection() {
         <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-10 gap-4">
           <div>
             <span className="text-[11px] text-ink-40 uppercase tracking-[0.14em] block mb-1.5 font-medium">
-              Coming up next
+              {t('upcoming.eyebrow')}
             </span>
             <h2 className="font-extrabold text-[36px] md:text-[48px] leading-[1.1] tracking-[-0.02em] text-ink">
-              Upcoming Events
+              {t('upcoming.title')}
             </h2>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -88,18 +98,18 @@ export function UpcomingSection() {
                     : 'bg-white text-ink-60 hover:bg-ink-10 border border-ink-10'
                 )}
               >
-                {filter}
+                {t(filterLabelKeys[filter])}
               </button>
             ))}
           </div>
         </div>
 
         {isFetching && events.length === 0 ? (
-          <p className="text-center text-[12px] text-ink-40">Loading events…</p>
+          <p className="text-center text-[12px] text-ink-40">{t('upcoming.loading')}</p>
         ) : isError ? (
-          <p className="text-center text-[13px] text-coral">Could not load upcoming events.</p>
+          <p className="text-center text-[13px] text-coral">{t('upcoming.error')}</p>
         ) : events.length === 0 ? (
-          <p className="text-center text-[13px] text-ink-60">No upcoming events match this filter.</p>
+          <p className="text-center text-[13px] text-ink-60">{t('upcoming.empty')}</p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {events.map((e) => {
@@ -126,7 +136,7 @@ export function UpcomingSection() {
             onClick={() => navigate('/events')}
             className="px-8 py-3 rounded-full text-[14px] font-semibold bg-white text-ink border-2 border-ink hover:bg-ink hover:text-white transition-colors cursor-pointer"
           >
-            View All Events
+            {t('upcoming.viewAll')}
           </button>
         </div>
       </div>

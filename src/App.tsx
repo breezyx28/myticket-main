@@ -1,4 +1,5 @@
 import { Suspense, lazy } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Route, Routes, useLocation } from 'react-router-dom';
 import { RequireAuth } from '@/components/auth/RequireAuth';
 import { RequireGuestUpgrade } from '@/components/auth/RequireGuestUpgrade';
@@ -17,6 +18,7 @@ import { ResetPasswordPage } from '@/pages/auth/ResetPasswordPage';
 import { CookiesPage } from '@/pages/legal/CookiesPage';
 import { PrivacyPage } from '@/pages/legal/PrivacyPage';
 import { TermsPage } from '@/pages/legal/TermsPage';
+import { AboutPage } from '@/pages/info/AboutPage';
 import { OrganizerPortalRedirectPage } from '@/pages/organizer/OrganizerPortalRedirectPage';
 import { TalentPortalRedirectPage } from '@/pages/talent/TalentPortalRedirectPage';
 import { VendorPortalRedirectPage } from '@/pages/vendor/VendorPortalRedirectPage';
@@ -103,10 +105,11 @@ function MainEngagementsRoute() {
 }
 
 export function App() {
+  const { t } = useTranslation('common');
   return (
     <Suspense
       fallback={
-        <div className="px-6 py-24 text-center text-[13px] text-ink-40">Loading…</div>
+        <div className="px-6 py-24 text-center text-[13px] text-ink-40">{t('loading')}</div>
       }
     >
       <Routes>
@@ -124,6 +127,7 @@ export function App() {
           <Route path="/events" element={<EventsPage />} />
           <Route path="/events/:eventId" element={<EventDetailPage />} />
           <Route path="/organizers/:slug" element={<OrganizerProfilePage />} />
+          <Route path="/talents/:slug" element={<TalentProfilePage />} />
           <Route element={<RequireMarketplaceBrowse />}>
             <Route path="/marketplace" element={<MarketplacePage />} />
             <Route path="/marketplace/talent/:id" element={<TalentProfilePage />} />
@@ -133,6 +137,7 @@ export function App() {
           <Route path="/auction" element={<AuctionPage />} />
           <Route path="/auction/events/:eventId" element={<AuctionEventPage />} />
           <Route path="/support" element={<SupportPage />} />
+          <Route path="/about" element={<AboutPage />} />
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/cookies" element={<CookiesPage />} />

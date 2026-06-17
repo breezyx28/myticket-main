@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowUpRight,
@@ -28,6 +29,7 @@ const ROLE_BADGE_ICONS: Record<UpgradeRole, Icon> = {
 };
 
 export function RoleUpgradeBannersSection() {
+  const { t } = useTranslation(['landing', 'nav']);
   const navigate = useNavigate();
   const { user } = useAuth();
   const reduceMotion = usePrefersReducedMotion();
@@ -56,14 +58,18 @@ export function RoleUpgradeBannersSection() {
     };
   }, [api, onSelect]);
 
-  const cards = useMemo(
-    () =>
-      roleUpgradeBanners.map((banner) => {
-        const copy = isArabic ? banner.ar : banner.en;
-        return { banner, copy };
-      }),
-    [isArabic],
-  );
+  const cards = useMemo(() => {
+    return roleUpgradeBanners.map((banner) => ({
+      banner,
+      copy: {
+        roleLabel: t(`landing:${banner.id}Label`),
+        title: t(`landing:${banner.id}Title`),
+        titleAccent: t(`landing:${banner.id}Accent`),
+        summary: t(`landing:${banner.id}Summary`),
+        cta: t(`landing:${banner.id}Cta`),
+      },
+    }));
+  }, [t]);
 
   function navigateWithAuthGuard(route: string) {
     if (!user) {
@@ -86,19 +92,17 @@ export function RoleUpgradeBannersSection() {
         <div className="mb-8 flex flex-col gap-6 lg:mb-10 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
             <span className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-50">
-              {isArabic ? 'ترقية الدور' : 'Upgrade your role'}
+              {t('landing:roleUpgrade')}
             </span>
             <h2 className="mt-3 text-[clamp(2rem,3.8vw,2.75rem)] font-extrabold leading-[1.05] tracking-tight text-ink">
-              {isArabic
-                ? 'اختر المسار المناسب لك وابدأ الرحلة'
-                : 'Pick your path and start onboarding'}
+              {t('landing:roleUpgradeTitle')}
             </h2>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               type="button"
-              aria-label={isArabic ? 'البطاقات السابقة' : 'Previous banners'}
+              aria-label={t('nav:previousBanners')}
               onClick={() => api?.scrollPrev()}
               disabled={!canScrollPrev}
               className={cn(
@@ -110,7 +114,7 @@ export function RoleUpgradeBannersSection() {
             </button>
             <button
               type="button"
-              aria-label={isArabic ? 'البطاقات التالية' : 'Next banners'}
+              aria-label={t('nav:nextBanners')}
               onClick={() => api?.scrollNext()}
               disabled={!canScrollNext}
               className={cn(

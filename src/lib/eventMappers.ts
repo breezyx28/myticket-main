@@ -2,6 +2,8 @@ import type { EventDetail, EventGalleryItem, EventListItem, EventOrganizerSummar
 import type { EventCardProps } from '@/components/cards/EventCard';
 import { resolvePublicStorageUrl } from '@/lib/organizerMedia';
 import { priceFromTicketApi, remainingFromTicketApiRow } from '@/lib/ticketTypeFromApi';
+import { languageToLocale, type AppLanguage } from '@/lib/language';
+import { pickLocalizedName } from '@/lib/localized';
 import type { LayoutType, MockEvent, OrganizerSummary } from '@/types/domain';
 
 /**
@@ -43,13 +45,21 @@ export function accentForCategory(category?: string | null): string {
 }
 
 /** Format an ISO datetime into the short date / time strings used by `EventCard`. */
-export function formatCardDateTime(iso: string): { date: string; time: string } {
+export function formatCardDateTime(iso: string, language: AppLanguage = 'en'): { date: string; time: string } {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return { date: '', time: '' };
+  const locale = languageToLocale(language);
   return {
-    date: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-    time: d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+    date: d.toLocaleDateString(locale, { month: 'short', day: 'numeric', year: 'numeric' }),
+    time: d.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' }),
   };
+}
+
+export function localizedRefName(
+  item: { name?: string | null; name_en?: string | null; name_ar?: string | null },
+  language: AppLanguage,
+): string {
+  return pickLocalizedName(item, language);
 }
 
 /**
