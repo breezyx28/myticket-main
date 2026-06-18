@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ProfileImageAvatarInput } from '@/components/auth/ProfileImageAvatarInput';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUploadProfileImageFile } from '@/hooks/useUploadProfileImageFile';
@@ -12,6 +13,7 @@ type AccountProfileAvatarProps = {
  * Persists immediately — no profile form save button required.
  */
 export function AccountProfileAvatar({ displayName }: AccountProfileAvatarProps) {
+  const { t } = useTranslation('profile');
   const { user, applyProfileImageUrl, updateAccountInfo } = useAuth();
   const { upload } = useUploadProfileImageFile();
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -20,24 +22,24 @@ export function AccountProfileAvatar({ displayName }: AccountProfileAvatarProps)
     async (file: File) => {
       const url = await upload(file);
       applyProfileImageUrl(url);
-      setStatusMessage('Profile photo updated.');
+      setStatusMessage(t('avatar.updated'));
       window.setTimeout(() => setStatusMessage(null), 2500);
     },
-    [applyProfileImageUrl, upload],
+    [applyProfileImageUrl, t, upload],
   );
 
   const onRemove = useCallback(async () => {
     await updateAccountInfo({ profileImage: '' });
-    setStatusMessage('Profile photo removed.');
+    setStatusMessage(t('avatar.removed'));
     window.setTimeout(() => setStatusMessage(null), 2500);
-  }, [updateAccountInfo]);
+  }, [t, updateAccountInfo]);
 
   return (
     <div className="mb-2">
       <ProfileImageAvatarInput
         value={user?.profileImage}
         displayName={displayName}
-        hintText="Choose a photo — it uploads and saves automatically."
+        hintText={t('avatar.hint')}
         onFileSelected={onFileSelected}
         onRemove={onRemove}
       />

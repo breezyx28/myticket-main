@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Ticket as TicketIcon } from '@phosphor-icons/react';
 import '@fontsource/staatliches/400.css';
 import '@fontsource/nanum-pen-script/400.css';
@@ -41,21 +42,33 @@ function TicketEventCover({ coverImageUrl }: { coverImageUrl: string | null }) {
   );
 }
 
-function BrandStrip() {
+function BrandStrip({ brand }: { brand: string }) {
   return (
     <p className={styles.brandStrip} aria-hidden>
-      <span>MyTicket</span>
-      <span>MyTicket</span>
-      <span>MyTicket</span>
+      <span>{brand}</span>
+      <span>{brand}</span>
+      <span>{brand}</span>
     </p>
   );
 }
 
-function TimeBlock({ start, end, className }: { start: string | null; end: string | null; className?: string }) {
+function TimeBlock({
+  start,
+  end,
+  className,
+  timeTbc,
+  timeTo,
+}: {
+  start: string | null;
+  end: string | null;
+  className?: string;
+  timeTbc: string;
+  timeTo: string;
+}) {
   if (!start) {
     return (
       <div className={cn(styles.time, className)}>
-        <p>TIME TBC</p>
+        <p>{timeTbc}</p>
       </div>
     );
   }
@@ -63,7 +76,7 @@ function TimeBlock({ start, end, className }: { start: string | null; end: strin
     <div className={cn(styles.time, className)}>
       {end && end !== start ? (
         <p>
-          {start} <span>TO</span> {end}
+          {start} <span>{timeTo}</span> {end}
         </p>
       ) : (
         <p>{start}</p>
@@ -76,16 +89,18 @@ export const AdmitOneTicket = forwardRef<HTMLDivElement, AdmitOneTicketProps>(fu
   { model, qrDataUrl, qrLoading = false, variant = 'display', className },
   ref,
 ) {
+  const { t } = useTranslation('tickets');
+
   return (
     <div
       ref={ref}
       className={cn(styles.root, variant === 'download' ? styles.download : styles.display, className)}
-      aria-label={`Ticket for ${model.eventTitle}`}
+      aria-label={`${t('detail.fallbackTicket')} ${model.eventTitle}`}
     >
       <div className={styles.left}>
         <div className={styles.imageWrap}>
           <TicketEventCover coverImageUrl={model.coverImageUrl} />
-          <BrandStrip />
+          <BrandStrip brand={t('detail.brand')} />
           <div className={styles.leftTicketNumber}>
             <p>{model.ticketNumber}</p>
           </div>
@@ -103,7 +118,13 @@ export const AdmitOneTicket = forwardRef<HTMLDivElement, AdmitOneTicketProps>(fu
             <h2>{model.subtitle}</h2>
           </div>
 
-          <TimeBlock start={model.timeStart} end={model.timeEnd} className={styles.leftTime} />
+          <TimeBlock
+            start={model.timeStart}
+            end={model.timeEnd}
+            className={styles.leftTime}
+            timeTbc={model.timeTbc}
+            timeTo={model.timeTo}
+          />
 
           <p className={styles.location}>
             <span>{model.venue}</span>
@@ -116,21 +137,26 @@ export const AdmitOneTicket = forwardRef<HTMLDivElement, AdmitOneTicketProps>(fu
       </div>
 
       <div className={styles.right}>
-        <BrandStrip />
+        <BrandStrip brand={t('detail.brand')} />
         <div className={styles.rightInfo}>
           <div className={styles.showName}>
             <h1>{model.eventTitle}</h1>
           </div>
 
-          <TimeBlock start={model.timeStart} end={model.timeEnd} />
+          <TimeBlock
+            start={model.timeStart}
+            end={model.timeEnd}
+            timeTbc={model.timeTbc}
+            timeTo={model.timeTo}
+          />
 
           <div className={styles.barcode}>
             {qrLoading ? (
-              <div className={styles.barcodePlaceholder}>Generating QR…</div>
+              <div className={styles.barcodePlaceholder}>{t('detail.generatingQr')}</div>
             ) : qrDataUrl ? (
-              <img src={qrDataUrl} alt="Ticket entry QR code" />
+              <img src={qrDataUrl} alt={t('detail.qrAlt')} />
             ) : (
-              <div className={styles.barcodePlaceholder}>QR unavailable</div>
+              <div className={styles.barcodePlaceholder}>{t('detail.qrUnavailable')}</div>
             )}
           </div>
 
@@ -139,7 +165,7 @@ export const AdmitOneTicket = forwardRef<HTMLDivElement, AdmitOneTicketProps>(fu
       </div>
 
       {!model.isActive ? (
-        <div className={styles.statusOverlay} aria-label={`Ticket status: ${model.statusLabel}`}>
+        <div className={styles.statusOverlay} aria-label={`${t('detail.ticketStatus')}: ${model.statusLabel}`}>
           <span className={styles.statusRibbon}>{model.statusLabel.toUpperCase()}</span>
         </div>
       ) : null}

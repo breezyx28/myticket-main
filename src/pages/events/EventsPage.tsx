@@ -10,6 +10,7 @@ import {
 } from '@/api/endpoints';
 import type { EventLayoutType, EventListQuery } from '@/api/types/event';
 import type { EventCategoryRef } from '@/api/types/reference';
+import { pickLocalizedName, type AppLanguage } from '@/i18n';
 import { eventListItemToCardProps } from '@/lib/eventMappers';
 import { cn } from '@/lib/utils';
 import {
@@ -23,7 +24,8 @@ const PER_PAGE = 12;
 const EMPTY_EVENT_CATEGORIES: EventCategoryRef[] = [];
 
 export function EventsPage() {
-  const { t } = useTranslation('eventsPage');
+  const { t, i18n } = useTranslation('eventsPage');
+  const language = (i18n.language === 'ar' ? 'ar' : 'en') as AppLanguage;
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -358,7 +360,7 @@ export function EventsPage() {
                         )}
                       {categories.map((c) => (
                         <option key={String(c.id)} value={String(c.id)}>
-                          {c.name}
+                          {pickLocalizedName(c, language) || c.name}
                         </option>
                       ))}
                     </select>

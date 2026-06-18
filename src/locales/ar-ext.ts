@@ -45,6 +45,7 @@ export const arExt = {
       ticketsSold: 'تذاكر مباعة',
       cities: 'مدن',
       satisfaction: 'رضا العملاء',
+      ariaLabel: 'إحصائيات',
     },
     cta: {
       titleLine1: 'هل أنت مستعد لتجربة',

@@ -1,8 +1,6 @@
+import { useTranslation } from 'react-i18next';
 import type { TourismAdDayHours, TourismAdOpeningHours } from '@/api/types/tourismAd';
-import {
-  TOURISM_AD_WEEKDAY_LABELS,
-  TOURISM_AD_WEEKDAYS,
-} from '@/schemas/tourismAd';
+import { TOURISM_AD_WEEKDAYS, tourismWeekdayLabel } from '@/schemas/tourismAd';
 import { cn } from '@/lib/utils';
 
 interface OpeningHoursEditorProps {
@@ -18,6 +16,8 @@ export function OpeningHoursEditor({
   disabled,
   fieldErrors = {},
 }: OpeningHoursEditorProps) {
+  const { t } = useTranslation('tourism');
+
   function patchDay(day: (typeof TOURISM_AD_WEEKDAYS)[number], patch: Partial<TourismAdDayHours>) {
     const current = value[day] ?? { closed: true };
     onChange({
@@ -43,7 +43,7 @@ export function OpeningHoursEditor({
               dayErr && 'border-coral/40 bg-coral/5',
             )}
           >
-            <p className="text-[13px] font-bold text-ink">{TOURISM_AD_WEEKDAY_LABELS[day]}</p>
+            <p className="text-[13px] font-bold text-ink">{tourismWeekdayLabel(t, day)}</p>
             <label className="flex items-center gap-2 text-[12px] font-medium text-ink-60">
               <input
                 type="checkbox"
@@ -59,7 +59,7 @@ export function OpeningHoursEditor({
                 }
                 className="rounded border-ink-20"
               />
-              Closed
+              {t('openingHours.closed')}
             </label>
             {!hours.closed ? (
               <div className="flex flex-wrap items-center gap-2 sm:col-span-2 sm:justify-end">
@@ -70,7 +70,7 @@ export function OpeningHoursEditor({
                   onChange={(e) => patchDay(day, { opens: e.target.value })}
                   className="rounded-lg border border-ink-10 px-2 py-1.5 text-[13px]"
                 />
-                <span className="text-[12px] text-ink-40">to</span>
+                <span className="text-[12px] text-ink-40">{t('openingHours.to')}</span>
                 <input
                   type="time"
                   value={hours.closes ?? ''}

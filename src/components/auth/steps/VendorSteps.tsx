@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { VendorOnboardingDraft } from "@/types/domain";
 import {
   TALENT_BIO_MAX_CHARS,
@@ -26,6 +27,7 @@ export function VendorSteps({
   setTempInput,
   onChange,
 }: VendorStepsProps) {
+  const { t } = useTranslation("authPages");
   const [docInput, setDocInput] = useState("");
   const [saudiRegionId, setSaudiRegionId] = useState("");
   const vendorCities = useMemo(
@@ -46,16 +48,16 @@ export function VendorSteps({
   if (step === 0) {
     return (
       <div className="space-y-4">
-        <Field label="Business / profile name *">
+        <Field label={t("onboarding.vendor.profileName")}>
           <TextInput
             value={draft.profileName}
             onChange={(e) => onChange({ profileName: e.target.value })}
-            placeholder="Your business name"
+            placeholder={t("onboarding.vendor.profileNamePlaceholder")}
           />
         </Field>
 
         <Field
-          label="Bio *"
+          label={t("onboarding.vendor.bioLabel")}
           right={
             <CharCounter
               valueLength={bioLen}
@@ -63,14 +65,14 @@ export function VendorSteps({
               max={TALENT_BIO_MAX_CHARS}
             />
           }
-          helperText="Describe what you provide, typical scope, and what you’re best at."
+          helperText={t("onboarding.vendor.bioHelper")}
         >
           <TextArea
             rows={5}
             maxLength={TALENT_BIO_MAX_CHARS}
             value={draft.bio}
             onChange={(e) => onChange({ bio: e.target.value })}
-            placeholder="Share your services, experience, and specialties."
+            placeholder={t("onboarding.vendor.bioPlaceholder")}
           />
         </Field>
       </div>
@@ -79,17 +81,15 @@ export function VendorSteps({
   if (step === 1) {
     return (
       <div className="space-y-4">
-        <InlineNotice variant="info" title="Service categories *">
-          <p className="text-[12px]">
-            Add categories so organizers can find you (demo).
-          </p>
+        <InlineNotice variant="info" title={t("onboarding.vendor.categoriesTitle")}>
+          <p className="text-[12px]">{t("onboarding.vendor.categoriesBody")}</p>
         </InlineNotice>
         <div className="flex gap-2">
           <TextInput
             value={tempInput}
             onChange={(e) => setTempInput(e.target.value)}
             className="!py-2.5"
-            placeholder="e.g. Security, Lighting"
+            placeholder={t("onboarding.vendor.categoryPlaceholder")}
           />
           <button
             type="button"
@@ -105,7 +105,7 @@ export function VendorSteps({
             }}
             className="rounded-xl border border-ink-10 px-3 text-[12px] font-semibold hover:bg-ink-5"
           >
-            Add
+            {t("onboarding.buttons.add")}
           </button>
         </div>
         <ul className="space-y-1">
@@ -126,7 +126,7 @@ export function VendorSteps({
                 }
                 className="font-semibold text-coral"
               >
-                Remove
+                {t("onboarding.buttons.remove")}
               </button>
             </li>
           ))}
@@ -138,17 +138,17 @@ export function VendorSteps({
     <div className="space-y-4">
       <div className="rounded-xl border border-ink-10 bg-ink-5/50 p-4">
         <p className="text-[12px] font-semibold text-ink-60">
-          Verification document *
+          {t("onboarding.vendor.verificationTitle")}
         </p>
         <p className="mt-1 text-[11px] text-ink-40">
-          Add your license URL or upload a file (demo).
+          {t("onboarding.vendor.verificationBody")}
         </p>
         <div className="mt-3 flex gap-2">
           <TextInput
             value={docInput}
             onChange={(e) => setDocInput(e.target.value)}
             className="!py-2.5"
-            placeholder="Business license URL"
+            placeholder={t("onboarding.vendor.licenseUrlPlaceholder")}
           />
           <button
             type="button"
@@ -162,12 +162,12 @@ export function VendorSteps({
             }}
             className="rounded-xl border border-ink-10 px-3 text-[12px] font-semibold hover:bg-ink-5"
           >
-            Add
+            {t("onboarding.buttons.add")}
           </button>
         </div>
         <UploadTileInput
-          title="Upload document"
-          subtitle="pdf, image, or scan"
+          title={t("onboarding.vendor.uploadDocument")}
+          subtitle={t("onboarding.vendor.uploadSubtitle")}
           accept="image/*,.pdf,application/pdf"
           className="mt-2 bg-white"
           onPick={(file) => {
@@ -205,7 +205,7 @@ export function VendorSteps({
                             rel="noreferrer"
                             className="text-coral font-semibold"
                           >
-                            Open {name}
+                            {t("onboarding.buttons.open", { name })}
                           </a>
                         ) : (
                           <img
@@ -238,7 +238,7 @@ export function VendorSteps({
                           }}
                         />
                         <span className="cursor-pointer text-coral">
-                          Replace
+                          {t("onboarding.buttons.replace")}
                         </span>
                       </label>
                       <button
@@ -253,7 +253,7 @@ export function VendorSteps({
                         }
                         className="font-semibold text-coral"
                       >
-                        Remove
+                        {t("onboarding.buttons.remove")}
                       </button>
                     </div>
                   </div>
@@ -263,7 +263,7 @@ export function VendorSteps({
           </ul>
         )}
       </div>
-      <Field label="Saudi region *">
+      <Field label={t("onboarding.shared.saudiRegion")}>
         <Select
           value={saudiRegionId}
           onChange={(e) => {
@@ -272,7 +272,7 @@ export function VendorSteps({
             onChange({ city: "" });
           }}
         >
-          <option value="">Select region</option>
+          <option value="">{t("onboarding.shared.selectRegion")}</option>
           {SAUDI_REGIONS.map((region) => (
             <option key={region.id} value={region.id}>
               {region.name}
@@ -280,14 +280,16 @@ export function VendorSteps({
           ))}
         </Select>
       </Field>
-      <Field label="City *">
+      <Field label={t("onboarding.shared.city")}>
         <Select
           value={draft.city}
           onChange={(e) => onChange({ city: e.target.value })}
           disabled={!saudiRegionId}
         >
           <option value="">
-            {saudiRegionId ? "Select city" : "Choose a region first"}
+            {saudiRegionId
+              ? t("onboarding.shared.selectCity")
+              : t("onboarding.shared.chooseRegionFirst")}
           </option>
           {vendorCities.map((city) => (
             <option key={city.id} value={city.name}>
@@ -296,11 +298,11 @@ export function VendorSteps({
           ))}
         </Select>
       </Field>
-      <Field label="Coverage area">
+      <Field label={t("onboarding.shared.coverageArea")}>
         <TextInput
           value={draft.coverageArea}
           onChange={(e) => onChange({ coverageArea: e.target.value })}
-          placeholder="e.g. Riyadh + Eastern Province"
+          placeholder={t("onboarding.shared.coverageAreaPlaceholder")}
         />
       </Field>
     </div>

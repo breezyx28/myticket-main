@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 
 export type RegisterRoleTab = 'guest' | 'talent' | 'organizer' | 'vendor';
@@ -7,27 +8,24 @@ interface RoleTabsProps {
   onChange: (role: RegisterRoleTab) => void;
 }
 
-const ROLE_LABELS: { id: RegisterRoleTab; label: string }[] = [
-  { id: 'guest', label: 'Guest' },
-  { id: 'talent', label: 'Talent' },
-  { id: 'organizer', label: 'Organizer' },
-  { id: 'vendor', label: 'Vendor' },
-];
+const ROLE_IDS: RegisterRoleTab[] = ['guest', 'talent', 'organizer', 'vendor'];
 
 export function RoleTabs({ value, onChange }: RoleTabsProps) {
+  const { t } = useTranslation('authPages');
+
   return (
     <div className="grid grid-cols-2 gap-2 rounded-2xl border border-ink-10 bg-ink-5/60 p-2 sm:grid-cols-4">
-      {ROLE_LABELS.map((role) => (
+      {ROLE_IDS.map((id) => (
         <button
-          key={role.id}
+          key={id}
           type="button"
-          onClick={() => onChange(role.id)}
+          onClick={() => onChange(id)}
           className={cn(
             'rounded-xl px-3 py-2 text-[12px] font-bold transition-colors',
-            value === role.id ? 'bg-ink text-white' : 'bg-white text-ink-60 hover:bg-ink-10'
+            value === id ? 'bg-ink text-white' : 'bg-white text-ink-60 hover:bg-ink-10'
           )}
         >
-          {role.label}
+          {t(`register.roles.${id}.label`)}
         </button>
       ))}
     </div>

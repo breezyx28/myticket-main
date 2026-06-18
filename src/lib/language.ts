@@ -2,6 +2,17 @@ export type AppLanguage = 'en' | 'ar';
 
 const GUEST_LANGUAGE_KEY = 'myticket_guest_language';
 
+let apiLanguage: AppLanguage = 'en';
+
+/** Current language sent as `Accept-Language` on API requests. */
+export function getApiLanguage(): AppLanguage {
+  return apiLanguage;
+}
+
+export function setApiLanguage(language: AppLanguage) {
+  apiLanguage = language;
+}
+
 export function applyDocumentLanguage(language: AppLanguage) {
   if (typeof document === 'undefined') return;
   document.documentElement.lang = language;

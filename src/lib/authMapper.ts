@@ -165,7 +165,7 @@ export function parseAuthResponse(
     return {
       kind: 'verification_required',
       error: new EmailVerificationRequiredError(
-        pickResponseMessage(data) ?? EMAIL_VERIFICATION_REQUIRED_MESSAGE,
+        pickResponseMessage(data) ?? EMAIL_VERIFICATION_REQUIRED_MESSAGE(),
       ),
     };
   }

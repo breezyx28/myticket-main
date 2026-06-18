@@ -389,7 +389,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const expected = sessionStorage.getItem(OAUTH_STATE_KEY);
         if (expected && state && expected !== state) {
-          throw new Error("OAuth state mismatch. Try signing in again.");
+          throw new Error(i18n.t('auth:oauthStateMismatch'));
         }
         sessionStorage.removeItem(OAUTH_STATE_KEY);
         sessionStorage.removeItem(OAUTH_PROVIDER_KEY);
@@ -409,7 +409,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (error) {
         if (error instanceof TwoFactorRequiredError) throw error;
         if (error instanceof EmailVerificationRequiredError) throw error;
-        throw toAuthApiError(error, "OAuth sign-in failed.");
+        throw toAuthApiError(error, i18n.t('auth:oauthSignInFailed'));
       }
     },
     [oauthCallbackMutation, persistCredentialsAndHydrate],
@@ -420,7 +420,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         await forgotPasswordMutation({ email }).unwrap();
       } catch (error) {
-        throw toAuthApiError(error, "Could not start password reset.");
+        throw toAuthApiError(error, i18n.t('auth:passwordResetStartFailed'));
       }
     },
     [forgotPasswordMutation],
@@ -431,7 +431,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         await resetPasswordMutation({ token, password }).unwrap();
       } catch (error) {
-        throw toAuthApiError(error, "Could not reset your password.");
+        throw toAuthApiError(error, i18n.t('auth:passwordResetFailed'));
       }
     },
     [resetPasswordMutation],
@@ -482,7 +482,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             message: error.message,
           };
         }
-        throw toAuthApiError(error, "Sign-up failed.");
+        throw toAuthApiError(error, i18n.t('auth:signUpFailed'));
       }
     },
     [registerMutation, persistCredentialsAndHydrate],
@@ -528,8 +528,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           body.avatar_url = undefined;
         } else if (pic.startsWith('data:') || pic.startsWith('blob:')) {
           throw toAuthApiError(
-            new Error('Profile photo is still uploading or invalid. Choose a photo and wait for upload to finish.'),
-            'Could not update profile.',
+            new Error(i18n.t('auth:profilePhotoUploading')),
+            i18n.t('auth:updateProfileFailed'),
           );
         } else {
           body.avatar_url = pic;
@@ -543,7 +543,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const next = mapUserMeToMockUser(me, userRef.current);
         setUser(next);
       } catch (error) {
-        throw toAuthApiError(error, "Could not update profile.");
+        throw toAuthApiError(error, i18n.t('auth:updateProfileFailed'));
       }
     },
     [updateMeMutation],
@@ -562,7 +562,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           };
         });
       } catch (error) {
-        throw toAuthApiError(error, "Could not save preferences.");
+        throw toAuthApiError(error, i18n.t('auth:savePreferencesFailed'));
       }
     },
     [updatePreferencesMutation],
@@ -596,7 +596,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           };
         });
       } catch (error) {
-        throw toAuthApiError(error, "Could not change password.");
+        throw toAuthApiError(error, i18n.t('auth:changePasswordFailed'));
       }
     },
     [changePasswordMutation],
@@ -608,7 +608,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const res = await changeEmailMutation(body).unwrap();
         return res.message;
       } catch (error) {
-        throw toAuthApiError(error, "Could not start email change.");
+        throw toAuthApiError(error, i18n.t('auth:emailChangeStartFailed'));
       }
     },
     [changeEmailMutation],
@@ -619,7 +619,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         return await deleteMeMutation(body).unwrap();
       } catch (error) {
-        throw toAuthApiError(error, "Could not delete account.");
+        throw toAuthApiError(error, i18n.t('auth:deleteAccountFailed'));
       }
     },
     [deleteMeMutation],
@@ -630,7 +630,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         await setTalentAvailabilityMutation({ status }).unwrap();
       } catch (error) {
-        throw toAuthApiError(error, "Could not update availability.");
+        throw toAuthApiError(error, i18n.t('auth:updateAvailabilityFailed'));
       }
     },
     [setTalentAvailabilityMutation],

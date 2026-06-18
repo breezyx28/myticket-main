@@ -1,4 +1,5 @@
 import { Link, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   EnvelopeSimple,
   Globe,
@@ -8,12 +9,10 @@ import {
 } from '@phosphor-icons/react';
 import { useGetTourismAdQuery } from '@/api/endpoints';
 import { Button } from '@/components/ui/Button';
-import {
-  TOURISM_AD_WEEKDAY_LABELS,
-  TOURISM_AD_WEEKDAYS,
-} from '@/schemas/tourismAd';
+import { TOURISM_AD_WEEKDAYS, tourismWeekdayLabel } from '@/schemas/tourismAd';
 
 export function TourismAdDetailPage() {
+  const { t } = useTranslation('tourism');
   const { id } = useParams<{ id: string }>();
   const { data: ad, isLoading, isError } = useGetTourismAdQuery(id ?? '', {
     skip: !id,
@@ -21,20 +20,18 @@ export function TourismAdDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="px-6 py-24 text-center text-[13px] text-ink-40">Loading…</div>
+      <div className="px-6 py-24 text-center text-[13px] text-ink-40">{t('detail.loading')}</div>
     );
   }
 
   if (isError || !ad) {
     return (
       <div className="mx-auto max-w-[720px] px-6 py-24 text-center">
-        <h1 className="text-2xl font-extrabold text-ink">Ad not available</h1>
-        <p className="mt-3 text-[14px] text-ink-60">
-          This tourism ad may have expired or is no longer published.
-        </p>
+        <h1 className="text-2xl font-extrabold text-ink">{t('detail.notAvailableTitle')}</h1>
+        <p className="mt-3 text-[14px] text-ink-60">{t('detail.notAvailableBody')}</p>
         <Link to="/" className="mt-6 inline-block">
           <Button type="button" variant="dark" size="md">
-            Back to home
+            {t('detail.backHome')}
           </Button>
         </Link>
       </div>
@@ -51,7 +48,7 @@ export function TourismAdDetailPage() {
           to="/"
           className="text-[13px] font-semibold text-coral hover:underline"
         >
-          ← Back to home
+          {t('detail.backHome')}
         </Link>
 
         <div className="mt-6 overflow-hidden rounded-2xl border border-ink-10">
@@ -63,7 +60,7 @@ export function TourismAdDetailPage() {
             />
           ) : (
             <div className="flex aspect-[21/9] items-center justify-center bg-ink-5 text-ink-40">
-              No cover image
+              {t('detail.noCoverImage')}
             </div>
           )}
         </div>
@@ -97,7 +94,7 @@ export function TourismAdDetailPage() {
 
         {ad.services.length > 0 ? (
           <section className="mt-10">
-            <h2 className="text-[18px] font-extrabold text-ink">Services</h2>
+            <h2 className="text-[18px] font-extrabold text-ink">{t('detail.services')}</h2>
             <div className="mt-3 flex flex-wrap gap-2">
               {ad.services.map((service) => (
                 <span
@@ -112,7 +109,7 @@ export function TourismAdDetailPage() {
         ) : null}
 
         <section className="mt-10">
-          <h2 className="text-[18px] font-extrabold text-ink">Opening hours</h2>
+          <h2 className="text-[18px] font-extrabold text-ink">{t('detail.openingHours')}</h2>
           <div className="mt-3 overflow-hidden rounded-xl border border-ink-10">
             <table className="w-full text-left text-[13px]">
               <tbody>
@@ -121,11 +118,11 @@ export function TourismAdDetailPage() {
                   return (
                     <tr key={day} className="border-b border-ink-10 last:border-0">
                       <td className="px-4 py-3 font-semibold text-ink">
-                        {TOURISM_AD_WEEKDAY_LABELS[day]}
+                        {tourismWeekdayLabel(t, day)}
                       </td>
                       <td className="px-4 py-3 text-ink-60">
                         {hours?.closed
-                          ? 'Closed'
+                          ? t('openingHours.closed')
                           : `${hours?.opens ?? '—'} – ${hours?.closes ?? '—'}`}
                       </td>
                     </tr>
@@ -137,7 +134,7 @@ export function TourismAdDetailPage() {
         </section>
 
         <section className="mt-10">
-          <h2 className="text-[18px] font-extrabold text-ink">Contact</h2>
+          <h2 className="text-[18px] font-extrabold text-ink">{t('detail.contact')}</h2>
           <ul className="mt-3 space-y-2 text-[14px]">
             {ad.contact?.phone ? (
               <li className="flex items-center gap-2">
@@ -186,7 +183,7 @@ export function TourismAdDetailPage() {
 
         {ad.media_links.length > 0 ? (
           <section className="mt-10">
-            <h2 className="text-[18px] font-extrabold text-ink">Social & links</h2>
+            <h2 className="text-[18px] font-extrabold text-ink">{t('detail.socialLinks')}</h2>
             <ul className="mt-3 space-y-2">
               {ad.media_links.map((link) => (
                 <li key={`${link.platform}-${link.url}`}>
@@ -205,7 +202,7 @@ export function TourismAdDetailPage() {
         ) : null}
 
         <section className="mt-10">
-          <h2 className="text-[18px] font-extrabold text-ink">Location</h2>
+          <h2 className="text-[18px] font-extrabold text-ink">{t('detail.location')}</h2>
           <p className="mt-2 text-[14px] text-ink-60">
             {ad.latitude}, {ad.longitude}
           </p>
@@ -215,7 +212,7 @@ export function TourismAdDetailPage() {
             rel="noreferrer"
             className="mt-3 inline-block text-[13px] font-semibold text-coral hover:underline"
           >
-            Open in Google Maps
+            {t('detail.openInMaps')}
           </a>
         </section>
       </div>

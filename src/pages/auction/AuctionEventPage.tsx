@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import * as yup from 'yup';
 import { Clock, MapPin } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -31,11 +32,11 @@ import { PLATFORM_AUCTION_COMMISSION_PCT } from '@/lib/constants';
 import { apiAuctionToMockAuctionListing } from '@/lib/auctionMappers';
 import { uiSeatIdToApi } from '@/lib/seatMappers';
 import { cn } from '@/lib/utils';
-import { placeBidSchema, validateBuyNowNewCardForm } from '@/schemas/auction';
+import { createPlaceBidSchema, validateBuyNowNewCardForm } from '@/schemas/auction';
 import type { MockAuctionListing } from '@/types/domain';
 
-function formatRemaining(ms: number) {
-  if (ms <= 0) return 'Ended';
+function formatRemaining(ms: number, endedLabel: string) {
+  if (ms <= 0) return endedLabel;
   const s = Math.floor(ms / 1000);
   const d = Math.floor(s / 86400);
   const h = Math.floor((s % 86400) / 3600);
@@ -104,6 +105,13 @@ type BuySavedCardPick =
   | { kind: 'saved'; id: Id };
 
 export function AuctionEventPage() {
+  const { t, i18n } = useTranslation(['auction', 'common', 'nav']);
+  const { t: tValidation } = useTranslation('validation');
+  const placeBidSchema = useMemo(
+    () => createPlaceBidSchema(tValidation),
+    [tValidation, i18n.language],
+  );
+  const ev = (key: string, opts?: Record<string, unknown>) => t(`event.${key}`, opts);
   const { eventId } = useParams();
   const now = useNow();
   const { user } = useAuth();
@@ -198,7 +206,7 @@ export function AuctionEventPage() {
   }
 
   if (isLoading) {
-    return <div className="px-6 py-24 text-center text-ink-40">Loading…</div>;
+    return <div className="px-6 py-24 text-center text-ink-40">{ev('loading')}</div>;
   }
 
   if (isError) {
@@ -206,10 +214,10 @@ export function AuctionEventPage() {
       <div className="bg-ink-5/40 pb-20 pt-10">
         <div className="mx-auto max-w-[960px] px-6 lg:px-8">
           <Link to="/auction" className="text-[13px] font-semibold text-coral hover:underline">
-            ← Auction
+            ← {t('nav:auction')}
           </Link>
           <p className="mt-10 rounded-lg border border-coral/40 bg-coral/10 px-4 py-3 text-center text-[13px] font-semibold text-coral">
-            Could not load this auction. Please refresh and try again.
+            {ev('loadError')}
           </p>
         </div>
       </div>
@@ -276,23 +284,33 @@ export function AuctionEventPage() {
     try {
       await placeBidSchema.validate({ amount }, { context: { minimumBid } });
     } catch (err) {
-      setBidError(err instanceof Error ? err.message : 'Enter a valid bid amount.');
+      setBidError(err instanceof Error ? err.message : ev('bidAmountError'));
       return;
     }
     const body: PlaceBidRequest = { amount };
     try {
       await placeBid({ id: uiSeatIdToApi(listing.id), body }).unwrap();
     } catch (err) {
-      setBidError(readApiErrorMessage(err) ?? 'We could not place that bid. Try again.');
+      setBidError(readApiErrorMessage(err) ?? ev('bidFailed'));
       return;
     }
     closeDialog();
     const cur = listing.currency ?? 'SAR';
-    setSuccessCopy(`Bid placed: ${amount} ${cur} on ${listing.eventTitle || 'this listing'}.`);
+    setSuccessCopy(
+      ev('bidPlaced', {
+        amount,
+        currency: cur,
+        title: listing.eventTitle || ev('bidFallbackTitle'),
+      }),
+    );
     pushNotification({
       kind: 'general',
-      title: 'Bid placed',
-      body: `${amount} ${cur} on ${listing.eventTitle || 'auction listing'}`,
+      title: ev('bidPlacedTitle'),
+      body: ev('bidPlacedBody', {
+        amount,
+        currency: cur,
+        title: listing.eventTitle || ev('bidFallbackListing'),
+      }),
       href: `/auction/events/${listing.eventId}`,
     });
   }
@@ -302,7 +320,7 @@ export function AuctionEventPage() {
     if (usingSavedCard) {
       const card = savedCards.find((c) => String(c.id) === String(effectiveBuySavedCardId));
       if (!card) {
-        setBuyError('That saved card is no longer available. Choose another card or use a new card.');
+        setBuyError(ev('cardGone'));
         return;
       }
       const body: BuyNowRequest = {
@@ -312,18 +330,18 @@ export function AuctionEventPage() {
       try {
         await buyNow({ id: uiSeatIdToApi(listing.id), body }).unwrap();
       } catch (err) {
-        setBuyError(readApiErrorMessage(err) ?? 'Payment was declined or interrupted. Please try again.');
+        setBuyError(readApiErrorMessage(err) ?? ev('paymentFailed'));
         return;
       }
     } else {
       setPaymentTouched(true);
       try {
-        await validateBuyNowNewCardForm(paymentForm);
+        await validateBuyNowNewCardForm(paymentForm, tValidation);
       } catch (err) {
         const msg =
           err instanceof yup.ValidationError
-            ? err.errors[0] ?? 'Please fix the highlighted card fields.'
-            : 'Please fix the highlighted card fields.';
+            ? err.errors[0] ?? ev('fixCardFields')
+            : ev('fixCardFields');
         setBuyError(msg);
         return;
       }
@@ -340,18 +358,26 @@ export function AuctionEventPage() {
       try {
         await buyNow({ id: uiSeatIdToApi(listing.id), body }).unwrap();
       } catch (err) {
-        setBuyError(readApiErrorMessage(err) ?? 'Payment was declined or interrupted. Please try again.');
+        setBuyError(readApiErrorMessage(err) ?? ev('paymentFailed'));
         return;
       }
     }
     closeDialog();
     setSuccessCopy(
-      `Auction won: ${listing.eventTitle || 'listing'} for ${listing.price} ${listing.currency ?? 'SAR'}.`,
+      ev('auctionWon', {
+        title: listing.eventTitle || ev('auctionFallbackListing'),
+        price: listing.price,
+        currency: listing.currency ?? 'SAR',
+      }),
     );
     pushNotification({
       kind: 'order',
-      title: 'Auction won',
-      body: `${listing.eventTitle || 'Auction listing'} · ${listing.price} ${listing.currency ?? 'SAR'}`,
+      title: ev('auctionWonTitle'),
+      body: ev('auctionWonBody', {
+        title: listing.eventTitle || ev('auctionFallbackTitle'),
+        price: listing.price,
+        currency: listing.currency ?? 'SAR',
+      }),
       href: '/my-tickets',
     });
   }
@@ -415,28 +441,34 @@ export function AuctionEventPage() {
                     <p className="font-mono text-lg font-bold text-ink">
                       {l.price} {cur}
                     </p>
-                    <p className="text-[12px] text-ink-40">Listed at up to {l.originalPrice} {cur}</p>
+                    <p className="text-[12px] text-ink-40">
+                      {ev('listedUpTo', { price: l.originalPrice, currency: cur })}
+                    </p>
                     {(l.ticketTypeLabel || l.seatLabel) && (
                       <p className="mt-2 text-[13px] font-medium text-ink-60">
                         {[l.ticketTypeLabel, l.seatLabel].filter(Boolean).join(' · ')}
                       </p>
                     )}
-                    <p className="mt-1 text-[12px] text-ink-40">Seller: {l.sellerLabel}</p>
+                    <p className="mt-1 text-[12px] text-ink-40">{ev('seller', { name: l.sellerLabel })}</p>
                     {!listingActive && (
                       <p className="mt-1 text-[12px] font-semibold uppercase tracking-wide text-amber">
-                        Listing {l.listingStatus ?? 'inactive'}
+                        {ev('listingStatus', { status: l.listingStatus ?? 'inactive' })}
                       </p>
                     )}
                     {(l.highestBid != null || (l.bidsCount ?? 0) > 0) && (
                       <p className="mt-1 text-[12px] text-ink-60">
-                        Highest bid: {l.highestBid != null ? `${l.highestBid} ${cur}` : '—'} ·{' '}
-                        {l.bidsCount ?? 0} bid{(l.bidsCount ?? 0) === 1 ? '' : 's'}
+                        {l.highestBid != null
+                          ? ev('highestBid', {
+                              amount: `${l.highestBid} ${cur}`,
+                              count: l.bidsCount ?? 0,
+                            })
+                          : `${ev('highestBidNone')} · ${ev('bidCount', { count: l.bidsCount ?? 0 })}`}
                       </p>
                     )}
                   </div>
                   <div className="flex items-center gap-2 text-[13px] font-semibold text-ink">
                     <Clock size={18} className="text-coral" />
-                    {formatRemaining(ms)}
+                    {formatRemaining(ms, ev('ended'))}
                   </div>
                 </div>
 
@@ -447,7 +479,7 @@ export function AuctionEventPage() {
                         to={`/login?next=${encodeURIComponent(`/auction/events/${eventId}`)}`}
                         className="inline-flex items-center justify-center rounded-full border border-ink-10 px-4 py-2 text-[13px] font-semibold text-coral hover:underline"
                       >
-                        Sign in to bid or buy
+                        {ev('signIn')}
                       </Link>
                     ) : (
                       <>
@@ -458,7 +490,7 @@ export function AuctionEventPage() {
                           disabled={placingBid || buyingNow}
                           onClick={() => openBidDialog(l.id)}
                         >
-                          Place bid
+                          {ev('placeBid')}
                         </Button>
                         <Button
                           variant="dark"
@@ -467,7 +499,7 @@ export function AuctionEventPage() {
                           disabled={placingBid || buyingNow}
                           onClick={() => openBuyDialog(l.id)}
                         >
-                          Buy now {l.price} {cur}
+                          {ev('buyNow', { price: l.price, currency: cur })}
                         </Button>
                       </>
                     )}
@@ -476,7 +508,7 @@ export function AuctionEventPage() {
 
                 {ended && (
                   <p className="mt-4 text-[12px] text-ink-40">
-                    This listing has ended.
+                    {ev('listingEnded')}
                   </p>
                 )}
               </li>
@@ -485,7 +517,7 @@ export function AuctionEventPage() {
         </ul>
 
         {listings.length === 0 && (
-          <p className="mt-8 text-center text-[15px] text-ink-40">No listings for this event.</p>
+          <p className="mt-8 text-center text-[15px] text-ink-40">{ev('noListings')}</p>
         )}
       </div>
 
@@ -505,23 +537,23 @@ export function AuctionEventPage() {
               exit={{ scale: 0.96, opacity: 0 }}
               className="max-w-md rounded-2xl bg-white p-6 shadow-card-lg"
             >
-              <h2 className="text-lg font-extrabold text-ink">Place a bid</h2>
+              <h2 className="text-lg font-extrabold text-ink">{ev('bidDialogTitle')}</h2>
               <p className="mt-2 text-[13px] text-ink-60">
-                Current ask:{' '}
+                {ev('currentAsk')}{' '}
                 <strong className="font-mono text-ink">
                   {activeListing.price} {activeListing.currency ?? 'SAR'}
                 </strong>{' '}
-                · Highest bid:{' '}
+                · {ev('highestBidLabel')}{' '}
                 <strong className="font-mono text-ink">
                   {activeListing.highestBid != null
                     ? `${activeListing.highestBid} ${activeListing.currency ?? 'SAR'}`
                     : '—'}
                 </strong>{' '}
-                · {activeListing.bidsCount ?? 0} bid{(activeListing.bidsCount ?? 0) === 1 ? '' : 's'}
+                · {ev('bidCount', { count: activeListing.bidsCount ?? 0 })}
               </p>
               <label className="mt-4 block">
                 <span className="text-[12px] font-semibold text-ink-60">
-                  Your bid ({activeListing.currency ?? 'SAR'})
+                  {ev('yourBid', { currency: activeListing.currency ?? 'SAR' })}
                 </span>
                 <input
                   type="number"
@@ -555,7 +587,7 @@ export function AuctionEventPage() {
                   disabled={placingBid}
                   onClick={closeDialog}
                 >
-                  Cancel
+                  {t('common:cancel')}
                 </Button>
               </div>
             </motion.div>
@@ -579,24 +611,21 @@ export function AuctionEventPage() {
               exit={{ scale: 0.96, opacity: 0 }}
               className="max-h-[90vh] max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-card-lg"
             >
-              <h2 className="text-lg font-extrabold text-ink">Buy now</h2>
+              <h2 className="text-lg font-extrabold text-ink">{ev('buyDialogTitle')}</h2>
               <p className="mt-2 text-[14px] leading-relaxed text-ink-60">
-                Buy this listing for{' '}
-                <strong className="font-mono text-ink">
-                  {activeListing.price} {activeListing.currency ?? 'SAR'}
-                </strong>? Tickets transfer
-                immediately on payment.
+                {ev('buyConfirm', {
+                  price: activeListing.price,
+                  currency: activeListing.currency ?? 'SAR',
+                })}
               </p>
 
               <div className="mt-4 flex items-center justify-between gap-2">
-                <p className="text-[12px] font-semibold text-ink-60">Payment</p>
+                <p className="text-[12px] font-semibold text-ink-60">{ev('payment')}</p>
                 <span className="rounded-full bg-ink-5 px-2.5 py-1 text-[11px] font-semibold text-ink-60">
-                  Secure checkout
+                  {ev('secureCheckout')}
                 </span>
               </div>
-              <p className="mt-1 text-[13px] text-ink-60">
-                Use a saved card or enter a new card. Your card is charged when you confirm.
-              </p>
+              <p className="mt-1 text-[13px] text-ink-60">{ev('paymentHint')}</p>
 
               {user && savedCardsLoading && (
                 <div className="mt-4 flex flex-wrap gap-2" aria-hidden>
@@ -611,13 +640,13 @@ export function AuctionEventPage() {
 
               {user && !savedCardsLoading && savedCardsError && (
                 <p className="mt-4 rounded-lg border border-amber/40 bg-amber/10 px-3 py-2 text-[12px] text-ink">
-                  Saved cards could not be loaded. You can still pay with a new card below.
+                  {ev('savedCardsError')}
                 </p>
               )}
 
               {user && !savedCardsLoading && !savedCardsError && savedCards.length > 0 && (
                 <div className="mt-4 space-y-2">
-                  <p className="text-[12px] font-semibold text-ink-60">Use a saved card</p>
+                  <p className="text-[12px] font-semibold text-ink-60">{ev('useSavedCard')}</p>
                   <div className="flex flex-wrap gap-2">
                     {savedCards.map((card) => {
                       const cardId = card.id;
@@ -641,8 +670,10 @@ export function AuctionEventPage() {
                             <span className="font-mono">•••• {card.last4}</span>
                           </p>
                           <p className="mt-0.5 text-[11px] text-ink-60">
-                            Expires {formatSavedCardExpiry(card.exp_month, card.exp_year)}
-                            {card.is_default ? ' · Default' : ''}
+                            {ev('expires', {
+                              expiry: formatSavedCardExpiry(card.exp_month, card.exp_year),
+                            })}
+                            {card.is_default ? ` · ${ev('defaultCard')}` : ''}
                           </p>
                         </button>
                       );
@@ -656,8 +687,8 @@ export function AuctionEventPage() {
                       )}
                       aria-pressed={!usingSavedCard}
                     >
-                      <p className="text-[13px] font-bold text-ink">Use a new card</p>
-                      <p className="mt-0.5 text-[11px] text-ink-60">Enter card details below</p>
+                      <p className="text-[13px] font-bold text-ink">{ev('useNewCard')}</p>
+                      <p className="mt-0.5 text-[11px] text-ink-60">{ev('enterDetails')}</p>
                     </button>
                   </div>
                 </div>
@@ -684,7 +715,7 @@ export function AuctionEventPage() {
                 <div className="mt-4 rounded-xl border border-ink-10 bg-ink-5/50 p-4">
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="block sm:col-span-2">
-                      <span className="text-[12px] font-semibold text-ink-60">Cardholder name</span>
+                      <span className="text-[12px] font-semibold text-ink-60">{ev('cardholder')}</span>
                       <input
                         value={paymentForm.cardholder}
                         onChange={(e) => onBuyPaymentFieldChange('cardholder', e.target.value)}
@@ -696,7 +727,7 @@ export function AuctionEventPage() {
                       )}
                     </label>
                     <label className="block sm:col-span-2">
-                      <span className="text-[12px] font-semibold text-ink-60">Card number</span>
+                      <span className="text-[12px] font-semibold text-ink-60">{ev('cardNumber')}</span>
                       <input
                         value={paymentForm.cardNumber}
                         onChange={(e) => onBuyPaymentFieldChange('cardNumber', e.target.value)}
@@ -706,7 +737,7 @@ export function AuctionEventPage() {
                       />
                       {paymentValidation.detectedMethod && (
                         <p className="mt-1 text-[11px] text-ink-40">
-                          Detected network: {paymentValidation.detectedMethod.toUpperCase()}
+                          {ev('detectedNetwork', { network: paymentValidation.detectedMethod.toUpperCase() })}
                         </p>
                       )}
                       {paymentTouched && paymentValidation.errors.cardNumber && (
@@ -714,11 +745,11 @@ export function AuctionEventPage() {
                       )}
                     </label>
                     <label className="block">
-                      <span className="text-[12px] font-semibold text-ink-60">Expiry</span>
+                      <span className="text-[12px] font-semibold text-ink-60">{ev('expiry')}</span>
                       <input
                         value={paymentForm.expiry}
                         onChange={(e) => onBuyPaymentFieldChange('expiry', e.target.value)}
-                        placeholder="MM/YY"
+                        placeholder={ev('expiryPlaceholder')}
                         inputMode="numeric"
                         className="mt-1.5 w-full rounded-xl border border-ink-10 px-4 py-3 text-[14px] font-mono"
                       />
@@ -748,20 +779,19 @@ export function AuctionEventPage() {
                         onChange={(e) => setPaymentForm((prev) => ({ ...prev, saveCard: e.target.checked }))}
                         className="h-4 w-4 rounded border-ink-20"
                       />
-                      Save card for future purchases
+                      {ev('saveCard')}
                     </label>
-                    <p className="text-[11px] leading-relaxed text-ink-40">
-                      Your card is only stored if payment completes successfully. Checking this box does not call the
-                      server by itself.
-                    </p>
+                    <p className="text-[11px] leading-relaxed text-ink-40">{ev('saveCardHint')}</p>
                   </div>
                 </div>
               )}
 
               {usingSavedCard && selectedSavedCard && (
                 <p className="mt-4 rounded-lg border border-ink-10 bg-ink-5/40 px-3 py-2 text-[12px] text-ink-60">
-                  Paying with {formatCardBrand(selectedSavedCard.brand)} ending in •••• {selectedSavedCard.last4}. No
-                  card details required.
+                  {ev('payingWith', {
+                    brand: formatCardBrand(selectedSavedCard.brand),
+                    last4: selectedSavedCard.last4,
+                  })}
                 </p>
               )}
 
@@ -780,7 +810,7 @@ export function AuctionEventPage() {
                   disabled={!canSubmitBuy}
                   onClick={() => void submitBuyNow(activeListing)}
                 >
-                  Confirm purchase
+                  {ev('confirmPurchase')}
                 </Button>
                 <Button
                   variant="outline"
@@ -789,7 +819,7 @@ export function AuctionEventPage() {
                   disabled={buyingNow}
                   onClick={closeDialog}
                 >
-                  Cancel
+                  {t('common:cancel')}
                 </Button>
               </div>
             </motion.div>

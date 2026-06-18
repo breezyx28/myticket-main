@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
 
@@ -16,11 +17,6 @@ interface Props {
   onSubmit: (values: { topic: string; initial_message?: string }) => Promise<void> | void;
 }
 
-const TARGET_LABEL: Record<ContactTargetKind, string> = {
-  talent: 'talent',
-  vendor: 'vendor',
-};
-
 export function ContactEngagementDialog({
   open,
   targetKind,
@@ -30,6 +26,7 @@ export function ContactEngagementDialog({
   onClose,
   onSubmit,
 }: Props) {
+  const { t } = useTranslation(['marketplace', 'common']);
   const reduceMotion = usePrefersReducedMotion();
   const dialogTitleId = useId();
   const [topic, setTopic] = useState('');
@@ -70,7 +67,7 @@ export function ContactEngagementDialog({
         >
           <button
             type="button"
-            aria-label="Close"
+            aria-label={t('marketplace:contactEngagement.close')}
             className="absolute inset-0 bg-ink/50 backdrop-blur-[2px]"
             onClick={() => {
               if (!submitting) onClose();
@@ -89,7 +86,9 @@ export function ContactEngagementDialog({
             }
           >
             <h2 id={dialogTitleId} className="text-[17px] font-extrabold text-ink">
-              Contact {TARGET_LABEL[targetKind]}
+              {targetKind === 'talent'
+                ? t('marketplace:contactEngagement.titleTalent')
+                : t('marketplace:contactEngagement.titleVendor')}
             </h2>
             <p className="mt-1 text-[12px] text-ink-60 line-clamp-2">{targetName}</p>
 
@@ -106,23 +105,24 @@ export function ContactEngagementDialog({
             >
               <div>
                 <label className="text-[12px] font-semibold text-ink" htmlFor="contact-topic">
-                  Topic <span className="text-coral">*</span>
+                  {t('marketplace:contactEngagement.topic')}{' '}
+                  <span className="text-coral">{t('marketplace:contactEngagement.topicRequired')}</span>
                 </label>
                 <input
                   id="contact-topic"
                   value={topic}
                   onChange={(e) => setTopic(e.target.value)}
                   maxLength={200}
-                  placeholder="Booking inquiry — corporate event in Riyadh"
+                  placeholder={t('marketplace:contactEngagement.topicPlaceholder')}
                   className="mt-1 w-full rounded-xl border border-ink-10 bg-white px-4 py-2.5 text-[13px]"
                   required
                 />
-                <p className="mt-1 text-[11px] text-ink-40">2–200 characters.</p>
+                <p className="mt-1 text-[11px] text-ink-40">{t('marketplace:contactEngagement.topicHint')}</p>
               </div>
 
               <div>
                 <label className="text-[12px] font-semibold text-ink" htmlFor="contact-message">
-                  Initial message
+                  {t('marketplace:contactEngagement.initialMessage')}
                 </label>
                 <textarea
                   id="contact-message"
@@ -130,10 +130,10 @@ export function ContactEngagementDialog({
                   onChange={(e) => setInitialMessage(e.target.value)}
                   maxLength={4000}
                   rows={4}
-                  placeholder="Share dates, scope, expected budget…"
+                  placeholder={t('marketplace:contactEngagement.messagePlaceholder')}
                   className="mt-1 w-full rounded-xl border border-ink-10 bg-white px-4 py-2.5 text-[13px]"
                 />
-                <p className="mt-1 text-[11px] text-ink-40">Optional. Up to 4000 characters.</p>
+                <p className="mt-1 text-[11px] text-ink-40">{t('marketplace:contactEngagement.messageHint')}</p>
               </div>
 
               {errorMessage && (
@@ -153,7 +153,7 @@ export function ContactEngagementDialog({
                   className="flex-1"
                   disabled={submitting}
                 >
-                  Cancel
+                  {t('common:cancel')}
                 </Button>
                 <Button
                   type="submit"
@@ -162,7 +162,7 @@ export function ContactEngagementDialog({
                   disabled={!canSubmit}
                   className="flex-1"
                 >
-                  {submitting ? 'Sending…' : 'Send'}
+                  {submitting ? t('marketplace:contactEngagement.sending') : t('marketplace:contactEngagement.send')}
                 </Button>
               </div>
             </form>

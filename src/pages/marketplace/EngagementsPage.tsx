@@ -11,7 +11,7 @@ import {
   useListEngagementsQuery,
   usePostEngagementMessageMutation,
 } from '@/api/endpoints';
-import { engagementMessageSchema } from '@/schemas/engagement';
+import { createEngagementMessageSchema } from '@/schemas/engagement';
 import { apiEngagementToMockEngagement } from '@/lib/engagementMappers';
 import { cn } from '@/lib/utils';
 import { canBrowseMarketplace } from '@/lib/marketplaceAccess';
@@ -39,6 +39,11 @@ function readApiErrorMessage(err: unknown, fallback: string): string {
 
 export function EngagementsPage() {
   const { t, i18n } = useTranslation(['marketplace', 'common']);
+  const { t: tValidation } = useTranslation('validation');
+  const engagementMessageSchema = useMemo(
+    () => createEngagementMessageSchema(tValidation),
+    [tValidation, i18n.language],
+  );
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const [selectedId, setSelectedId] = useState<string | null>(null);

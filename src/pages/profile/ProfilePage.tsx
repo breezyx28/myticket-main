@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { Controller, useForm, type Resolver } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
@@ -47,13 +48,13 @@ import type { SavedCard } from '@/api/types/savedCard';
 import { SavedCardsSection } from '@/components/profile/SavedCardsSection';
 import { toAuthApiError } from '@/lib/authErrors';
 import {
-  deleteAccountSchema,
-  updatePreferencesSchema,
-  updateProfileSchema,
+  createDeleteAccountSchema,
+  createUpdatePreferencesSchema,
+  createUpdateProfileSchema,
   type UpdatePreferencesSchema,
   type UpdateProfileSchema,
 } from '@/schemas/profile';
-import { changePasswordSchema, type ChangePasswordSchema } from '@/schemas/auth';
+import { createChangePasswordSchema, type ChangePasswordSchema } from '@/schemas/auth';
 import { EmailChangeDialog } from '@/pages/profile/EmailChangeDialog';
 
 const EMPTY_DRAFT: TalentOnboardingDraft = {
@@ -72,20 +73,20 @@ const EMPTY_DRAFT: TalentOnboardingDraft = {
 };
 const SAUDI_COUNTRY_CODE = '+966';
 
-function formatSeenAt(iso?: string | null): string {
-  if (!iso) return '—';
+function formatSeenAt(iso?: string | null, emDash = '—'): string {
+  if (!iso) return emDash;
   try {
     return new Date(iso).toLocaleString();
   } catch {
-    return '—';
+    return emDash;
   }
 }
 
 /** Relative time for device `last_seen_at` (falls back to em dash). */
-function formatRelativeSeenAt(iso?: string | null): string {
-  if (!iso) return '—';
+function formatRelativeSeenAt(iso?: string | null, emDash = '—'): string {
+  if (!iso) return emDash;
   const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return '—';
+  if (Number.isNaN(then)) return emDash;
   const sec = Math.round((Date.now() - then) / 1000);
   const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
   const divisions: [number, Intl.RelativeTimeFormatUnit][] = [
@@ -129,6 +130,24 @@ type DeleteAccountFormValues = {
 };
 
 export function ProfilePage() {
+  const { t } = useTranslation(['profile', 'common']);
+  const { t: tValidation, i18n } = useTranslation('validation');
+  const updateProfileSchema = useMemo(
+    () => createUpdateProfileSchema(tValidation),
+    [tValidation, i18n.language],
+  );
+  const updatePreferencesSchema = useMemo(
+    () => createUpdatePreferencesSchema(tValidation),
+    [tValidation, i18n.language],
+  );
+  const changePasswordSchema = useMemo(
+    () => createChangePasswordSchema(tValidation),
+    [tValidation, i18n.language],
+  );
+  const deleteAccountSchema = useMemo(
+    () => createDeleteAccountSchema(tValidation),
+    [tValidation, i18n.language],
+  );
   const navigate = useNavigate();
   const {
     user,
@@ -355,12 +374,12 @@ export function ProfilePage() {
 
   const statusBadge = useMemo(() => {
     if (!user) return null;
-    if (talentUiStatus === 'approved') return 'Approved as Talent';
-    if (talentUiStatus === 'submitted') return 'Under admin review';
-    if (talentUiStatus === 'rejected') return 'Rejected';
-    if (talentUiStatus === 'draft') return 'Draft in progress';
-    return 'Not started';
-  }, [user, talentUiStatus]);
+    if (talentUiStatus === 'approved') return t('statusBadge.approvedTalent');
+    if (talentUiStatus === 'submitted') return t('statusBadge.underReview');
+    if (talentUiStatus === 'rejected') return t('statusBadge.rejected');
+    if (talentUiStatus === 'draft') return t('statusBadge.draft');
+    return t('statusBadge.notStarted');
+  }, [user, talentUiStatus, t]);
 
   const talentFormLocked = talentUiStatus === 'submitted' || talentUiStatus === 'approved';
 
@@ -379,9 +398,9 @@ export function ProfilePage() {
         city: values.city ?? '',
         bio: values.bio ?? '',
       });
-      setSaveMessage('Profile saved.');
+      setSaveMessage(t('messages.profileSaved'));
     } catch (e) {
-      setSaveError(toAuthApiError(e, 'Could not save profile.').message);
+      setSaveError(toAuthApiError(e, t('errors.saveProfile')).message);
     }
   });
 
@@ -397,16 +416,16 @@ export function ProfilePage() {
         smsNotifications: Boolean(values.sms_notifications),
         marketingEmails: Boolean(values.marketing_emails),
       });
-      setSaveMessage('Preferences saved.');
+      setSaveMessage(t('messages.preferencesSaved'));
     } catch (e) {
-      setSaveError(toAuthApiError(e, 'Could not save preferences.').message);
+      setSaveError(toAuthApiError(e, t('errors.savePreferences')).message);
     }
   });
 
   function onSaveSecurity(e: React.FormEvent) {
     e.preventDefault();
     updateSecuritySettings({ twoFactorEnabled });
-    setSaveMessage('Security settings updated.');
+    setSaveMessage(t('messages.securityUpdated'));
   }
 
   async function onSubmitPassword(values: ChangePasswordSchema) {
@@ -418,9 +437,9 @@ export function ProfilePage() {
         new_password: values.new_password,
       });
       passwordForm.reset();
-      setSaveMessage('Password updated.');
+      setSaveMessage(t('messages.passwordUpdated'));
     } catch (e) {
-      setSaveError(toAuthApiError(e, 'Could not change password.').message);
+      setSaveError(toAuthApiError(e, t('errors.changePassword')).message);
     }
   }
 
@@ -429,9 +448,9 @@ export function ProfilePage() {
     setSaveError(null);
     try {
       await revokeSession({ id }).unwrap();
-      setSaveMessage('Session revoked.');
+      setSaveMessage(t('messages.sessionRevoked'));
     } catch (e) {
-      setSaveError(toAuthApiError(e, 'Could not revoke session.').message);
+      setSaveError(toAuthApiError(e, t('errors.revokeSession')).message);
     }
   }
 
@@ -439,9 +458,9 @@ export function ProfilePage() {
     setSaveError(null);
     try {
       await removeDevice({ id }).unwrap();
-      setSaveMessage('Device removed.');
+      setSaveMessage(t('messages.deviceRemoved'));
     } catch (e) {
-      setSaveError(toAuthApiError(e, 'Could not remove device.').message);
+      setSaveError(toAuthApiError(e, t('errors.removeDevice')).message);
     }
   }
 
@@ -451,9 +470,9 @@ export function ProfilePage() {
     setAvailabilityBusy(true);
     try {
       await setTalentAvailabilityStatus(next);
-      setSaveMessage(next === 'available' ? 'You are marked as available.' : 'You are marked as reserved.');
+      setSaveMessage(next === 'available' ? t('messages.markedAvailable') : t('messages.markedReserved'));
     } catch (e) {
-      setSaveError(toAuthApiError(e, 'Could not update availability.').message);
+      setSaveError(toAuthApiError(e, t('errors.updateAvailability')).message);
     } finally {
       setAvailabilityBusy(false);
     }
@@ -471,7 +490,7 @@ export function ProfilePage() {
         scheduled_purge_at: String(res.scheduled_purge_at),
       });
     } catch (e) {
-      setSaveError(toAuthApiError(e, 'Could not delete account.').message);
+      setSaveError(toAuthApiError(e, t('errors.deleteAccount')).message);
     }
   }
 
@@ -493,9 +512,9 @@ export function ProfilePage() {
       );
       await refetchMyApps();
       await refetchTalentDetail();
-      setSaveMessage('Talent application draft saved.');
+      setSaveMessage(t('messages.talentDraftSaved'));
     } catch (e) {
-      setSaveError(readApiErrorMessage(e, 'Could not save draft.'));
+      setSaveError(readApiErrorMessage(e, t('errors.saveDraft')));
     } finally {
       setTalentFormBusy(false);
     }
@@ -519,9 +538,9 @@ export function ProfilePage() {
       );
       await refetchMyApps();
       await refetchTalentDetail();
-      setSaveMessage('Application submitted for admin review.');
+      setSaveMessage(t('messages.applicationSubmitted'));
     } catch (e) {
-      setSaveError(readApiErrorMessage(e, 'Could not submit application.'));
+      setSaveError(readApiErrorMessage(e, t('errors.submitApplication')));
     } finally {
       setTalentFormBusy(false);
     }
@@ -534,9 +553,9 @@ export function ProfilePage() {
       await withdrawTalentApplication({ id: talentAppId }).unwrap();
       await refetchMyApps();
       await refetchTalentDetail();
-      setSaveMessage('Talent application withdrawn.');
+      setSaveMessage(t('messages.talentWithdrawn'));
     } catch (e) {
-      setSaveError(readApiErrorMessage(e, 'Could not withdraw application.'));
+      setSaveError(readApiErrorMessage(e, t('errors.withdrawApplication')));
     }
   }
 
@@ -552,11 +571,11 @@ export function ProfilePage() {
   const bioLen = draft.bio.trim().length;
 
   function statusText(status: RoleOnboardingStatus) {
-    if (status === 'approved') return 'Approved';
-    if (status === 'submitted') return 'Under review';
-    if (status === 'rejected') return 'Rejected';
-    if (status === 'draft') return 'Draft';
-    return 'Not started';
+    if (status === 'approved') return t('status.approved');
+    if (status === 'submitted') return t('status.underReview');
+    if (status === 'rejected') return t('status.rejected');
+    if (status === 'draft') return t('status.draft');
+    return t('status.notStarted');
   }
 
   function renderVendorOrganizerCard(
@@ -581,7 +600,8 @@ export function ProfilePage() {
         </div>
         {isRejected && (
           <p className="mt-2 text-[12px] text-coral">
-            Rejection reason: {rejectionReason ?? 'Please review your submitted details.'}
+            {t('otherRoles.rejectionReason')}{' '}
+            {rejectionReason ?? t('otherRoles.rejectionFallback')}
           </p>
         )}
         {kind === 'vendor' && !isApproved ? (
@@ -593,12 +613,12 @@ export function ProfilePage() {
               )}
               className="text-[13px] font-semibold text-coral hover:underline"
             >
-              Continue on Vendor Dashboard
+              {t('otherRoles.continueVendor')}
             </a>
           </div>
         ) : null}
         {isApproved ? (
-          <p className="mt-2 text-[12px] text-mint-dark">Role is active.</p>
+          <p className="mt-2 text-[12px] text-mint-dark">{t('otherRoles.roleActive')}</p>
         ) : (
           <div className="mt-3 flex flex-wrap gap-2">
             {isRejected && summary?.id && (
@@ -621,11 +641,11 @@ export function ProfilePage() {
                       navigate(`/apply/${kind}`);
                     }
                   } catch (e) {
-                    setSaveError(readApiErrorMessage(e, 'Could not reopen application.'));
+                    setSaveError(readApiErrorMessage(e, t('errors.reopenApplication')));
                   }
                 }}
               >
-                Re-apply
+                {t('otherRoles.reapply')}
               </Button>
             )}
             {isSubmitted && summary?.id && (
@@ -642,13 +662,15 @@ export function ProfilePage() {
                       await withdrawOrganizerApplication({ id: summary.id }).unwrap();
                     }
                     await refetchMyApps();
-                    setSaveMessage(`${kind === 'vendor' ? 'Vendor' : 'Organizer'} application withdrawn.`);
+                    setSaveMessage(
+                      kind === 'vendor' ? t('messages.vendorWithdrawn') : t('messages.organizerWithdrawn'),
+                    );
                   } catch (e) {
-                    setSaveError(readApiErrorMessage(e, 'Could not withdraw application.'));
+                    setSaveError(readApiErrorMessage(e, t('errors.withdrawApplication')));
                   }
                 }}
               >
-                Withdraw application
+                {t('otherRoles.withdraw')}
               </Button>
             )}
           </div>
@@ -672,10 +694,8 @@ export function ProfilePage() {
   return (
     <div className="bg-white pb-20 pt-10">
       <div className="mx-auto max-w-[720px] px-6 lg:px-8">
-        <h1 className="text-[32px] font-extrabold text-ink">Account</h1>
-        <p className="mt-2 text-[15px] text-ink-60">
-          Profile, preferences, security sessions and devices, role onboarding, and account deletion.
-        </p>
+        <h1 className="text-[32px] font-extrabold text-ink">{t('title')}</h1>
+        <p className="mt-2 text-[15px] text-ink-60">{t('subtitle')}</p>
         {saveMessage && (
           <p className="mt-3 rounded-lg border border-ink-10 bg-ink-5 px-3 py-2 text-[12px] font-semibold text-ink-60">
             {saveMessage}
@@ -700,35 +720,25 @@ export function ProfilePage() {
                 activeTab === tab ? 'bg-ink text-white' : 'text-ink-60 hover:bg-white'
               }`}
             >
-              {tab === 'info'
-                ? 'Info'
-                : tab === 'preferences'
-                  ? 'Preferences'
-                  : tab === 'cards'
-                    ? 'Cards'
-                    : tab === 'security'
-                      ? 'Security'
-                      : tab === 'roles'
-                        ? 'Roles'
-                        : 'Danger'}
+              {t(`tabs.${tab}`)}
             </button>
           ))}
         </div>
 
         {activeTab === 'info' && (
           <form onSubmit={onSaveProfile} className="mt-10 space-y-4 rounded-2xl border border-ink-10 p-6">
-            <h2 className="text-lg font-extrabold text-ink">Profile info</h2>
+            <h2 className="text-lg font-extrabold text-ink">{t('info.title')}</h2>
             <AccountProfileAvatar
               displayName={
                 profileForm.watch('display_name')?.trim() ||
                 profileForm.watch('full_name')?.trim() ||
                 user?.name ||
-                'User'
+                t('defaultUser')
               }
             />
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block">
-                <span className="text-[12px] font-semibold text-ink-60">Full name</span>
+                <span className="text-[12px] font-semibold text-ink-60">{t('info.fullName')}</span>
                 <input
                   {...profileForm.register('full_name')}
                   className="mt-1.5 w-full rounded-xl border border-ink-10 px-4 py-3 text-[14px]"
@@ -740,7 +750,7 @@ export function ProfilePage() {
                 )}
               </label>
               <label className="block">
-                <span className="text-[12px] font-semibold text-ink-60">Display name</span>
+                <span className="text-[12px] font-semibold text-ink-60">{t('info.displayName')}</span>
                 <input
                   {...profileForm.register('display_name')}
                   className="mt-1.5 w-full rounded-xl border border-ink-10 px-4 py-3 text-[14px]"
@@ -753,21 +763,21 @@ export function ProfilePage() {
               </label>
               <div className="flex flex-col gap-2 sm:col-span-2 sm:flex-row sm:items-end">
                 <label className="block min-w-0 flex-1">
-                  <span className="text-[12px] font-semibold text-ink-60">Email</span>
+                  <span className="text-[12px] font-semibold text-ink-60">{t('info.email')}</span>
                   <input
                     type="email"
                     readOnly
                     value={user?.email ?? ''}
                     className="mt-1.5 w-full cursor-not-allowed rounded-xl border border-ink-10 bg-ink-5 px-4 py-3 text-[14px] text-ink-60"
                   />
-                  <span className="mt-1 block text-[11px] text-ink-40">Email is changed via verification only.</span>
+                  <span className="mt-1 block text-[11px] text-ink-40">{t('info.emailHint')}</span>
                 </label>
                 <Button type="button" variant="outline" size="md" className="shrink-0" onClick={() => setEmailDialogOpen(true)}>
-                  Change email
+                  {t('info.changeEmail')}
                 </Button>
               </div>
               <label className="block sm:col-span-2">
-                <span className="text-[12px] font-semibold text-ink-60">Phone</span>
+                <span className="text-[12px] font-semibold text-ink-60">{t('info.phone')}</span>
                 <Controller
                   name="phone"
                   control={profileForm.control}
@@ -790,7 +800,7 @@ export function ProfilePage() {
                           onChange={(e) =>
                             field.onChange(`${SAUDI_COUNTRY_CODE}${e.target.value.replace(/\D/g, '')}`)
                           }
-                          placeholder="5XXXXXXXX"
+                          placeholder={t('info.phonePlaceholder')}
                           className="min-w-0 flex-1 px-4 py-3 text-[14px] outline-none"
                         />
                       </div>
@@ -802,7 +812,7 @@ export function ProfilePage() {
                 )}
               </label>
               <label className="block">
-                <span className="text-[12px] font-semibold text-ink-60">Region</span>
+                <span className="text-[12px] font-semibold text-ink-60">{t('info.region')}</span>
                 <Controller
                   name="region"
                   control={profileForm.control}
@@ -818,7 +828,7 @@ export function ProfilePage() {
                       }}
                       className="mt-1.5 w-full rounded-xl border border-ink-10 bg-white px-4 py-3 text-[14px]"
                     >
-                      <option value="">Select region</option>
+                      <option value="">{t('info.selectRegion')}</option>
                       {talentRegionOptions.map((r) => (
                         <option key={r.id} value={r.id}>
                           {r.name}
@@ -832,7 +842,7 @@ export function ProfilePage() {
                 )}
               </label>
               <label className="block">
-                <span className="text-[12px] font-semibold text-ink-60">City</span>
+                <span className="text-[12px] font-semibold text-ink-60">{t('info.city')}</span>
                 <Controller
                   name="city"
                   control={profileForm.control}
@@ -846,7 +856,9 @@ export function ProfilePage() {
                       disabled={!profileRegion}
                       className="mt-1.5 w-full rounded-xl border border-ink-10 bg-white px-4 py-3 text-[14px] disabled:cursor-not-allowed disabled:bg-ink-5 disabled:text-ink-40"
                     >
-                      <option value="">{profileRegion ? 'Select city' : 'Choose a region first'}</option>
+                      <option value="">
+                        {profileRegion ? t('info.selectCity') : t('info.chooseRegionFirst')}
+                      </option>
                       {accountCities.map((c) => (
                         <option key={c.id} value={c.name}>
                           {c.name}
@@ -860,12 +872,12 @@ export function ProfilePage() {
                 )}
               </label>
               <label className="block sm:col-span-2">
-                <span className="text-[12px] font-semibold text-ink-60">Bio</span>
+                <span className="text-[12px] font-semibold text-ink-60">{t('info.bio')}</span>
                 <textarea
                   rows={4}
                   {...profileForm.register('bio')}
                   className="mt-1.5 w-full rounded-xl border border-ink-10 px-4 py-3 text-[14px]"
-                  placeholder="Tell people about yourself."
+                  placeholder={t('info.bioPlaceholder')}
                 />
                 {profileForm.formState.errors.bio && (
                   <p className="mt-1 text-[12px] font-semibold text-coral">{profileForm.formState.errors.bio.message}</p>
@@ -873,58 +885,58 @@ export function ProfilePage() {
               </label>
             </div>
             <Button type="submit" variant="dark" size="md" disabled={profileForm.formState.isSubmitting}>
-              {profileForm.formState.isSubmitting ? 'Saving…' : 'Save info'}
+              {profileForm.formState.isSubmitting ? t('info.saving') : t('info.save')}
             </Button>
           </form>
         )}
 
         {activeTab === 'preferences' && (
           <form onSubmit={onSavePreferences} className="mt-10 space-y-4 rounded-2xl border border-ink-10 p-6">
-            <h2 className="text-lg font-extrabold text-ink">Preferences</h2>
+            <h2 className="text-lg font-extrabold text-ink">{t('preferences.title')}</h2>
             {!prefsFromApi && user ? (
-              <p className="text-[13px] text-ink-40">Loading preferences…</p>
+              <p className="text-[13px] text-ink-40">{t('preferences.loading')}</p>
             ) : null}
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block">
-                <span className="text-[12px] font-semibold text-ink-60">Language</span>
+                <span className="text-[12px] font-semibold text-ink-60">{t('preferences.language')}</span>
                 <select
                   {...preferencesForm.register('language')}
                   className="mt-1.5 w-full rounded-xl border border-ink-10 bg-white px-4 py-3 text-[14px]"
                 >
-                  <option value="en">English</option>
-                  <option value="ar">Arabic</option>
+                  <option value="en">{t('preferences.english')}</option>
+                  <option value="ar">{t('preferences.arabic')}</option>
                 </select>
               </label>
               <label className="block">
-                <span className="text-[12px] font-semibold text-ink-60">Theme</span>
+                <span className="text-[12px] font-semibold text-ink-60">{t('preferences.theme')}</span>
                 <select
                   {...preferencesForm.register('theme')}
                   className="mt-1.5 w-full rounded-xl border border-ink-10 bg-white px-4 py-3 text-[14px]"
                 >
-                  <option value="system">System</option>
-                  <option value="light">Light</option>
-                  <option value="dark">Dark</option>
+                  <option value="system">{t('preferences.system')}</option>
+                  <option value="light">{t('preferences.light')}</option>
+                  <option value="dark">{t('preferences.dark')}</option>
                 </select>
               </label>
               <label className="inline-flex items-center gap-2 text-[13px] text-ink-60">
                 <input type="checkbox" {...preferencesForm.register('email_notifications')} />
-                Email notifications
+                {t('preferences.emailNotifications')}
               </label>
               <label className="inline-flex items-center gap-2 text-[13px] text-ink-60">
                 <input type="checkbox" {...preferencesForm.register('push_notifications')} />
-                Push notifications
+                {t('preferences.pushNotifications')}
               </label>
               <label className="inline-flex items-center gap-2 text-[13px] text-ink-60">
                 <input type="checkbox" {...preferencesForm.register('sms_notifications')} />
-                SMS notifications
+                {t('preferences.smsNotifications')}
               </label>
               <label className="inline-flex items-center gap-2 text-[13px] text-ink-60">
                 <input type="checkbox" {...preferencesForm.register('marketing_emails')} />
-                Marketing emails
+                {t('preferences.marketingEmails')}
               </label>
             </div>
             <Button type="submit" variant="dark" size="md" disabled={preferencesForm.formState.isSubmitting}>
-              {preferencesForm.formState.isSubmitting ? 'Saving…' : 'Save preferences'}
+              {preferencesForm.formState.isSubmitting ? t('preferences.saving') : t('preferences.save')}
             </Button>
           </form>
         )}
@@ -951,15 +963,15 @@ export function ProfilePage() {
               onSubmit={passwordForm.handleSubmit(onSubmitPassword)}
               className="space-y-4 rounded-2xl border border-ink-10 p-6"
             >
-              <h2 className="text-lg font-extrabold text-ink">Change password</h2>
+              <h2 className="text-lg font-extrabold text-ink">{t('security.changePassword')}</h2>
               <p className="text-[12px] text-ink-40">
-                Last password change:{' '}
+                {t('security.lastPasswordChange')}{' '}
                 {user?.security.lastPasswordChangedAt
-                  ? formatSeenAt(user.security.lastPasswordChangedAt)
-                  : '—'}
+                  ? formatSeenAt(user.security.lastPasswordChangedAt, t('emDash'))
+                  : t('emDash')}
               </p>
               <label className="block">
-                <span className="text-[12px] font-semibold text-ink-60">Current password</span>
+                <span className="text-[12px] font-semibold text-ink-60">{t('security.currentPassword')}</span>
                 <input
                   type="password"
                   autoComplete="current-password"
@@ -973,7 +985,7 @@ export function ProfilePage() {
                 )}
               </label>
               <label className="block">
-                <span className="text-[12px] font-semibold text-ink-60">New password</span>
+                <span className="text-[12px] font-semibold text-ink-60">{t('security.newPassword')}</span>
                 <input
                   type="password"
                   autoComplete="new-password"
@@ -987,7 +999,7 @@ export function ProfilePage() {
                 )}
               </label>
               <label className="block">
-                <span className="text-[12px] font-semibold text-ink-60">Confirm new password</span>
+                <span className="text-[12px] font-semibold text-ink-60">{t('security.confirmNewPassword')}</span>
                 <input
                   type="password"
                   autoComplete="new-password"
@@ -1001,25 +1013,25 @@ export function ProfilePage() {
                 )}
               </label>
               <Button type="submit" variant="dark" size="md" disabled={passwordForm.formState.isSubmitting}>
-                {passwordForm.formState.isSubmitting ? 'Updating…' : 'Update password'}
+                {passwordForm.formState.isSubmitting ? t('security.updating') : t('security.updatePassword')}
               </Button>
             </form>
 
             <section className="rounded-2xl border border-ink-10 p-6">
-              <h3 className="text-[15px] font-extrabold text-ink">Active sessions</h3>
-              <p className="mt-1 text-[12px] text-ink-40">Revoke access on devices you no longer use.</p>
+              <h3 className="text-[15px] font-extrabold text-ink">{t('security.activeSessions')}</h3>
+              <p className="mt-1 text-[12px] text-ink-40">{t('security.activeSessionsHint')}</p>
               {sessionsLoading ? (
-                <p className="mt-4 text-[13px] text-ink-40">Loading sessions…</p>
+                <p className="mt-4 text-[13px] text-ink-40">{t('security.loadingSessions')}</p>
               ) : sessionRows.length === 0 ? (
-                <p className="mt-4 text-[13px] text-ink-40">No sessions returned.</p>
+                <p className="mt-4 text-[13px] text-ink-40">{t('security.noSessions')}</p>
               ) : (
                 <div className="mt-4 overflow-x-auto">
                   <table className="w-full min-w-[520px] text-left text-[12px]">
                     <thead>
                       <tr className="border-b border-ink-10 text-ink-40">
-                        <th className="py-2 pr-2 font-semibold">Device</th>
-                        <th className="py-2 pr-2 font-semibold">IP</th>
-                        <th className="py-2 pr-2 font-semibold">Last active</th>
+                        <th className="py-2 pr-2 font-semibold">{t('security.device')}</th>
+                        <th className="py-2 pr-2 font-semibold">{t('security.ip')}</th>
+                        <th className="py-2 pr-2 font-semibold">{t('security.lastActive')}</th>
                         <th className="py-2 font-semibold"> </th>
                       </tr>
                     </thead>
@@ -1027,18 +1039,18 @@ export function ProfilePage() {
                       {sessionRows.map((s) => (
                         <tr key={String(s.id)} className="border-b border-ink-10/60 text-ink-60">
                           <td className="py-2 pr-2 align-top">
-                            <span className="font-semibold text-ink">{s.device_label ?? 'Unknown device'}</span>
+                            <span className="font-semibold text-ink">{s.device_label ?? t('security.unknownDevice')}</span>
                             {s.current ? (
                               <span className="ml-2 rounded-full bg-mint/20 px-2 py-0.5 text-[10px] font-bold text-mint-dark">
-                                This device
+                                {t('security.thisDevice')}
                               </span>
                             ) : null}
                             {s.user_agent ? (
                               <p className="mt-0.5 max-w-[280px] truncate text-[11px] text-ink-40">{s.user_agent}</p>
                             ) : null}
                           </td>
-                          <td className="py-2 pr-2 align-top">{s.ip_address ?? '—'}</td>
-                          <td className="py-2 pr-2 align-top">{formatSeenAt(s.last_active_at)}</td>
+                          <td className="py-2 pr-2 align-top">{s.ip_address ?? t('emDash')}</td>
+                          <td className="py-2 pr-2 align-top">{formatSeenAt(s.last_active_at, t('emDash'))}</td>
                           <td className="py-2 align-top text-right">
                             <Button
                               type="button"
@@ -1047,7 +1059,7 @@ export function ProfilePage() {
                               disabled={Boolean(s.current) || revokingSession}
                               onClick={() => void onRevokeSession(String(s.id), s.current)}
                             >
-                              Revoke
+                              {t('security.revoke')}
                             </Button>
                           </td>
                         </tr>
@@ -1059,20 +1071,20 @@ export function ProfilePage() {
             </section>
 
             <section className="rounded-2xl border border-ink-10 p-6">
-              <h3 className="text-[15px] font-extrabold text-ink">Registered devices</h3>
-              <p className="mt-1 text-[12px] text-ink-40">Push-capable devices linked to your account.</p>
+              <h3 className="text-[15px] font-extrabold text-ink">{t('security.registeredDevices')}</h3>
+              <p className="mt-1 text-[12px] text-ink-40">{t('security.registeredDevicesHint')}</p>
               {devicesLoading ? (
-                <p className="mt-4 text-[13px] text-ink-40">Loading devices…</p>
+                <p className="mt-4 text-[13px] text-ink-40">{t('security.loadingDevices')}</p>
               ) : devices.length === 0 ? (
-                <p className="mt-4 text-[13px] text-ink-40">No devices registered.</p>
+                <p className="mt-4 text-[13px] text-ink-40">{t('security.noDevices')}</p>
               ) : (
                 <div className="mt-4 overflow-x-auto">
                   <table className="w-full min-w-[480px] text-left text-[12px]">
                     <thead>
                       <tr className="border-b border-ink-10 text-ink-40">
-                        <th className="py-2 pr-2 font-semibold">Label</th>
-                        <th className="py-2 pr-2 font-semibold">Platform</th>
-                        <th className="py-2 pr-2 font-semibold">Last seen</th>
+                        <th className="py-2 pr-2 font-semibold">{t('security.label')}</th>
+                        <th className="py-2 pr-2 font-semibold">{t('security.platform')}</th>
+                        <th className="py-2 pr-2 font-semibold">{t('security.lastSeen')}</th>
                         <th className="py-2 font-semibold"> </th>
                       </tr>
                     </thead>
@@ -1080,15 +1092,15 @@ export function ProfilePage() {
                       {devices.map((d) => (
                         <tr key={String(d.id)} className="border-b border-ink-10/60 text-ink-60">
                           <td className="py-2 pr-2 align-top">
-                            <span>{d.device_label ?? '—'}</span>
+                            <span>{d.device_label ?? t('emDash')}</span>
                             {d.is_current ? (
                               <span className="ml-2 rounded-full bg-mint/20 px-2 py-0.5 text-[10px] font-bold text-mint-dark">
-                                This device
+                                {t('security.thisDevice')}
                               </span>
                             ) : null}
                           </td>
-                          <td className="py-2 pr-2 align-top">{d.platform ?? '—'}</td>
-                          <td className="py-2 pr-2 align-top">{formatRelativeSeenAt(d.last_seen_at)}</td>
+                          <td className="py-2 pr-2 align-top">{d.platform ?? t('emDash')}</td>
+                          <td className="py-2 pr-2 align-top">{formatRelativeSeenAt(d.last_seen_at, t('emDash'))}</td>
                           <td className="py-2 align-top text-right">
                             <Button
                               type="button"
@@ -1097,7 +1109,7 @@ export function ProfilePage() {
                               disabled={removingDevice}
                               onClick={() => void onRemoveDevice(String(d.id))}
                             >
-                              Remove
+                              {t('security.remove')}
                             </Button>
                           </td>
                         </tr>
@@ -1109,18 +1121,18 @@ export function ProfilePage() {
             </section>
 
             <form onSubmit={onSaveSecurity} className="space-y-4 rounded-2xl border border-ink-10 p-6">
-              <h3 className="text-[15px] font-extrabold text-ink">Two-factor authentication</h3>
+              <h3 className="text-[15px] font-extrabold text-ink">{t('security.twoFactor')}</h3>
               <label className="inline-flex items-center gap-2 text-[13px] text-ink-60">
                 <input
                   type="checkbox"
                   checked={twoFactorEnabled}
                   onChange={(e) => setTwoFactorEnabled(e.target.checked)}
                 />
-                Enable 2FA (mock — wire real endpoints in a later phase)
+                {t('security.enable2fa')}
               </label>
               <div>
                 <Button type="submit" variant="dark" size="md">
-                  Save security preferences
+                  {t('security.saveSecurity')}
                 </Button>
               </div>
             </form>
@@ -1131,16 +1143,17 @@ export function ProfilePage() {
           <>
             {user?.role === 'talent' && (
               <div className="mt-10 rounded-2xl border border-ink-10 p-6">
-                <h2 className="text-lg font-extrabold text-ink">Talent availability</h2>
-                <p className="mt-2 text-[14px] text-ink-60">
-                  Control whether you appear available for new engagements in marketplace flows (API-backed).
-                </p>
+                <h2 className="text-lg font-extrabold text-ink">{t('talentAvailability.title')}</h2>
+                <p className="mt-2 text-[14px] text-ink-60">{t('talentAvailability.lead')}</p>
                 {availLoading ? (
-                  <p className="mt-4 text-[13px] text-ink-40">Loading availability…</p>
+                  <p className="mt-4 text-[13px] text-ink-40">{t('talentAvailability.loading')}</p>
                 ) : (
                   <div className="mt-4 flex flex-wrap items-center gap-3">
                     <span className="rounded-full bg-ink-5 px-3 py-1 text-[11px] font-semibold text-ink-60">
-                      Status: {talentAvail?.status === 'reserved' ? 'Reserved' : 'Available'}
+                      {t('talentAvailability.status')}{' '}
+                      {talentAvail?.status === 'reserved'
+                        ? t('talentAvailability.reserved')
+                        : t('talentAvailability.available')}
                     </span>
                     <Button
                       type="button"
@@ -1149,7 +1162,7 @@ export function ProfilePage() {
                       disabled={availabilityBusy || talentAvail?.status === 'available'}
                       onClick={() => void onToggleAvailability('available')}
                     >
-                      Available
+                      {t('talentAvailability.available')}
                     </Button>
                     <Button
                       type="button"
@@ -1158,7 +1171,7 @@ export function ProfilePage() {
                       disabled={availabilityBusy || talentAvail?.status === 'reserved'}
                       onClick={() => void onToggleAvailability('reserved')}
                     >
-                      Reserved
+                      {t('talentAvailability.reserved')}
                     </Button>
                   </div>
                 )}
@@ -1167,41 +1180,39 @@ export function ProfilePage() {
 
             <div className="mt-10 rounded-2xl border border-ink-10 p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-extrabold text-ink">Talent onboarding</h2>
+            <h2 className="text-lg font-extrabold text-ink">{t('talentOnboarding.title')}</h2>
             <span className="rounded-full bg-ink-5 px-3 py-1 text-[11px] font-semibold text-ink-60">{statusBadge}</span>
           </div>
-          <p className="mt-2 text-[14px] text-ink-60">
-            Complete your Talent profile to be listed in Marketplace. Admin reviews submitted applications.
-          </p>
+          <p className="mt-2 text-[14px] text-ink-60">{t('talentOnboarding.lead')}</p>
 
           {talentUiStatus === 'approved' ? (
             <div className="mt-4 rounded-xl border border-mint/40 bg-mint/15 p-4 text-[13px] text-ink-60">
-              <p className="font-semibold text-mint-dark">Talent role active.</p>
-              <p className="mt-1">Your profile is approved and visible in the marketplace when listed.</p>
+              <p className="font-semibold text-mint-dark">{t('talentOnboarding.roleActive')}</p>
+              <p className="mt-1">{t('talentOnboarding.roleActiveBody')}</p>
             </div>
           ) : (
             <div className="mt-4 space-y-4">
               {talentUiStatus === 'submitted' && (
                 <div className="rounded-xl border border-lemon/50 bg-lemon/15 p-4 text-[13px] text-ink-60">
-                  <p className="font-semibold text-ink">Submitted and waiting for admin review.</p>
-                  <p className="mt-1">You can withdraw below if you need to edit and resubmit.</p>
+                  <p className="font-semibold text-ink">{t('talentOnboarding.submittedTitle')}</p>
+                  <p className="mt-1">{t('talentOnboarding.submittedBody')}</p>
                 </div>
               )}
               {talentUiStatus === 'rejected' && (
                 <div className="rounded-xl border border-coral/40 bg-coral/10 p-4 text-[13px] text-ink-60">
-                  <p className="font-semibold text-coral">Application rejected.</p>
+                  <p className="font-semibold text-coral">{t('talentOnboarding.rejectedTitle')}</p>
                   <p className="mt-1">
-                    Reason:{' '}
+                    {t('talentOnboarding.reason')}{' '}
                     {typeof talentRejectionReason === 'string' && talentRejectionReason.trim().length > 0
                       ? talentRejectionReason
-                      : 'Please update verification media quality.'}
+                      : t('talentOnboarding.rejectionFallback')}
                   </p>
                 </div>
               )}
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="block">
-                  <span className="text-[12px] font-semibold text-ink-60">Full name *</span>
+                  <span className="text-[12px] font-semibold text-ink-60">{t('talentOnboarding.fullName')}</span>
                   <input
                     value={draft.fullName}
                     disabled={talentFormLocked}
@@ -1210,7 +1221,7 @@ export function ProfilePage() {
                   />
                 </label>
                 <label className="block">
-                  <span className="text-[12px] font-semibold text-ink-60">Contact email *</span>
+                  <span className="text-[12px] font-semibold text-ink-60">{t('talentOnboarding.contactEmail')}</span>
                   <input
                     type="email"
                     value={draft.contactEmail}
@@ -1220,25 +1231,25 @@ export function ProfilePage() {
                   />
                 </label>
                 <label className="block">
-                  <span className="text-[12px] font-semibold text-ink-60">Contact phone</span>
+                  <span className="text-[12px] font-semibold text-ink-60">{t('talentOnboarding.contactPhone')}</span>
                   <input
                     value={draft.contactPhone}
                     disabled={talentFormLocked}
                     onChange={(e) => setDraft((prev) => ({ ...prev, contactPhone: e.target.value }))}
                     className="mt-1.5 w-full rounded-xl border border-ink-10 px-4 py-3 text-[14px]"
-                    placeholder="+966 ..."
+                    placeholder={t('talentOnboarding.contactPhonePlaceholder')}
                   />
                 </label>
                 <div className="sm:col-span-2">
                   <DraftProfileImageAvatarInput
                     value={draft.profileImage}
                     onChange={(url) => setDraft((prev) => ({ ...prev, profileImage: url }))}
-                    displayName={draft.fullName.trim() || user?.name || 'User'}
+                    displayName={draft.fullName.trim() || user?.name || t('defaultUser')}
                     disabled={talentFormLocked}
                   />
                 </div>
                 <label className="block">
-                  <span className="text-[12px] font-semibold text-ink-60">Saudi region *</span>
+                  <span className="text-[12px] font-semibold text-ink-60">{t('talentOnboarding.saudiRegion')}</span>
                   <select
                     value={draft.saudiRegionId}
                     disabled={talentFormLocked}
@@ -1248,7 +1259,7 @@ export function ProfilePage() {
                     }}
                     className="mt-1.5 w-full rounded-xl border border-ink-10 bg-white px-4 py-3 text-[14px]"
                   >
-                    <option value="">Select region</option>
+                    <option value="">{t('info.selectRegion')}</option>
                     {talentRegionOptions.map((r) => (
                       <option key={r.id} value={r.id}>
                         {r.name}
@@ -1257,14 +1268,16 @@ export function ProfilePage() {
                   </select>
                 </label>
                 <label className="block">
-                  <span className="text-[12px] font-semibold text-ink-60">City *</span>
+                  <span className="text-[12px] font-semibold text-ink-60">{t('talentOnboarding.city')}</span>
                   <select
                     value={draft.city}
                     disabled={talentFormLocked || !draft.saudiRegionId}
                     onChange={(e) => setDraft((prev) => ({ ...prev, city: e.target.value }))}
                     className="mt-1.5 w-full rounded-xl border border-ink-10 bg-white px-4 py-3 text-[14px] disabled:cursor-not-allowed disabled:bg-ink-5 disabled:text-ink-40"
                   >
-                    <option value="">{draft.saudiRegionId ? 'Select city' : 'Choose a region first'}</option>
+                    <option value="">
+                      {draft.saudiRegionId ? t('info.selectCity') : t('info.chooseRegionFirst')}
+                    </option>
                     {talentCities.map((c) => (
                       <option key={c.id} value={c.name}>
                         {c.name}
@@ -1274,7 +1287,7 @@ export function ProfilePage() {
                 </label>
                 <label className="block sm:col-span-2">
                   <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-[12px] font-semibold text-ink-60">Bio (skills and experience) *</span>
+                    <span className="text-[12px] font-semibold text-ink-60">{t('talentOnboarding.bio')}</span>
                     <span
                       className={
                         bioLen >= TALENT_BIO_MIN_CHARS
@@ -1282,7 +1295,7 @@ export function ProfilePage() {
                           : 'text-[11px] font-bold text-ink-40'
                       }
                     >
-                      {bioLen} / {TALENT_BIO_MIN_CHARS} minimum characters
+                      {t('talentOnboarding.bioMinChars', { count: bioLen, min: TALENT_BIO_MIN_CHARS })}
                     </span>
                   </div>
                   <textarea
@@ -1291,22 +1304,20 @@ export function ProfilePage() {
                     disabled={talentFormLocked}
                     onChange={(e) => setDraft((prev) => ({ ...prev, bio: e.target.value }))}
                     className="mt-1.5 w-full rounded-xl border border-ink-10 px-4 py-3 text-[14px]"
-                    placeholder="Describe specialties, years of experience, and performance style."
+                    placeholder={t('talentOnboarding.bioPlaceholder')}
                   />
                 </label>
               </div>
 
               <div className="rounded-xl border border-ink-10 bg-ink-5/50 p-4">
-                <p className="text-[12px] font-semibold text-ink-60">Verification uploads *</p>
-                <p className="mt-1 text-[12px] text-ink-40">
-                  Add at least one: video file, image file, URL, or certificate document.
-                </p>
+                <p className="text-[12px] font-semibold text-ink-60">{t('talentOnboarding.verificationTitle')}</p>
+                <p className="mt-1 text-[12px] text-ink-40">{t('talentOnboarding.verificationHint')}</p>
                 <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                   <input
                     value={mediaInput}
                     disabled={talentFormLocked}
                     onChange={(e) => setMediaInput(e.target.value)}
-                    placeholder="Paste URL (https://…)"
+                    placeholder={t('talentOnboarding.urlPlaceholder')}
                     className="min-w-0 flex-1 rounded-xl border border-ink-10 bg-white px-4 py-2.5 text-[14px]"
                   />
                   <Button
@@ -1319,14 +1330,14 @@ export function ProfilePage() {
                       setMediaInput('');
                     }}
                   >
-                    Add URL
+                    {t('talentOnboarding.addUrl')}
                   </Button>
                 </div>
                 {!talentFormLocked && (
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     <label className="flex cursor-pointer flex-col rounded-xl border border-dashed border-ink-20 bg-white px-4 py-3 text-[12px] font-semibold text-ink-60 hover:bg-ink-5">
-                      <span>Video file</span>
-                      <span className="mt-0.5 text-[11px] font-normal text-ink-40">mp4, webm…</span>
+                      <span>{t('talentOnboarding.videoFile')}</span>
+                      <span className="mt-0.5 text-[11px] font-normal text-ink-40">{t('talentOnboarding.videoFormats')}</span>
                       <input
                         type="file"
                         accept="video/*"
@@ -1339,8 +1350,8 @@ export function ProfilePage() {
                       />
                     </label>
                     <label className="flex cursor-pointer flex-col rounded-xl border border-dashed border-ink-20 bg-white px-4 py-3 text-[12px] font-semibold text-ink-60 hover:bg-ink-5">
-                      <span>Image file</span>
-                      <span className="mt-0.5 text-[11px] font-normal text-ink-40">jpg, png…</span>
+                      <span>{t('talentOnboarding.imageFile')}</span>
+                      <span className="mt-0.5 text-[11px] font-normal text-ink-40">{t('talentOnboarding.imageFormats')}</span>
                       <input
                         type="file"
                         accept="image/*"
@@ -1353,8 +1364,8 @@ export function ProfilePage() {
                       />
                     </label>
                     <label className="flex cursor-pointer flex-col rounded-xl border border-dashed border-ink-20 bg-white px-4 py-3 text-[12px] font-semibold text-ink-60 hover:bg-ink-5 sm:col-span-2">
-                      <span>Certificate or document</span>
-                      <span className="mt-0.5 text-[11px] font-normal text-ink-40">pdf or image scan</span>
+                      <span>{t('talentOnboarding.certificate')}</span>
+                      <span className="mt-0.5 text-[11px] font-normal text-ink-40">{t('talentOnboarding.certificateFormats')}</span>
                       <input
                         type="file"
                         accept="image/*,.pdf,application/pdf"
@@ -1384,7 +1395,7 @@ export function ProfilePage() {
                             }
                             className="font-semibold text-coral"
                           >
-                            Remove
+                            {t('talentOnboarding.remove')}
                           </button>
                         )}
                       </li>
@@ -1394,11 +1405,8 @@ export function ProfilePage() {
               </div>
 
               <div className="rounded-xl border border-lemon bg-lemon/15 p-4">
-                <p className="text-[12px] font-semibold text-ink">Upload quality disclaimer</p>
-                <p className="mt-1 text-[12px] text-ink-60">
-                  Uploaded verification media must be clear, well-lit, and represent your actual work. Low quality may
-                  cause rejection in admin review.
-                </p>
+                <p className="text-[12px] font-semibold text-ink">{t('talentOnboarding.disclaimerTitle')}</p>
+                <p className="mt-1 text-[12px] text-ink-60">{t('talentOnboarding.disclaimerBody')}</p>
                 <label className="mt-3 inline-flex items-center gap-2 text-[12px] text-ink-60">
                   <input
                     type="checkbox"
@@ -1406,7 +1414,7 @@ export function ProfilePage() {
                     disabled={talentFormLocked}
                     onChange={(e) => setDraft((prev) => ({ ...prev, acceptedQualityDisclaimer: e.target.checked }))}
                   />
-                  I understand and agree to upload quality requirements.
+                  {t('talentOnboarding.disclaimerAgree')}
                 </label>
               </div>
 
@@ -1414,7 +1422,7 @@ export function ProfilePage() {
                 {!talentFormLocked && (
                   <>
                     <Button type="button" variant="outline" size="md" onClick={() => void onSaveTalentDraft()} loading={talentFormBusy}>
-                      Save draft
+                      {t('talentOnboarding.saveDraft')}
                     </Button>
                     <Button
                       type="button"
@@ -1424,7 +1432,7 @@ export function ProfilePage() {
                       disabled={!requiredReady || talentFormBusy}
                       loading={talentFormBusy}
                     >
-                      Submit for review
+                      {t('talentOnboarding.submitForReview')}
                     </Button>
                   </>
                 )}
@@ -1432,13 +1440,11 @@ export function ProfilePage() {
 
               {talentUiStatus === 'submitted' && talentAppId && (
                 <div className="rounded-xl border border-ink-10 bg-white p-4">
-                  <p className="text-[12px] font-semibold text-ink-60">Application under review</p>
-                  <p className="mt-1 text-[12px] text-ink-60">
-                    Withdraw if you need to correct something before a decision is made.
-                  </p>
+                  <p className="text-[12px] font-semibold text-ink-60">{t('talentOnboarding.underReviewTitle')}</p>
+                  <p className="mt-1 text-[12px] text-ink-60">{t('talentOnboarding.underReviewBody')}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button type="button" variant="outline" size="md" onClick={() => void onWithdrawTalentApplication()}>
-                      Withdraw application
+                      {t('otherRoles.withdraw')}
                     </Button>
                   </div>
                 </div>
@@ -1448,13 +1454,11 @@ export function ProfilePage() {
             </div>
 
             <div className="mt-10 rounded-2xl border border-ink-10 p-6">
-          <h2 className="text-lg font-extrabold text-ink">Other role applications</h2>
-          <p className="mt-2 text-[14px] text-ink-60">
-            Vendor and organizer applications you started from registration (or re-apply) appear here.
-          </p>
+          <h2 className="text-lg font-extrabold text-ink">{t('otherRoles.title')}</h2>
+          <p className="mt-2 text-[14px] text-ink-60">{t('otherRoles.lead')}</p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {renderVendorOrganizerCard('vendor', 'Vendor onboarding', vendorSummary)}
-            {renderVendorOrganizerCard('organizer', 'Organizer onboarding', organizerSummary)}
+            {renderVendorOrganizerCard('vendor', t('otherRoles.vendorTitle'), vendorSummary)}
+            {renderVendorOrganizerCard('organizer', t('otherRoles.organizerTitle'), organizerSummary)}
           </div>
             </div>
           </>
@@ -1463,10 +1467,8 @@ export function ProfilePage() {
         {activeTab === 'danger' && (
           <>
             <div className="mt-10 rounded-2xl border border-red-200 bg-red-50/50 p-6">
-              <h2 className="text-lg font-extrabold text-red-900">Delete account</h2>
-              <p className="mt-2 text-[13px] leading-relaxed text-red-900/80">
-                Permanent data loss; valid tickets auto-listed for auction per Terms. Irreversible.
-              </p>
+              <h2 className="text-lg font-extrabold text-red-900">{t('delete.title')}</h2>
+              <p className="mt-2 text-[13px] leading-relaxed text-red-900/80">{t('delete.warning')}</p>
               <Button
                 variant="danger"
                 size="md"
@@ -1478,7 +1480,7 @@ export function ProfilePage() {
                   deleteForm.reset({ confirmation: '', reason: '' });
                 }}
               >
-                Delete account
+                {t('delete.button')}
               </Button>
             </div>
 
@@ -1488,7 +1490,7 @@ export function ProfilePage() {
                 onClick={() => signOut()}
                 className="text-[14px] font-semibold text-coral hover:underline"
               >
-                Sign out
+                {t('common:signOut')}
               </button>
             </p>
           </>
@@ -1500,20 +1502,17 @@ export function ProfilePage() {
           <div className="max-h-[90vh] max-w-md overflow-y-auto rounded-2xl bg-white p-6 shadow-card-lg">
             {!deleteSummary ? (
               <>
-                <h3 className="text-lg font-extrabold text-ink">Delete account</h3>
-                <p className="mt-2 text-[14px] text-ink-60">
-                  Permanent data loss; valid tickets may be queued for resale per Terms. Type{' '}
-                  <span className="font-mono font-bold">DELETE</span> to confirm.
-                </p>
+                <h3 className="text-lg font-extrabold text-ink">{t('delete.title')}</h3>
+                <p className="mt-2 text-[14px] text-ink-60">{t('delete.confirmLead')}</p>
                 <form
                   className="mt-6 space-y-4"
                   onSubmit={deleteForm.handleSubmit((vals: DeleteAccountFormValues) => void onSubmitDeleteAccount(vals))}
                 >
                   <label className="block">
-                    <span className="text-[12px] font-semibold text-ink-60">Confirmation</span>
+                    <span className="text-[12px] font-semibold text-ink-60">{t('delete.confirmation')}</span>
                     <input
                       {...deleteForm.register('confirmation')}
-                      placeholder="DELETE"
+                      placeholder={t('delete.confirmationPlaceholder')}
                       autoComplete="off"
                       className="mt-1.5 w-full rounded-xl border border-ink-10 px-4 py-3 font-mono text-[14px]"
                     />
@@ -1524,7 +1523,7 @@ export function ProfilePage() {
                     )}
                   </label>
                   <label className="block">
-                    <span className="text-[12px] font-semibold text-ink-60">Reason (optional)</span>
+                    <span className="text-[12px] font-semibold text-ink-60">{t('delete.reasonOptional')}</span>
                     <textarea
                       rows={3}
                       {...deleteForm.register('reason')}
@@ -1548,28 +1547,26 @@ export function ProfilePage() {
                         deleteForm.reset();
                       }}
                     >
-                      Cancel
+                      {t('common:cancel')}
                     </Button>
                     <Button type="submit" variant="danger" size="md" className="flex-1" disabled={deleteForm.formState.isSubmitting}>
-                      {deleteForm.formState.isSubmitting ? 'Deleting…' : 'Confirm delete'}
+                      {deleteForm.formState.isSubmitting ? t('delete.deleting') : t('delete.confirmDelete')}
                     </Button>
                   </div>
                 </form>
               </>
             ) : (
               <>
-                <h3 className="text-lg font-extrabold text-ink">Account deletion scheduled</h3>
+                <h3 className="text-lg font-extrabold text-ink">{t('delete.scheduledTitle')}</h3>
                 <p className="mt-3 text-[14px] text-ink-60">
-                  Tickets queued for resale:{' '}
+                  {t('delete.ticketsQueued')}{' '}
                   <span className="font-bold text-ink">{deleteSummary.queued_resales}</span>
                 </p>
                 <p className="mt-2 text-[14px] text-ink-60">
-                  Scheduled purge:{' '}
-                  <span className="font-bold text-ink">{formatSeenAt(deleteSummary.scheduled_purge_at)}</span>
+                  {t('delete.scheduledPurge')}{' '}
+                  <span className="font-bold text-ink">{formatSeenAt(deleteSummary.scheduled_purge_at, t('emDash'))}</span>
                 </p>
-                <p className="mt-4 text-[12px] text-ink-40">
-                  Check your email for any follow-up. You will be signed out when you continue.
-                </p>
+                <p className="mt-4 text-[12px] text-ink-40">{t('delete.emailFollowUp')}</p>
                 <Button
                   variant="dark"
                   size="md"
@@ -1582,13 +1579,13 @@ export function ProfilePage() {
                     deleteForm.reset();
                   }}
                 >
-                  Sign out
+                  {t('common:signOut')}
                 </Button>
               </>
             )}
             <p className="mt-4 text-center text-[12px]">
               <Link to="/terms" className="text-coral underline">
-                Terms of Service
+                {t('delete.terms')}
               </Link>
             </p>
           </div>

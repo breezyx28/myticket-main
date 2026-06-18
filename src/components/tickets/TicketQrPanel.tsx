@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { TicketStatus } from '@/api/types/ticket';
 import { ticketQrStatusMessage } from '@/lib/ticketQr';
 import { cn } from '@/lib/utils';
@@ -23,6 +24,7 @@ export function TicketQrPanel({
   compact = false,
   variant = 'default',
 }: TicketQrPanelProps) {
+  const { t } = useTranslation('tickets');
   const statusMessage = ticketQrStatusMessage(status);
   const canEnter = status === 'active';
   const isInvoice = variant === 'invoice';
@@ -37,8 +39,7 @@ export function TicketQrPanel({
             : 'rounded-2xl border border-ink-10 bg-ink-5/40 px-4 py-8 text-center',
         )}
       >
-        Ticket code is not available yet. Open this page again after your order is confirmed, or check My
-        Tickets.
+        {t('detail.ticketCodeUnavailable')}
       </div>
     );
   }
@@ -55,7 +56,7 @@ export function TicketQrPanel({
             : cn('rounded-2xl border border-ink-10', compact ? 'h-44' : 'h-56'),
         )}
       >
-        <p className="text-[13px] text-ink-40">Generating QR…</p>
+        <p className="text-[13px] text-ink-40">{t('detail.generatingQr')}</p>
       </div>
     );
   }
@@ -70,7 +71,7 @@ export function TicketQrPanel({
             : 'rounded-2xl border border-coral/40 bg-coral/10 px-4 py-6',
         )}
       >
-        {error ?? 'Could not display QR code.'}
+        {error ?? t('detail.qrError')}
       </div>
     );
   }
@@ -81,7 +82,7 @@ export function TicketQrPanel({
         <div className="rounded-lg border border-ink-10 bg-white p-2 shadow-sm">
           <img
             src={dataUrl}
-            alt={`Ticket QR code for ${ticketCode}`}
+            alt={t('detail.qrAlt')}
             width={qrSize}
             height={qrSize}
             className={cn('rounded-md outline outline-black/10', !canEnter && 'opacity-80')}
@@ -113,11 +114,11 @@ export function TicketQrPanel({
       )}
     >
       {!compact && (
-        <p className="mb-4 text-[11px] font-semibold uppercase tracking-wide text-ink-40">Entry QR</p>
+        <p className="mb-4 text-[11px] font-semibold uppercase tracking-wide text-ink-40">{t('detail.entryQr')}</p>
       )}
       <img
         src={dataUrl}
-        alt={`Ticket QR code for ${ticketCode}`}
+        alt={t('detail.qrAlt')}
         width={qrSize}
         height={qrSize}
         className={cn('max-w-full outline outline-black/10', !canEnter && 'opacity-80')}
@@ -127,7 +128,7 @@ export function TicketQrPanel({
         {ticketCode}
       </p>
       {!compact && (
-        <p className="mt-1 text-[11px] text-ink-40">Manual entry code if the scanner cannot read the QR</p>
+        <p className="mt-1 text-[11px] text-ink-40">{t('detail.qrManualHint')}</p>
       )}
       {statusMessage ? (
         <p
@@ -140,8 +141,7 @@ export function TicketQrPanel({
         </p>
       ) : (
         <p className="mt-4 max-w-sm text-center text-[11px] leading-relaxed text-ink-40">
-          Show this code at the gate. Increase screen brightness for best results. Do not share screenshots
-          publicly.
+          {t('detail.qrShareHint')}
         </p>
       )}
     </div>

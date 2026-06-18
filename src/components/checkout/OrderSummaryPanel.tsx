@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { SaudiRiyalIcon } from '@/components/icons/SaudiRiyalIcon';
 import { formatSaudiRiyalAmountLatin } from '@/lib/saudiCurrency';
 import { cn } from '@/lib/utils';
@@ -57,6 +58,7 @@ export function OrderSummaryPanel({
   showPolicies = true,
   className,
 }: OrderSummaryPanelProps) {
+  const { t } = useTranslation('checkout');
   const unitFormatted = formatSaudiRiyalAmountLatin(unitPrice);
 
   return (
@@ -67,7 +69,7 @@ export function OrderSummaryPanel({
       )}
     >
       <div className="border-b border-ink-10 px-6 py-5 sm:px-8">
-        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-ink-40">Order summary</p>
+        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-ink-40">{t('orderSummary')}</p>
         <h2 className="mt-1 text-balance text-[17px] font-extrabold tracking-tight text-ink">
           {eventTitle}
         </h2>
@@ -78,7 +80,7 @@ export function OrderSummaryPanel({
             <span className="inline-flex items-center gap-0.5 tabular-nums">
               <SaudiRiyalIcon className="h-[0.8em] w-[0.8em]" />
               {unitFormatted}
-              <span className="text-ink-40"> each</span>
+              <span className="text-ink-40"> {t('each')}</span>
             </span>
           </p>
         ) : null}
@@ -86,39 +88,33 @@ export function OrderSummaryPanel({
 
       {seatLabels && seatLabels.length > 0 ? (
         <div className="border-b border-ink-10 px-6 py-4 sm:px-8">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-40">Seats</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-40">{t('seats')}</p>
           <p className="mt-1.5 text-[13px] leading-relaxed text-ink-60">{seatLabels.join(', ')}</p>
         </div>
       ) : null}
 
       <div className="space-y-2 px-6 py-5 text-[14px] sm:px-8">
-        <MoneyRow label="Subtotal" amount={subtotal} />
-        <MoneyRow label="Fees (demo 5%)" amount={fees} muted />
-        <MoneyRow label="Total" amount={total} emphasis />
-        <p className="pt-1 text-[11px] leading-relaxed text-ink-40">
-          Final totals (taxes, processing fees) are calculated server-side at order creation.
-        </p>
+        <MoneyRow label={t('subtotal')} amount={subtotal} />
+        <MoneyRow label={t('fees')} amount={fees} muted />
+        <MoneyRow label={t('total')} amount={total} emphasis />
+        <p className="pt-1 text-[11px] leading-relaxed text-ink-40">{t('totalsNote')}</p>
       </div>
 
       {showPolicies ? (
         <div className="space-y-2 border-t border-ink-10 px-6 py-4 text-[12px] leading-relaxed text-ink-60 sm:px-8">
           <details className="group">
-            <summary className="cursor-pointer font-bold text-ink">Refund policy (summary)</summary>
+            <summary className="cursor-pointer font-bold text-ink">{t('refundPolicy')}</summary>
             <p className="mt-2">
-              No change-of-mind refunds. Resale is via auction before event day. Refunds apply for
-              cancellation, major organizer edits, or seat conflicts per{' '}
+              {t('refundPolicyBody')}{' '}
               <Link to="/terms" className="font-semibold text-coral underline">
-                Terms
+                {t('terms')}
               </Link>
               .
             </p>
           </details>
           <details className="group">
-            <summary className="cursor-pointer font-bold text-ink">Seat lock while paying</summary>
-            <p className="mt-2">
-              Seats are held server-side while payment processes. If payment fails or times out,
-              locks release for others automatically.
-            </p>
+            <summary className="cursor-pointer font-bold text-ink">{t('seatLockPolicy')}</summary>
+            <p className="mt-2">{t('seatLockPolicyBody')}</p>
           </details>
         </div>
       ) : null}

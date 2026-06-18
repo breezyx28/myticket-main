@@ -1,9 +1,15 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
-import { applyDocumentLanguage, getEffectiveLanguage, type AppLanguage } from '@/lib/language';
+import { applyDocumentLanguage, getEffectiveLanguage, setApiLanguage, type AppLanguage } from '@/lib/language';
+import { pickLocalizedName } from '@/lib/localized';
+
+export type { AppLanguage };
+export { pickLocalizedName };
 import { resources } from '@/i18n/resources';
 
 const initialLanguage = getEffectiveLanguage();
+
+setApiLanguage(initialLanguage);
 
 void i18n.use(initReactI18next).init({
   resources,
@@ -27,6 +33,11 @@ void i18n.use(initReactI18next).init({
     'legal',
     'auction',
     'tickets',
+    'checkout',
+    'eventDetail',
+    'seats',
+    'tourism',
+    'profile',
   ],
   interpolation: {
     escapeValue: false,
@@ -36,6 +47,7 @@ void i18n.use(initReactI18next).init({
 applyDocumentLanguage(initialLanguage);
 
 export function changeAppLanguage(language: AppLanguage) {
+  setApiLanguage(language);
   void i18n.changeLanguage(language);
   applyDocumentLanguage(language);
 }

@@ -1,5 +1,6 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import { getToken } from '@/api/authToken';
+import { getApiLanguage } from '@/lib/language';
 
 const ENV_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:8000';
 const ENV_PREFIX = (import.meta.env.VITE_API_PREFIX as string | undefined) ?? '/api/v1/main';
@@ -72,6 +73,7 @@ export const baseApi = createApi({
       const token = getToken();
       if (token) headers.set('Authorization', `Bearer ${token}`);
       headers.set('Accept', 'application/json');
+      headers.set('Accept-Language', getApiLanguage());
       return headers;
     },
   }),

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -15,6 +16,7 @@ type VendorPortalRedirectPageProps = {
 };
 
 export function VendorPortalRedirectPage({ targetPath = '/' }: VendorPortalRedirectPageProps) {
+  const { t } = useTranslation('profile');
   const { user } = useAuth();
   const canUsePortal = isVendorUser(user) || isGuestVendorApplicant(user);
   const portalUrl = buildVendorPortalUrl(targetPath, user);
@@ -31,12 +33,10 @@ export function VendorPortalRedirectPage({ targetPath = '/' }: VendorPortalRedir
     return (
       <div className="bg-white pb-20 pt-16">
         <div className="mx-auto max-w-[760px] rounded-2xl border border-ink-10 bg-white p-8 text-center">
-          <h1 className="text-2xl font-extrabold text-ink">Vendor dashboard is restricted</h1>
-          <p className="mt-3 text-[14px] text-ink-60">
-            This area is for guest applicants and approved vendor accounts.
-          </p>
+          <h1 className="text-2xl font-extrabold text-ink">{t('portal.vendor.restricted')}</h1>
+          <p className="mt-3 text-[14px] text-ink-60">{t('portal.vendor.restrictedBody')}</p>
           <Link to="/profile" className="mt-5 inline-block text-[13px] font-semibold text-coral hover:underline">
-            Go back to Account
+            {t('portal.backToAccount')}
           </Link>
         </div>
       </div>
@@ -45,24 +45,24 @@ export function VendorPortalRedirectPage({ targetPath = '/' }: VendorPortalRedir
 
   const title =
     targetPath === '/application' || targetPath.startsWith('/application')
-      ? 'Continue your Vendor application'
+      ? t('portal.vendor.titleApplication')
       : targetPath.startsWith('/engagements')
-        ? 'Open Vendor engagements'
+        ? t('portal.vendor.titleEngagements')
         : targetPath.startsWith('/profile')
-          ? 'Open Vendor profile'
-          : 'Redirecting to Vendor Dashboard';
+          ? t('portal.vendor.titleProfile')
+          : t('portal.vendor.titleDefault');
 
   return (
     <div className="bg-white pb-20 pt-16">
       <div className="mx-auto max-w-[760px] rounded-2xl border border-ink-10 bg-white p-8">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-40">Vendor Area</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-40">
+          {t('portal.vendor.eyebrow')}
+        </p>
         <h1 className="mt-2 text-2xl font-extrabold text-ink">{title}</h1>
         <p className="mt-3 text-[14px] leading-relaxed text-ink-60">
-          Vendor applications, profile, availability, and engagement inbox live on a separate app at{' '}
+          {t('portal.vendor.body')}{' '}
           <strong className="text-ink">{getVendorPortalBaseUrl()}</strong>.
-          {user?.role === 'guest' ? (
-            <> You may need to sign in again on that app in local development.</>
-          ) : null}
+          {user?.role === 'guest' ? t('portal.guestDevNote') : null}
         </p>
         <div className="mt-5 flex flex-wrap gap-2">
           <Button
@@ -72,10 +72,10 @@ export function VendorPortalRedirectPage({ targetPath = '/' }: VendorPortalRedir
               window.location.assign(portalUrl);
             }}
           >
-            Open Vendor Dashboard
+            {t('portal.vendor.open')}
           </Button>
           <Link to="/" className="inline-flex items-center text-[13px] font-semibold text-coral hover:underline">
-            Stay on main website
+            {t('portal.stayOnSite')}
           </Link>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { OnboardingHeader } from '@/components/auth/OnboardingHeader';
@@ -105,6 +106,7 @@ type RoleOnboardingFlowProps = {
 };
 
 export function RoleOnboardingFlow({ role }: RoleOnboardingFlowProps) {
+  const { t } = useTranslation('authPages');
   const navigate = useNavigate();
   const { user } = useAuth();
 
@@ -146,16 +148,17 @@ export function RoleOnboardingFlow({ role }: RoleOnboardingFlowProps) {
   const [resubmitOrganizerApplication] = useResubmitOrganizerApplicationMutation();
 
   const steps = useMemo(() => {
-    if (role === 'talent') return ['Talent profile', 'Verification', 'Preferences'];
-    if (role === 'vendor') return ['Vendor profile', 'Services', 'Compliance'];
-    return ['Public profile', 'Contacts', 'Entity details', 'Social'];
-  }, [role]);
+    const key = role === 'talent' || role === 'vendor' || role === 'organizer' ? role : 'organizer';
+    return t(`onboarding.steps.${key}`, { returnObjects: true }) as string[];
+  }, [role, t]);
 
   const onboardingTitle = useMemo(() => {
-    if (role === 'talent') return 'Talent onboarding';
-    if (role === 'vendor') return 'Vendor onboarding';
-    return 'Organizer onboarding';
-  }, [role]);
+    if (role === 'talent') return t('onboarding.titles.talent');
+    if (role === 'vendor') return t('onboarding.titles.vendor');
+    return t('onboarding.titles.organizer');
+  }, [role, t]);
+
+  const roleLabel = t(`onboarding.roles.${role}`);
 
   function clearApplyForm() {
     clearApplyDraft();
@@ -406,7 +409,7 @@ export function RoleOnboardingFlow({ role }: RoleOnboardingFlowProps) {
       clearApplyDraft();
       setStage('complete');
     } catch (err) {
-      setError(toAuthApiError(err, 'Could not submit application.').message);
+      setError(toAuthApiError(err, t('onboarding.errors.submitApplicationFailed')).message);
     } finally {
       setLoading(false);
     }
@@ -415,14 +418,18 @@ export function RoleOnboardingFlow({ role }: RoleOnboardingFlowProps) {
   if (stage === 'complete') {
     return (
       <FormSectionCard
-        eyebrow="Role upgrade"
-        title="Application submitted"
-        description="Your application is pending review."
+        eyebrow={t('onboarding.roleUpgrade.eyebrow')}
+        title={t('onboarding.roleUpgrade.title')}
+        description={t('onboarding.roleUpgrade.description')}
       >
-        <InlineNotice variant="info" title="What happens next">
+        <InlineNotice variant="info" title={t('onboarding.complete.whatHappensNext')}>
           <p className="text-[13px] leading-relaxed text-ink-70">
-            Your <strong className="text-ink">{role}</strong> application was submitted and is
-            pending admin review. You will be notified when it is approved.
+            <Trans
+              i18nKey="onboarding.complete.applicationSubmittedBody"
+              ns="authPages"
+              values={{ role: roleLabel }}
+              components={{ strong: <strong className="text-ink" /> }}
+            />
           </p>
         </InlineNotice>
         <div className="mt-6 flex flex-col gap-2 sm:flex-row">
@@ -433,7 +440,7 @@ export function RoleOnboardingFlow({ role }: RoleOnboardingFlowProps) {
             className="w-full sm:flex-1"
             onClick={() => navigate('/profile', { replace: true })}
           >
-            View account
+            {t('onboarding.complete.viewAccount')}
           </Button>
           <Button
             type="button"
@@ -442,7 +449,7 @@ export function RoleOnboardingFlow({ role }: RoleOnboardingFlowProps) {
             className="w-full sm:flex-1"
             onClick={() => navigate('/')}
           >
-            Back to home
+            {t('onboarding.complete.backToHome')}
           </Button>
         </div>
       </FormSectionCard>
@@ -451,9 +458,9 @@ export function RoleOnboardingFlow({ role }: RoleOnboardingFlowProps) {
 
   return (
     <FormSectionCard
-      eyebrow="Role upgrade"
+      eyebrow={t('onboarding.roleUpgrade.eyebrow')}
       title={onboardingTitle}
-      description="Complete the steps below to submit your application."
+      description={t('onboarding.roleUpgrade.flowTitle')}
       className="overflow-hidden p-6"
     >
       {error && (
@@ -465,9 +472,9 @@ export function RoleOnboardingFlow({ role }: RoleOnboardingFlowProps) {
         </div>
       )}
       <OnboardingHeader
-        title={steps[wizardStep] ?? 'Onboarding'}
+        title={steps[wizardStep] ?? t('onboarding.defaultStepTitle')}
         description={
-          role === 'organizer' ? 'Build your public organizer profile.' : undefined
+          role === 'organizer' ? t('onboarding.roleUpgrade.organizerDescription') : undefined
         }
         steps={steps}
         activeIdx={wizardStep}
@@ -515,7 +522,7 @@ export function RoleOnboardingFlow({ role }: RoleOnboardingFlowProps) {
               setWizardStep((s) => Math.max(0, s - 1));
             }}
           >
-            Back
+            {t('onboarding.buttons.back')}
           </Button>
           {wizardStep < steps.length - 1 ? (
             <Button
@@ -526,7 +533,7 @@ export function RoleOnboardingFlow({ role }: RoleOnboardingFlowProps) {
               disabled={!isCurrentRoleStepValid}
               onClick={() => setWizardStep((s) => Math.min(steps.length - 1, s + 1))}
             >
-              Next
+              {t('onboarding.buttons.next')}
             </Button>
           ) : (
             <Button
@@ -537,7 +544,7 @@ export function RoleOnboardingFlow({ role }: RoleOnboardingFlowProps) {
               loading={loading}
               disabled={!isCurrentRoleStepValid}
             >
-              Submit {role} application
+              {t('onboarding.buttons.submitApplication', { role: roleLabel })}
             </Button>
           )}
         </div>
@@ -548,7 +555,7 @@ export function RoleOnboardingFlow({ role }: RoleOnboardingFlowProps) {
           className="w-full"
           onClick={clearApplyForm}
         >
-          Clear form
+          {t('onboarding.buttons.clearForm')}
         </Button>
       </form>
     </FormSectionCard>

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import {
   DownloadSimple,
   Gift,
@@ -47,12 +48,16 @@ export function TicketDetailActions({
   onCancelOpen,
   ticketStatus,
 }: TicketDetailActionsProps) {
+  const { t } = useTranslation('tickets');
+
   return (
     <section className="rounded-2xl border border-ink-10 bg-white p-6 shadow-sm lg:p-8">
-      <SectionHeading title="Manage ticket" description="Download, transfer, or cancel this ticket." />
+      <SectionHeading title={t('detail.manageTicket')} description={t('detail.manageDesc')} />
       <div className="space-y-6">
         <div>
-          <p className="mb-3 text-[10px] font-bold uppercase tracking-wide text-ink-40">Save &amp; wallet</p>
+          <p className="mb-3 text-[10px] font-bold uppercase tracking-wide text-ink-40">
+            {t('detail.saveAndWallet')}
+          </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <Button
               variant="outline"
@@ -62,28 +67,30 @@ export function TicketDetailActions({
               loading={pdfLoading}
               onClick={onDownloadPdf}
             >
-              Download PDF
+              {t('detail.downloadPdf')}
             </Button>
             <Button
               variant="outline"
               size="md"
               icon={Wallet}
               disabled={!canAct}
-              title="Wallet passes are not available in the app yet."
+              title={t('detail.walletUnavailable')}
               onClick={onWalletHint}
             >
-              Add to Wallet
+              {t('detail.addToWallet')}
             </Button>
           </div>
         </div>
         <div className="border-t border-ink-10 pt-6">
-          <p className="mb-3 text-[10px] font-bold uppercase tracking-wide text-ink-40">Transfer &amp; resale</p>
+          <p className="mb-3 text-[10px] font-bold uppercase tracking-wide text-ink-40">
+            {t('detail.transferResale')}
+          </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <Button variant="secondary" size="md" icon={Gift} disabled={!canGift} onClick={onGiftOpen}>
-              Gift ticket
+              {t('detail.giftTicket')}
             </Button>
             <Button variant="secondary" size="md" icon={Gavel} disabled={!canAuction} onClick={onAuctionOpen}>
-              Drop to auction
+              {t('detail.dropToAuction')}
             </Button>
           </div>
         </div>
@@ -96,11 +103,11 @@ export function TicketDetailActions({
             className="w-full"
             onClick={onCancelOpen}
           >
-            Cancel ticket
+            {t('detail.cancelTicket')}
           </Button>
           {!canAct && ticketStatus !== 'auction' && (
             <p className="mt-3 text-center text-[12px] leading-relaxed text-ink-40">
-              Primary actions apply to active tickets. Auction listings can be cancelled above.
+              {t('detail.inactiveTicketHint')}
             </p>
           )}
         </div>

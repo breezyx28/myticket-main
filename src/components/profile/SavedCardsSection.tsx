@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Check, Star } from '@phosphor-icons/react';
+import { useTranslation } from 'react-i18next';
 import type { SavedCard } from '@/api/types/savedCard';
 import {
   useDeleteSavedCardMutation,
@@ -33,6 +34,7 @@ export function SavedCardsSection({
   onMessage,
   onError,
 }: SavedCardsSectionProps) {
+  const { t } = useTranslation('profile');
   const [updateDefault, { isLoading: settingDefault }] = useUpdateSavedCardDefaultMutation();
   const [deleteSavedCard, { isLoading: deleting }] = useDeleteSavedCardMutation();
   const [pendingDefaultId, setPendingDefaultId] = useState<string | null>(null);
@@ -43,14 +45,10 @@ export function SavedCardsSection({
     setPendingDefaultId(id);
     try {
       await updateDefault({ id }).unwrap();
-      onMessage('Default card updated.');
+      onMessage(t('savedCards.defaultUpdated'));
     } catch (e) {
-      const apiErr = toAuthApiError(e, 'Could not update default card.');
-      onError(
-        apiErr.status === 404
-          ? 'That card is no longer available. Refresh and try again.'
-          : apiErr.message,
-      );
+      const apiErr = toAuthApiError(e, t('savedCards.updateDefaultError'));
+      onError(apiErr.status === 404 ? t('savedCards.cardGone') : apiErr.message);
     } finally {
       setPendingDefaultId(null);
     }
@@ -61,14 +59,10 @@ export function SavedCardsSection({
     setPendingDeleteId(id);
     try {
       await deleteSavedCard({ id }).unwrap();
-      onMessage('Saved card removed.');
+      onMessage(t('savedCards.cardRemoved'));
     } catch (e) {
-      const apiErr = toAuthApiError(e, 'Could not delete this card.');
-      onError(
-        apiErr.status === 404
-          ? 'That card is no longer available. Refresh and try again.'
-          : apiErr.message,
-      );
+      const apiErr = toAuthApiError(e, t('savedCards.deleteError'));
+      onError(apiErr.status === 404 ? t('savedCards.cardGone') : apiErr.message);
     } finally {
       setPendingDeleteId(null);
     }
@@ -77,11 +71,8 @@ export function SavedCardsSection({
   return (
     <section className="mt-10 space-y-5 rounded-2xl border border-ink-10 p-6">
       <div>
-        <h2 className="text-lg font-extrabold tracking-tight text-ink">Saved cards</h2>
-        <p className="mt-1 max-w-[65ch] text-[13px] leading-relaxed text-ink-60">
-          Cards you saved at checkout. Set a default for faster payment or remove cards you no longer
-          use.
-        </p>
+        <h2 className="text-lg font-extrabold tracking-tight text-ink">{t('savedCards.title')}</h2>
+        <p className="mt-1 max-w-[65ch] text-[13px] leading-relaxed text-ink-60">{t('savedCards.lead')}</p>
       </div>
 
       {loading && (
@@ -94,13 +85,13 @@ export function SavedCardsSection({
 
       {error && !loading && (
         <p className="rounded-lg border border-coral/40 bg-coral/10 px-3 py-2 text-[12px] font-semibold text-coral">
-          Could not load your saved cards. Please refresh and try again.
+          {t('savedCards.loadError')}
         </p>
       )}
 
       {!loading && !error && savedCards.length === 0 && (
         <p className="rounded-xl border border-ink-10 bg-ink-5/40 px-4 py-8 text-center text-[13px] text-ink-40">
-          No saved cards yet. Choose &ldquo;Save this card for next time&rdquo; when you pay at checkout.
+          {t('savedCards.empty')}
         </p>
       )}
 
@@ -139,12 +130,12 @@ export function SavedCardsSection({
                       {isDefault && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-mint/30 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-mint-dark">
                           <Check className="size-3" weight="bold" aria-hidden />
-                          Default
+                          {t('savedCards.default')}
                         </span>
                       )}
                     </p>
                     <p className="mt-1 text-[12px] text-ink-60">
-                      Expires {expiry}
+                      {t('savedCards.expires', { expiry })}
                       {card.cardholder_name ? ` · ${card.cardholder_name}` : ''}
                     </p>
                   </div>
@@ -162,7 +153,7 @@ export function SavedCardsSection({
                       className="inline-flex items-center gap-1.5"
                     >
                       <Star className="size-4" aria-hidden />
-                      Set as default
+                      {t('savedCards.setDefault')}
                     </Button>
                   )}
                   <Button
@@ -173,7 +164,7 @@ export function SavedCardsSection({
                     loading={busyDelete}
                     onClick={() => void onRemove(cardId)}
                   >
-                    Remove
+                    {t('savedCards.remove')}
                   </Button>
                 </div>
               </li>

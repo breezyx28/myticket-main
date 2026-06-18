@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import {
   Link,
   Navigate,
@@ -42,7 +43,7 @@ import { isValidSaudiCityFlexible } from "@/lib/saudiLocations";
 import { getSafeRedirectPath } from "@/lib/navigation";
 import { authErrorMessage, toAuthApiError } from "@/lib/authErrors";
 import {
-  basicRegistrationSchema,
+  createBasicRegistrationSchema,
   type BasicRegistrationSchema,
 } from "@/schemas/auth";
 import { cn } from "@/lib/utils";
@@ -81,14 +82,8 @@ import {
 type RegisterRole = "guest" | "talent" | "organizer" | "vendor";
 type RegisterStage = "basic" | "role-selection" | "onboarding" | "complete";
 
-const REGISTRATION_VERIFICATION_REMINDER =
-  "We sent a verification link to your email. Verify your address before signing in.";
-
 interface RoleCard {
   id: RegisterRole;
-  label: string;
-  responsibility: string;
-  helper: string;
   icon: Icon;
   surface: string;
   iconTone: string;
@@ -97,36 +92,24 @@ interface RoleCard {
 const ROLE_CARDS: RoleCard[] = [
   {
     id: "guest",
-    label: "Guest",
-    responsibility: "Browse events and book tickets quickly.",
-    helper: "Fast path, no onboarding required.",
     icon: User,
     surface: "bg-lemon/30 border-lemon/50",
     iconTone: "bg-lemon text-ink",
   },
   {
     id: "talent",
-    label: "Talent",
-    responsibility: "Showcase your profile and accept event engagements.",
-    helper: "For performers, artists, and speakers.",
     icon: MicrophoneStage,
     surface: "bg-coral/10 border-coral/40",
     iconTone: "bg-coral text-white",
   },
   {
     id: "organizer",
-    label: "Organizer",
-    responsibility: "Create experiences and coordinate event operations.",
-    helper: "For event owners and production leads.",
     icon: Buildings,
     surface: "bg-sky/15 border-sky/40",
     iconTone: "bg-sky text-ink",
   },
   {
     id: "vendor",
-    label: "Vendor",
-    responsibility: "Provide services like staging, lighting, and logistics.",
-    helper: "For suppliers and event service providers.",
     icon: Storefront,
     surface: "bg-mint/20 border-mint/50",
     iconTone: "bg-mint text-ink",
@@ -186,6 +169,12 @@ const EMPTY_ORGANIZER_DRAFT: OrganizerOnboardingDraft = {
 };
 
 export function RegisterPage() {
+  const { t } = useTranslation("authPages");
+  const { t: tValidation, i18n } = useTranslation("validation");
+  const basicRegistrationSchema = useMemo(
+    () => createBasicRegistrationSchema(tValidation),
+    [tValidation, i18n.language],
+  );
   const { signUp, signInWithOAuth, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -359,18 +348,22 @@ export function RegisterPage() {
   }, [user, basicForm, loadedRegisterDraft]);
 
   const steps = useMemo(() => {
-    if (role === "talent")
-      return ["Talent profile", "Verification", "Preferences"];
-    if (role === "vendor") return ["Vendor profile", "Services", "Compliance"];
-    return ["Public profile", "Contacts", "Entity details", "Social"];
-  }, [role]);
+    if (role === "guest") return [];
+    const key = role as "talent" | "vendor" | "organizer";
+    return t(`register.steps.${key}`, { returnObjects: true }) as string[];
+  }, [role, t]);
 
   const onboardingTitle = useMemo(() => {
-    if (role === "talent") return "Talent onboarding";
-    if (role === "vendor") return "Vendor onboarding";
-    if (role === "organizer") return "Organizer onboarding";
-    return "Create your account";
-  }, [role]);
+    if (role === "talent") return t("register.titles.talent");
+    if (role === "vendor") return t("register.titles.vendor");
+    if (role === "organizer") return t("register.titles.organizer");
+    return t("register.titles.default");
+  }, [role, t]);
+
+  const roleLabel =
+    role === "guest"
+      ? t("register.roles.guest.label")
+      : t(`register.roles.${role}.label`);
 
   const isCurrentRoleStepValid = useMemo(() => {
     if (role === "talent") {
@@ -462,11 +455,11 @@ export function RegisterPage() {
       setCompletionMessage(
         result.status === "verification_required"
           ? result.message
-          : REGISTRATION_VERIFICATION_REMINDER,
+          : t("register.verificationReminder"),
       );
       setStage("complete");
     } catch (e) {
-      setError(authErrorMessage(e, "Sign-up failed."));
+      setError(authErrorMessage(e, t("register.errors.signUpFailed")));
     } finally {
       setLoading(false);
     }
@@ -480,7 +473,7 @@ export function RegisterPage() {
       await signInWithOAuth("google");
       // Navigation happens via window.location during the OAuth round-trip.
     } catch (e) {
-      setError(authErrorMessage(e, "Could not start Google sign-in."));
+      setError(authErrorMessage(e, t("register.errors.googleFailed")));
     } finally {
       setLoading(false);
     }
@@ -534,7 +527,7 @@ export function RegisterPage() {
     setError(null);
     setSuccess(null);
     try {
-      let verificationMessage = REGISTRATION_VERIFICATION_REMINDER;
+      let verificationMessage = t("register.verificationReminder");
       if (!user) {
         const signUpResult = await signUp(
           basic.fullName,
@@ -700,7 +693,7 @@ export function RegisterPage() {
       setCompletionMessage(verificationMessage);
       setStage("complete");
     } catch (err) {
-      const authErr = toAuthApiError(err, "Could not submit application.");
+      const authErr = toAuthApiError(err, t("register.errors.submitApplicationFailed"));
       const emailErr = authErr.fieldErrors.email?.[0];
       const phoneErr = authErr.fieldErrors.phone?.[0];
       const fullNameErr =
@@ -734,18 +727,18 @@ export function RegisterPage() {
     <div>
       {stage === "basic" && (
         <FormSectionCard
-          eyebrow="Create account"
-          title="Start with your details"
-          description="Create your MyTicket account, then choose how you’ll use the platform."
+          eyebrow={t("register.basic.eyebrow")}
+          title={t("register.basic.title")}
+          description={t("register.basic.description")}
         >
           <p className="-mt-4 text-[14px] text-ink-60">
-            Already have an account?{" "}
+            {t("register.basic.alreadyHaveAccount")}{" "}
             <Link
               to="/login"
               state={location.state}
               className="font-semibold text-coral hover:underline"
             >
-              Sign in
+              {t("register.basic.signIn")}
             </Link>
           </p>
           {error && (
@@ -774,14 +767,14 @@ export function RegisterPage() {
               onChange={setBasicField}
               errors={basicForm.formState.errors}
             />
-            <InlineNotice variant="info" title="Terms">
+            <InlineNotice variant="info" title={t("register.basic.terms")}>
               <p className="text-[12px] text-ink-60">
-                By registering you agree to the{" "}
+                {t("register.basic.termsBody")}{" "}
                 <Link
                   to="/terms"
                   className="font-semibold text-coral underline"
                 >
-                  Terms of Service
+                  {t("register.basic.termsLink")}
                 </Link>
                 .
               </p>
@@ -793,7 +786,7 @@ export function RegisterPage() {
               className="w-full"
               disabled={loading || basicForm.formState.isSubmitting}
             >
-              Continue
+              {t("register.basic.continue")}
             </Button>
             <div className="relative py-2">
               <div className="absolute inset-0 flex items-center">
@@ -801,7 +794,7 @@ export function RegisterPage() {
               </div>
               <div className="relative flex justify-center">
                 <span className="bg-white px-3 text-[12px] font-medium text-ink-40">
-                  or
+                  {t("register.basic.or")}
                 </span>
               </div>
             </div>
@@ -813,7 +806,7 @@ export function RegisterPage() {
               onClick={continueWithGoogle}
               disabled={loading}
             >
-              Continue with Google
+              {t("register.basic.continueGoogle")}
             </Button>
             <Button
               type="button"
@@ -822,7 +815,7 @@ export function RegisterPage() {
               className="w-full"
               onClick={clearRegisterForm}
             >
-              Clear form
+              {t("register.basic.clearForm")}
             </Button>
           </form>
         </FormSectionCard>
@@ -830,9 +823,9 @@ export function RegisterPage() {
 
       {stage === "role-selection" && (
         <FormSectionCard
-          eyebrow="Onboarding"
-          title="Choose your role"
-          description="Pick one role to continue its onboarding steps on this page. Your account is created only after you finish and submit. You can also skip onboarding and continue as Guest."
+          eyebrow={t("register.roleSelection.eyebrow")}
+          title={t("register.roleSelection.title")}
+          description={t("register.roleSelection.description")}
         >
           {error && (
             <div
@@ -859,10 +852,10 @@ export function RegisterPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-[16px] font-extrabold leading-tight text-ink">
-                        {card.label}
+                        {t(`register.roles.${card.id}.label`)}
                       </p>
                       <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-50">
-                        {card.helper}
+                        {t(`register.roles.${card.id}.helper`)}
                       </p>
                     </div>
                     <span
@@ -876,10 +869,10 @@ export function RegisterPage() {
                   </div>
                   <div className="mt-4">
                     <p className="text-[13px] leading-relaxed text-ink-70">
-                      {card.responsibility}
+                      {t(`register.roles.${card.id}.responsibility`)}
                     </p>
                     <p className="mt-3 text-[12px] font-bold text-coral">
-                      Select role
+                      {t("register.selectRole")}
                     </p>
                   </div>
                 </button>
@@ -895,7 +888,7 @@ export function RegisterPage() {
               className="flex-1"
               onClick={() => setStage("basic")}
             >
-              Back
+              {t("register.roleSelection.back")}
             </Button>
             <Button
               type="button"
@@ -905,7 +898,7 @@ export function RegisterPage() {
               loading={loading}
               onClick={continueAsGuest}
             >
-              Continue as Guest
+              {t("register.roleSelection.continueAsGuest")}
             </Button>
           </div>
           <Button
@@ -915,16 +908,16 @@ export function RegisterPage() {
             className="mt-2 w-full"
             onClick={clearRegisterForm}
           >
-            Clear form
+            {t("register.basic.clearForm")}
           </Button>
         </FormSectionCard>
       )}
 
       {stage === "onboarding" && role !== "guest" && (
         <FormSectionCard
-          eyebrow="Onboarding"
+          eyebrow={t("register.wizard.eyebrow")}
           title={onboardingTitle}
-          description="Complete the steps below. You can go back at any time."
+          description={t("register.wizard.description")}
           className="overflow-hidden p-6"
         >
           {error && (
@@ -936,10 +929,10 @@ export function RegisterPage() {
             </div>
           )}
           <OnboardingHeader
-            title={steps[wizardStep] ?? "Onboarding"}
+            title={steps[wizardStep] ?? t("onboarding.defaultStepTitle")}
             description={
               role === "organizer"
-                ? "Build your public organizer profile (demo)."
+                ? t("register.wizard.organizerStepDesc")
                 : undefined
             }
             steps={steps}
@@ -994,7 +987,7 @@ export function RegisterPage() {
                   setWizardStep((s) => Math.max(0, s - 1));
                 }}
               >
-                Back
+                {t("register.wizard.back")}
               </Button>
               {wizardStep < steps.length - 1 ? (
                 <Button
@@ -1007,7 +1000,7 @@ export function RegisterPage() {
                     setWizardStep((s) => Math.min(steps.length - 1, s + 1))
                   }
                 >
-                  Next
+                  {t("register.wizard.next")}
                 </Button>
               ) : (
                 <Button
@@ -1018,7 +1011,7 @@ export function RegisterPage() {
                   loading={loading}
                   disabled={!isCurrentRoleStepValid}
                 >
-                  Submit {role} application
+                  {t("register.wizard.submitApplication", { role: roleLabel })}
                 </Button>
               )}
             </div>
@@ -1029,7 +1022,7 @@ export function RegisterPage() {
               className="w-full"
               onClick={clearRegisterForm}
             >
-              Clear form
+              {t("register.wizard.clearForm")}
             </Button>
           </form>
         </FormSectionCard>
@@ -1037,17 +1030,17 @@ export function RegisterPage() {
 
       {stage === "complete" && (
         <FormSectionCard
-          eyebrow="Registration"
-          title="Account created"
-          description="You're almost ready to use MyTicket."
+          eyebrow={t("register.complete.eyebrow")}
+          title={t("register.complete.title")}
+          description={t("register.complete.description")}
         >
-          <InlineNotice variant="info" title="Verify your email">
+          <InlineNotice variant="info" title={t("register.complete.verifyEmail")}>
             <p className="text-[13px] leading-relaxed text-ink-70">
-              {completionMessage || REGISTRATION_VERIFICATION_REMINDER}
+              {completionMessage || t("register.verificationReminder")}
               {registeredEmail ? (
                 <>
                   {" "}
-                  We sent the link to{" "}
+                  {t("register.complete.verifyEmailSentTo")}{" "}
                   <strong className="text-ink">{registeredEmail}</strong>.
                 </>
               ) : null}
@@ -1055,15 +1048,22 @@ export function RegisterPage() {
           </InlineNotice>
           {applicationSubmitted && role !== "guest" && (
             <p className="mt-4 text-[13px] leading-relaxed text-ink-70">
-              Your <strong className="text-ink">{role}</strong> application was
-              submitted and is pending review.
+              <Trans
+                i18nKey="register.complete.applicationSubmitted"
+                ns="authPages"
+                values={{ role: roleLabel }}
+                components={{ strong: <strong className="text-ink" /> }}
+              />
             </p>
           )}
           {!applicationSubmitted && role !== "guest" && (
             <p className="mt-4 text-[13px] leading-relaxed text-ink-70">
-              After you verify your email and sign in, you can finish submitting
-              your <strong className="text-ink">{role}</strong> application from
-              your account.
+              <Trans
+                i18nKey="register.complete.finishAfterVerify"
+                ns="authPages"
+                values={{ role: roleLabel }}
+                components={{ strong: <strong className="text-ink" /> }}
+              />
             </p>
           )}
           <div className="mt-6 flex flex-col gap-2 sm:flex-row">
@@ -1074,7 +1074,7 @@ export function RegisterPage() {
               className="w-full sm:flex-1"
               onClick={() => navigate("/login", { replace: true })}
             >
-              Go to sign in
+              {t("register.complete.goToSignIn")}
             </Button>
             <Button
               type="button"
@@ -1083,7 +1083,7 @@ export function RegisterPage() {
               className="w-full sm:flex-1"
               onClick={() => navigate(redirectAfterAuth ?? "/")}
             >
-              Back to home
+              {t("register.complete.backToHome")}
             </Button>
           </div>
         </FormSectionCard>

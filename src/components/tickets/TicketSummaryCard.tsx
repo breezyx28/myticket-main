@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { ReactNode } from 'react';
 import {
   CalendarBlank,
@@ -15,6 +16,7 @@ import {
   formatTicketStatusLabel,
   pickFirst,
 } from '@/components/tickets/ticketDisplayUtils';
+import type { AppLanguage } from '@/lib/language';
 import { cn } from '@/lib/utils';
 
 type RowProps = {
@@ -51,41 +53,44 @@ type TicketSummaryCardProps = {
  * Human-readable ticket/event summary from API fields (cache columns supported).
  */
 export function TicketSummaryCard({ ticket }: TicketSummaryCardProps) {
+  const { t, i18n } = useTranslation('tickets');
+  const language = i18n.language as AppLanguage;
   const startIso = eventStartIso(ticket);
   const endIso = eventEndIso(ticket);
-  const ticketType = pickFirst(ticket.type_name_cache, ticket.ticket_type_name) ?? 'Not specified';
-  const eventStatus = deriveEventStatus(ticket);
-  const ticketStatus = formatTicketStatusLabel(String(ticket.status));
+  const ticketType = pickFirst(ticket.type_name_cache, ticket.ticket_type_name) ?? t('detail.notSpecified');
+  const eventStatus = deriveEventStatus(ticket, t);
+  const ticketStatus = formatTicketStatusLabel(String(ticket.status), t);
+  const notAvailable = t('detail.notAvailableYet');
 
   return (
     <section className="mt-8 rounded-2xl border border-ink-10 bg-ink-5/35 p-5 shadow-sm">
-      <h2 className="text-[13px] font-extrabold uppercase tracking-wide text-ink">Event &amp; ticket</h2>
-      <p className="mt-1 text-[12px] text-ink-50">Key details from your booking.</p>
+      <h2 className="text-[13px] font-extrabold uppercase tracking-wide text-ink">{t('detail.eventAndTicket')}</h2>
+      <p className="mt-1 text-[12px] text-ink-50">{t('detail.keyDetails')}</p>
       <div className="mt-4 space-y-3">
         <SummaryRow
           icon={<CalendarBlank size={22} weight="duotone" />}
-          label="Event starts"
-          value={startIso ? formatTicketDateTime(startIso) : 'Not available yet'}
+          label={t('detail.eventStarts')}
+          value={startIso ? formatTicketDateTime(startIso, language, notAvailable) : notAvailable}
         />
         <SummaryRow
           icon={<CalendarCheck size={22} weight="duotone" />}
-          label="Event ends"
-          value={endIso ? formatTicketDateTime(endIso) : 'Not available yet'}
+          label={t('detail.eventEnds')}
+          value={endIso ? formatTicketDateTime(endIso, language, notAvailable) : notAvailable}
         />
         <SummaryRow
           icon={<Tag size={22} weight="duotone" />}
-          label="Ticket type"
+          label={t('detail.ticketType')}
           value={ticketType}
         />
         <SummaryRow
           icon={<Pulse size={22} weight="duotone" />}
-          label="Event status"
+          label={t('detail.eventStatus')}
           value={eventStatus}
           iconClass="text-sky"
         />
         <SummaryRow
           icon={<SealCheck size={22} weight="duotone" />}
-          label="Ticket status"
+          label={t('detail.ticketStatus')}
           value={ticketStatus}
           iconClass="text-mint"
         />

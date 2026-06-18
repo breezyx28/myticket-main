@@ -1,14 +1,18 @@
 import type { Ticket } from '@/api/types/ticket';
 import type { MockTicket, TicketStatus } from '@/types/domain';
+import { formatDate, formatTime } from '@/lib/intlFormat';
+import type { AppLanguage } from '@/lib/language';
 
-export const STATUS_LABEL: Record<TicketStatus, string> = {
-  active: 'Active',
-  auction: 'In auction',
-  gifted: 'Gifted',
-  used: 'Used',
-  expired: 'Expired',
-  cancelled: 'Cancelled',
-  refunded: 'Refunded',
+export type TicketTranslate = (key: string, options?: Record<string, unknown>) => string;
+
+const STATUS_I18N_KEYS: Record<TicketStatus, string> = {
+  active: 'display.statusActive',
+  auction: 'display.statusAuction',
+  gifted: 'display.statusGifted',
+  used: 'display.statusUsed',
+  expired: 'display.statusExpired',
+  cancelled: 'display.statusCancelled',
+  refunded: 'display.statusRefunded',
 };
 
 export const STATUS_STYLES: Record<TicketStatus, string> = {
@@ -31,6 +35,21 @@ export const STATUS_HEADER_STYLES: Record<TicketStatus, string> = {
   refunded: 'bg-purple-800 text-white',
 };
 
+/** @deprecated Use ticketStatusLabel(status, t) in UI */
+export const STATUS_LABEL: Record<TicketStatus, string> = {
+  active: 'Active',
+  auction: 'In auction',
+  gifted: 'Gifted',
+  used: 'Used',
+  expired: 'Expired',
+  cancelled: 'Cancelled',
+  refunded: 'Refunded',
+};
+
+export function ticketStatusLabel(status: TicketStatus, t: TicketTranslate): string {
+  return t(STATUS_I18N_KEYS[status]);
+}
+
 export function pickFirst(...vals: (string | null | undefined)[]): string | null {
   for (const v of vals) {
     if (v == null) continue;
@@ -40,67 +59,85 @@ export function pickFirst(...vals: (string | null | undefined)[]): string | null
   return null;
 }
 
-export function formatTicketDateTime(iso: string | null | undefined): string {
-  if (!iso?.trim()) return 'Date TBC';
+export function formatTicketDateTime(
+  iso: string | null | undefined,
+  language: AppLanguage,
+  fallback: string,
+): string {
+  if (!iso?.trim()) return fallback;
   const t = new Date(iso).getTime();
-  if (Number.isNaN(t)) return 'Date TBC';
-  return new Date(iso).toLocaleString(undefined, {
+  if (Number.isNaN(t)) return fallback;
+  return new Intl.DateTimeFormat(language === 'ar' ? 'ar-SA' : 'en-US', {
     dateStyle: 'medium',
     timeStyle: 'short',
-  });
+  }).format(new Date(iso));
 }
 
-export function formatTicketDate(iso: string | null | undefined): string {
-  if (!iso?.trim()) return 'Date TBC';
+export function formatTicketDate(
+  iso: string | null | undefined,
+  language: AppLanguage,
+  fallback: string,
+): string {
+  if (!iso?.trim()) return fallback;
   const t = new Date(iso).getTime();
-  if (Number.isNaN(t)) return 'Date TBC';
-  return new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' });
+  if (Number.isNaN(t)) return fallback;
+  return formatDate(iso, language, { dateStyle: 'medium' });
 }
 
-export function formatEventWindow(startIso: string | null | undefined, endIso: string | null | undefined): string {
-  if (!startIso?.trim()) return 'Event schedule TBC';
-  const start = formatTicketDateTime(startIso);
+export function formatEventWindow(
+  startIso: string | null | undefined,
+  endIso: string | null | undefined,
+  language: AppLanguage,
+  t: TicketTranslate,
+): string {
+  const scheduleTbc = t('display.eventScheduleTbc');
+  if (!startIso?.trim()) return scheduleTbc;
+  const start = formatTicketDateTime(startIso, language, scheduleTbc);
   if (!endIso?.trim() || endIso === startIso) return start;
-  const end = formatTicketDateTime(endIso);
+  const end = formatTicketDateTime(endIso, language, scheduleTbc);
   return `${start} — ${end}`;
 }
 
-export function venueLine(venue: string | null | undefined, city: string | null | undefined): string {
+export function venueLine(
+  venue: string | null | undefined,
+  city: string | null | undefined,
+  venueTbc: string,
+): string {
   const parts = [venue, city].filter((p) => p?.trim());
-  return parts.length > 0 ? parts.join(', ') : 'Venue TBC';
+  return parts.length > 0 ? parts.join(', ') : venueTbc;
 }
 
-export function admissionLine(typeName: string, seatLabel?: string): string {
-  const type = typeName?.trim() || 'General admission';
-  return seatLabel?.trim() ? `${type} · Seat ${seatLabel.trim()}` : type;
+export function admissionLine(typeName: string, seatLabel: string | undefined, t: TicketTranslate): string {
+  const type = typeName?.trim() || t('display.generalAdmission');
+  return seatLabel?.trim() ? `${type} · ${t('display.seat', { label: seatLabel.trim() })}` : type;
 }
 
-export function formatTicketStatusLabel(status: string | undefined): string {
-  if (!status?.trim()) return 'Unknown';
+export function formatTicketStatusLabel(status: string | undefined, t: TicketTranslate): string {
+  if (!status?.trim()) return t('display.unknown');
   const key = status.toLowerCase() as TicketStatus;
-  if (key in STATUS_LABEL) return STATUS_LABEL[key];
+  if (key in STATUS_I18N_KEYS) return t(STATUS_I18N_KEYS[key]);
   return status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ');
 }
 
-export function eventStartIso(t: Ticket): string | null {
-  return pickFirst(t.starts_at_cache, t.date_start);
+export function eventStartIso(ticket: Ticket): string | null {
+  return pickFirst(ticket.starts_at_cache, ticket.date_start);
 }
 
-export function eventEndIso(t: Ticket): string | null {
-  return pickFirst(t.ends_at_cache, t.date_end);
+export function eventEndIso(ticket: Ticket): string | null {
+  return pickFirst(ticket.ends_at_cache, ticket.date_end);
 }
 
-export function deriveEventStatus(t: Ticket): string {
-  const startS = eventStartIso(t);
-  if (!startS) return 'Schedule not set';
-  const endS = eventEndIso(t) ?? startS;
+export function deriveEventStatus(ticket: Ticket, t: TicketTranslate): string {
+  const startS = eventStartIso(ticket);
+  if (!startS) return t('display.scheduleNotSet');
+  const endS = eventEndIso(ticket) ?? startS;
   const start = new Date(startS).getTime();
   const end = new Date(endS).getTime();
-  if (Number.isNaN(start)) return 'Schedule not set';
+  if (Number.isNaN(start)) return t('display.scheduleNotSet');
   const now = Date.now();
-  if (now < start) return 'Upcoming';
-  if (!Number.isNaN(end) && now > end) return 'Ended';
-  return 'In progress';
+  if (now < start) return t('display.upcoming');
+  if (!Number.isNaN(end) && now > end) return t('display.ended');
+  return t('display.inProgress');
 }
 
 export function parsePricePaid(value: unknown): number {
@@ -112,11 +149,21 @@ export function parsePricePaid(value: unknown): number {
   return 0;
 }
 
-export function ticketMetaLine(ticket: MockTicket): string {
+export function ticketMetaLine(ticket: MockTicket, t: TicketTranslate): string {
   const parts = [
-    ticket.typeName || 'Ticket',
-    ticket.seatLabel ? `Seat ${ticket.seatLabel}` : null,
+    ticket.typeName || t('detail.fallbackTicket'),
+    ticket.seatLabel ? t('display.seat', { label: ticket.seatLabel }) : null,
     ticket.orderRef || null,
   ].filter(Boolean);
   return parts.join(' · ');
+}
+
+export function formatTicketTimeOnly(
+  iso: string | null | undefined,
+  language: AppLanguage,
+): string | null {
+  if (!iso?.trim()) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return formatTime(iso, language);
 }

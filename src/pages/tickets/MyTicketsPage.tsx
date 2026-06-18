@@ -30,6 +30,17 @@ function formatDateTime(iso: string, fallback: string): string {
   }
 }
 
+const GIFT_STATUS_KEYS = {
+  pending: 'detail.giftStatusPending',
+  claimed: 'detail.giftStatusClaimed',
+  expired: 'detail.giftStatusExpired',
+} as const;
+
+function giftStatusLabel(status: string, t: (key: string) => string): string {
+  if (status in GIFT_STATUS_KEYS) return t(GIFT_STATUS_KEYS[status as keyof typeof GIFT_STATUS_KEYS]);
+  return status;
+}
+
 const FILTER_KEYS = {
   all: 'filterAll',
   active: 'filterActive',
@@ -259,7 +270,7 @@ export function MyTicketsPage() {
                             g.status === 'expired' && 'bg-ink-10 text-ink-40'
                           )}
                         >
-                          {g.status}
+                          {giftStatusLabel(g.status, t)}
                         </span>
                         {canClaim && (
                           <Button

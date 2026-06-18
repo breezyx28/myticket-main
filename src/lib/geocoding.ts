@@ -1,3 +1,5 @@
+import { getApiLanguage, languageToLocale } from '@/lib/language';
+
 export interface GeocodeResult {
   display_name: string;
   lat: number;
@@ -22,7 +24,7 @@ export async function searchPlaces(query: string): Promise<GeocodeResult[]> {
     {
       headers: {
         Accept: 'application/json',
-        'Accept-Language': 'en',
+        'Accept-Language': languageToLocale(getApiLanguage()),
       },
     },
   );

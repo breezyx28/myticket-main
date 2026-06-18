@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { CreditCard } from '@/components/checkout/CreditCard';
 import {
   displayCardExpiration,
@@ -27,10 +28,12 @@ export function PaymentMethodCard({
   selected,
   onSelect,
   cardNumberPlaceholder = '1234 1234 1234 1234',
-  previewHolder = 'CARD HOLDER',
-  previewExpiry = 'MM/YY',
+  previewHolder,
+  previewExpiry,
   width = 260,
 }: PaymentMethodCardProps) {
+  const { t } = useTranslation('checkout');
+
   return (
     <button
       type="button"
@@ -48,11 +51,11 @@ export function PaymentMethodCard({
         network={id}
         label={label}
         cardNumber={displayCardNumber('', cardNumberPlaceholder)}
-        cardHolder={displayCardHolder(previewHolder)}
-        cardExpiration={displayCardExpiration(previewExpiry)}
+        cardHolder={displayCardHolder(previewHolder ?? t('cardHolder'))}
+        cardExpiration={displayCardExpiration(previewExpiry ?? t('cardExpiry'))}
         width={width}
       />
-      <span className="sr-only">{selected ? 'Selected' : 'Not selected'}</span>
+      <span className="sr-only">{selected ? t('selected') : t('notSelected')}</span>
     </button>
   );
 }

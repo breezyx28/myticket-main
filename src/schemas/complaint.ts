@@ -1,4 +1,5 @@
 import * as yup from 'yup';
+import type { ValidationTFunction } from '@/schemas/types';
 
 /**
  * Legacy fallback list — kept for any consumer that still wants to display a
@@ -9,30 +10,34 @@ import * as yup from 'yup';
  */
 export const COMPLAINT_CATEGORIES = ['organizer', 'venue', 'safety', 'staff', 'other'] as const;
 
-export const createComplaintSchema = yup
-  .object({
-    category: yup
-      .string()
-      .trim()
-      .min(1, 'Category is required.')
-      .max(80, 'Category id is too long.')
-      .required('Category is required.'),
-    subject: yup
-      .string()
-      .trim()
-      .min(4, 'Subject must be at least 4 characters.')
-      .max(140, 'Subject is too long.')
-      .required('Subject is required.'),
-    body: yup
-      .string()
-      .trim()
-      .min(20, 'Provide at least 20 characters of detail.')
-      .max(4000, 'Description is too long.')
-      .required('Description is required.'),
-    related_order_id: yup.mixed<string | number>().nullable().notRequired(),
-    related_event_id: yup.mixed<string | number>().nullable().notRequired(),
-    attachments: yup.array(yup.string().trim().url('Each attachment must be a valid URL.').required()).default([]),
-  })
-  .strict();
+export function createComplaintSchema(t: ValidationTFunction) {
+  return yup
+    .object({
+      category: yup
+        .string()
+        .trim()
+        .min(1, t('complaint.categoryRequired'))
+        .max(80, t('complaint.categoryIdTooLong'))
+        .required(t('complaint.categoryRequired')),
+      subject: yup
+        .string()
+        .trim()
+        .min(4, t('complaint.subjectMin'))
+        .max(140, t('complaint.subjectTooLong'))
+        .required(t('complaint.subjectRequired')),
+      body: yup
+        .string()
+        .trim()
+        .min(20, t('complaint.bodyMin'))
+        .max(4000, t('complaint.bodyTooLong'))
+        .required(t('complaint.bodyRequired')),
+      related_order_id: yup.mixed<string | number>().nullable().notRequired(),
+      related_event_id: yup.mixed<string | number>().nullable().notRequired(),
+      attachments: yup
+        .array(yup.string().trim().url(t('complaint.attachmentUrlInvalid')).required())
+        .default([]),
+    })
+    .strict();
+}
 
-export type CreateComplaintSchema = yup.InferType<typeof createComplaintSchema>;
+export type CreateComplaintSchema = yup.InferType<ReturnType<typeof createComplaintSchema>>;

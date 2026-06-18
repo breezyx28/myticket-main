@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { themeForNetwork } from '@/components/checkout/cardNetworkTheme';
 import { PaypassIcon } from '@/components/checkout/credit-card-icons';
 import { cn } from '@/lib/utils';
@@ -31,15 +32,19 @@ function calculateScale(desiredWidth: number) {
 }
 
 export function CreditCard({
-  label = 'My card',
+  label,
   cardNumber = '•••• •••• •••• ••••',
-  cardHolder = 'CARD HOLDER',
-  cardExpiration = 'MM/YY',
+  cardHolder,
+  cardExpiration,
   network = null,
   className,
   width,
 }: CreditCardProps) {
+  const { t } = useTranslation('checkout');
   const theme = themeForNetwork(network);
+  const resolvedLabel = label ?? t('myCard');
+  const resolvedHolder = cardHolder ?? t('cardHolder');
+  const resolvedExpiry = cardExpiration ?? t('cardExpiry');
 
   const { scale, scaledWidth, scaledHeight } = useMemo(() => {
     if (!width) {
@@ -70,7 +75,7 @@ export function CreditCard({
         ) : null}
 
         <div className="relative z-[2] flex items-start justify-between px-1 pt-1">
-          <div className={cn('text-base font-semibold leading-normal', theme.text)}>{label}</div>
+          <div className={cn('text-base font-semibold leading-normal', theme.text)}>{resolvedLabel}</div>
           <PaypassIcon className={theme.paypass} />
         </div>
 
@@ -84,7 +89,7 @@ export function CreditCard({
                 )}
                 style={{ wordBreak: 'break-word' }}
               >
-                {cardHolder}
+                {resolvedHolder}
               </p>
               <p
                 className={cn(
@@ -92,7 +97,7 @@ export function CreditCard({
                   theme.text,
                 )}
               >
-                {cardExpiration}
+                {resolvedExpiry}
               </p>
             </div>
             <div

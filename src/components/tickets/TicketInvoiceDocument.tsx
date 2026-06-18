@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { Ticket } from '@/api/types/ticket';
 import type { MockTicket, TicketStatus } from '@/types/domain';
 import { SaudiRiyalIcon } from '@/components/icons/SaudiRiyalIcon';
@@ -13,11 +14,12 @@ import {
   formatTicketStatusLabel,
   parsePricePaid,
   pickFirst,
-  STATUS_LABEL,
   STATUS_STYLES,
+  ticketStatusLabel,
   venueLine,
 } from '@/components/tickets/ticketDisplayUtils';
 import { formatSaudiRiyalAmountLatin } from '@/lib/saudiCurrency';
+import type { AppLanguage } from '@/lib/language';
 import { cn } from '@/lib/utils';
 
 type AttendeeInfo = {
@@ -45,23 +47,32 @@ export function TicketInvoiceDocument({
   scanValue,
   attendee,
 }: TicketInvoiceDocumentProps) {
-  const statusKey = (ticket.status in STATUS_LABEL ? ticket.status : 'active') as TicketStatus;
+  const { t, i18n } = useTranslation('tickets');
+  const language = i18n.language as AppLanguage;
+  const statusKey = (
+    ['active', 'auction', 'gifted', 'used', 'expired', 'cancelled', 'refunded'].includes(ticket.status)
+      ? ticket.status
+      : 'active'
+  ) as TicketStatus;
   const startIso = apiTicket ? eventStartIso(apiTicket) : ticket.dateStart || null;
   const endIso = apiTicket ? eventEndIso(apiTicket) : ticket.dateEnd || null;
   const issuedAt = apiTicket?.created_at ?? null;
-  const eventStatus = apiTicket ? deriveEventStatus(apiTicket) : '—';
+  const eventStatus = apiTicket ? deriveEventStatus(apiTicket, t) : '—';
   const ticketType = pickFirst(
     apiTicket?.type_name_cache,
     apiTicket?.ticket_type_name,
     ticket.typeName,
-  ) ?? 'Ticket';
+  ) ?? t('detail.fallbackTicket');
   const pricePaid = parsePricePaid(apiTicket?.price_paid ?? ticket.pricePaid);
   const priceLabel = formatSaudiRiyalAmountLatin(pricePaid);
-  const itemDescription = admissionLine(ticketType, ticket.seatLabel);
+  const itemDescription = admissionLine(ticketType, ticket.seatLabel, t);
   const venue = venueLine(
     pickFirst(apiTicket?.venue_cache, apiTicket?.venue, ticket.venue),
     pickFirst(apiTicket?.city_cache, apiTicket?.city, ticket.city),
+    t('detail.venueTbc'),
   );
+  const dash = '—';
+  const notAvailable = t('detail.notAvailableYet');
 
   return (
     <article className="overflow-hidden rounded-[2rem] border border-ink-10 bg-white shadow-[0_24px_48px_-20px_rgba(26,26,26,0.12)]">
@@ -76,34 +87,38 @@ export function TicketInvoiceDocument({
             status={ticket.status}
           />
           <div className="text-left sm:text-right">
-            <p className="text-[22px] font-extrabold tracking-tight text-ink">MyTicket</p>
-            <p className="mt-1 text-[12px] font-medium text-ink-60">Event admission</p>
+            <p className="text-[22px] font-extrabold tracking-tight text-ink">{t('detail.brand')}</p>
+            <p className="mt-1 text-[12px] font-medium text-ink-60">{t('detail.eventAdmission')}</p>
           </div>
         </div>
 
         <div className="mt-8 border-b border-ink-10 pb-6">
-          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-ink-40">Ticket</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-ink-40">{t('detail.ticketLabel')}</p>
           <h1 className="mt-2 text-balance text-[26px] font-extrabold leading-tight tracking-tight text-ink sm:text-[32px]">
-            {ticket.eventTitle || 'Event'}
+            {ticket.eventTitle || t('detail.fallbackEvent')}
           </h1>
-          <p className="mt-2 text-[13px] text-ink-60">Document payment and entry information</p>
+          <p className="mt-2 text-[13px] text-ink-60">{t('detail.documentSubtitle')}</p>
         </div>
 
         <div className="mt-8 grid gap-4 lg:grid-cols-[minmax(0,240px)_1fr] lg:gap-6">
           <div className="rounded-xl bg-ink p-5 text-white">
             <dl className="space-y-4 text-[12px]">
               <div>
-                <dt className="text-[10px] font-bold uppercase tracking-wide text-white/50">Event date</dt>
-                <dd className="mt-1 font-semibold leading-snug">{formatEventWindow(startIso, endIso)}</dd>
+                <dt className="text-[10px] font-bold uppercase tracking-wide text-white/50">{t('detail.eventDate')}</dt>
+                <dd className="mt-1 font-semibold leading-snug">
+                  {formatEventWindow(startIso, endIso, language, t)}
+                </dd>
               </div>
               <div className="border-t border-white/15 pt-4">
-                <dt className="text-[10px] font-bold uppercase tracking-wide text-white/50">Issued</dt>
-                <dd className="mt-1 font-semibold">{issuedAt ? formatTicketDateTime(issuedAt) : '—'}</dd>
+                <dt className="text-[10px] font-bold uppercase tracking-wide text-white/50">{t('detail.issued')}</dt>
+                <dd className="mt-1 font-semibold">
+                  {issuedAt ? formatTicketDateTime(issuedAt, language, notAvailable) : dash}
+                </dd>
               </div>
               <div className="border-t border-white/15 pt-4">
-                <dt className="text-[10px] font-bold uppercase tracking-wide text-white/50">To</dt>
+                <dt className="text-[10px] font-bold uppercase tracking-wide text-white/50">{t('detail.to')}</dt>
                 <dd className="mt-1 space-y-0.5 font-semibold leading-snug">
-                  <p>{attendee.name || 'Ticket holder'}</p>
+                  <p>{attendee.name || t('detail.ticketHolder')}</p>
                   {attendee.phone ? <p className="text-white/80">{attendee.phone}</p> : null}
                   {attendee.email ? <p className="break-all text-white/80">{attendee.email}</p> : null}
                 </dd>
@@ -116,26 +131,26 @@ export function TicketInvoiceDocument({
                   STATUS_STYLES[statusKey],
                 )}
               >
-                {STATUS_LABEL[statusKey]}
+                {ticketStatusLabel(statusKey, t)}
               </span>
             </div>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-xl border border-ink-10 bg-ink-5/50 px-5 py-4">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-ink-40">Order No</p>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-ink-40">{t('detail.orderNo')}</p>
               <p className="mt-1 font-mono text-[15px] font-bold tabular-nums text-ink">{ticket.orderRef}</p>
             </div>
             <div className="rounded-xl border border-ink-10 bg-ink-5/50 px-5 py-4">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-ink-40">Ticket No</p>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-ink-40">{t('detail.ticketNo')}</p>
               <p className="mt-1 break-all font-mono text-[15px] font-bold tabular-nums text-ink">
-                {ticket.ticketCode || scanValue || '—'}
+                {ticket.ticketCode || scanValue || dash}
               </p>
             </div>
             {apiTicket?.order_id != null && (
               <div className="rounded-xl border border-ink-10 bg-ink-5/50 px-5 py-4 sm:col-span-2">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-ink-40">Payment</p>
-                <p className="mt-1 text-[13px] font-medium text-ink-60">Paid via MyTicket</p>
+                <p className="text-[10px] font-bold uppercase tracking-wide text-ink-40">{t('detail.payment')}</p>
+                <p className="mt-1 text-[13px] font-medium text-ink-60">{t('detail.paidVia')}</p>
               </div>
             )}
           </div>
@@ -143,10 +158,10 @@ export function TicketInvoiceDocument({
 
         <div className="mt-8 overflow-hidden rounded-xl border border-ink-10">
           <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 bg-ink px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-white sm:gap-4 sm:px-5">
-            <span>Item description</span>
-            <span className="text-right">Rate</span>
-            <span className="text-right">Unit</span>
-            <span className="text-right">Subtotal</span>
+            <span>{t('detail.itemDescription')}</span>
+            <span className="text-right">{t('detail.rate')}</span>
+            <span className="text-right">{t('detail.unit')}</span>
+            <span className="text-right">{t('detail.subtotal')}</span>
           </div>
           <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 border-t border-ink-10 px-4 py-4 text-[13px] sm:gap-4 sm:px-5">
             <span className="min-w-0 font-semibold text-ink">{itemDescription}</span>
@@ -161,14 +176,14 @@ export function TicketInvoiceDocument({
 
         <div className="mt-6 flex flex-col items-end gap-2 border-t border-ink-10 pt-6">
           <div className="flex w-full max-w-xs items-center justify-between text-[13px]">
-            <span className="text-ink-60">Subtotal</span>
+            <span className="text-ink-60">{t('detail.subtotal')}</span>
             <span className="inline-flex items-center gap-0.5 font-mono tabular-nums font-semibold text-ink">
               {priceLabel}
               <SaudiRiyalIcon className="h-[0.85em] w-[0.85em]" />
             </span>
           </div>
           <div className="flex w-full max-w-xs items-center justify-between text-[15px] font-bold text-ink">
-            <span>Total paid</span>
+            <span>{t('detail.totalPaid')}</span>
             <span className="inline-flex items-center gap-0.5 font-mono tabular-nums">
               {priceLabel}
               <SaudiRiyalIcon className="h-[1em] w-[1em]" />
@@ -178,32 +193,35 @@ export function TicketInvoiceDocument({
 
         <div className="mt-8 grid gap-3 border-t border-ink-10 pt-6 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wide text-ink-40">Starts</p>
-            <p className="mt-1 text-[13px] font-semibold text-ink">{startIso ? formatTicketDateTime(startIso) : '—'}</p>
+            <p className="text-[10px] font-bold uppercase tracking-wide text-ink-40">{t('detail.starts')}</p>
+            <p className="mt-1 text-[13px] font-semibold text-ink">
+              {startIso ? formatTicketDateTime(startIso, language, notAvailable) : dash}
+            </p>
           </div>
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wide text-ink-40">Ends</p>
-            <p className="mt-1 text-[13px] font-semibold text-ink">{endIso ? formatTicketDateTime(endIso) : '—'}</p>
+            <p className="text-[10px] font-bold uppercase tracking-wide text-ink-40">{t('detail.ends')}</p>
+            <p className="mt-1 text-[13px] font-semibold text-ink">
+              {endIso ? formatTicketDateTime(endIso, language, notAvailable) : dash}
+            </p>
           </div>
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wide text-ink-40">Event status</p>
+            <p className="text-[10px] font-bold uppercase tracking-wide text-ink-40">{t('detail.eventStatus')}</p>
             <p className="mt-1 text-[13px] font-semibold text-ink">{eventStatus}</p>
           </div>
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wide text-ink-40">Ticket status</p>
-            <p className="mt-1 text-[13px] font-semibold text-ink">{formatTicketStatusLabel(ticket.status)}</p>
+            <p className="text-[10px] font-bold uppercase tracking-wide text-ink-40">{t('detail.ticketStatus')}</p>
+            <p className="mt-1 text-[13px] font-semibold text-ink">{formatTicketStatusLabel(ticket.status, t)}</p>
           </div>
         </div>
 
         <footer className="mt-8 border-t border-ink-10 pt-6">
           <p className="text-[13px] font-semibold text-ink">{venue}</p>
           {startIso ? (
-            <p className="mt-1 text-[12px] text-ink-60">{formatTicketDate(startIso)}</p>
+            <p className="mt-1 text-[12px] text-ink-60">
+              {formatTicketDate(startIso, language, t('dateTbc'))}
+            </p>
           ) : null}
-          <p className="mt-3 max-w-prose text-[12px] leading-relaxed text-ink-40">
-            Show the QR code at the gate. Increase screen brightness for best results. Fees may be included in
-            the order total on the server.
-          </p>
+          <p className="mt-3 max-w-prose text-[12px] leading-relaxed text-ink-40">{t('detail.invoiceFooter')}</p>
         </footer>
       </div>
     </article>

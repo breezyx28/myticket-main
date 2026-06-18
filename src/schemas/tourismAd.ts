@@ -4,6 +4,7 @@ import type {
   TourismAdOpeningHours,
   TourismAdWeekday,
 } from '@/api/types/tourismAd';
+import type { ValidationTFunction } from '@/schemas/types';
 
 export const TOURISM_AD_WEEKDAYS: TourismAdWeekday[] = [
   'mon',
@@ -24,6 +25,14 @@ export const TOURISM_AD_WEEKDAY_LABELS: Record<TourismAdWeekday, string> = {
   sat: 'Saturday',
   sun: 'Sunday',
 };
+
+/** Localized weekday label via the `tourism` namespace (`tourism:weekdays.*`). */
+export function tourismWeekdayLabel(
+  t: (key: string) => string,
+  day: TourismAdWeekday,
+): string {
+  return t(`weekdays.${day}`);
+}
 
 export const SAUDI_DEFAULT_LAT = 24.7136;
 export const SAUDI_DEFAULT_LNG = 46.6753;
@@ -73,10 +82,11 @@ export function normalizeOpeningHours(
 
 export function validateOpeningHours(
   hours: TourismAdOpeningHours | undefined,
+  t: ValidationTFunction,
 ): Record<string, string> {
   const errors: Record<string, string> = {};
   if (!hours) {
-    errors.opening_hours = 'Opening hours are required.';
+    errors.opening_hours = t('tourism.openingHoursRequired');
     return errors;
   }
 
@@ -84,7 +94,7 @@ export function validateOpeningHours(
   for (const day of TOURISM_AD_WEEKDAYS) {
     const d = hours[day];
     if (!d || typeof d.closed !== 'boolean') {
-      errors[`opening_hours.${day}`] = 'Set hours or mark as closed.';
+      errors[`opening_hours.${day}`] = t('tourism.setHoursOrClosed');
       continue;
     }
     if (d.closed) continue;
@@ -92,132 +102,142 @@ export function validateOpeningHours(
     const opens = normalizeTimeValue(d.opens);
     const closes = normalizeTimeValue(d.closes);
     if (!opens || !timePattern.test(opens)) {
-      errors[`opening_hours.${day}.opens`] = 'Enter a valid opening time.';
+      errors[`opening_hours.${day}.opens`] = t('tourism.openingTimeInvalid');
     }
     if (!closes || !timePattern.test(closes)) {
-      errors[`opening_hours.${day}.closes`] = 'Enter a valid closing time.';
+      errors[`opening_hours.${day}.closes`] = t('tourism.closingTimeInvalid');
     }
   }
 
   if (openDayCount === 0) {
-    errors.opening_hours = 'At least one day must be open.';
+    errors.opening_hours = t('tourism.atLeastOneDayOpen');
   }
 
   return errors;
 }
 
-const contactSchema = yup
-  .object({
-    phone: yup.string().trim().notRequired(),
-    email: yup
-      .string()
-      .trim()
-      .transform((v) => (v === '' ? undefined : v))
-      .email('Enter a valid email.')
-      .notRequired(),
-    website: yup
-      .string()
-      .trim()
-      .transform((v) => (v === '' ? undefined : v))
-      .url('Enter a valid URL.')
-      .notRequired(),
-    whatsapp: yup.string().trim().notRequired(),
-  })
-  .test(
-    'phone-or-email',
-    'Provide at least a phone number or email.',
-    (value) => {
+function contactSchema(t: ValidationTFunction) {
+  return yup
+    .object({
+      phone: yup.string().trim().notRequired(),
+      email: yup
+        .string()
+        .trim()
+        .transform((v) => (v === '' ? undefined : v))
+        .email(t('tourism.emailInvalid'))
+        .notRequired(),
+      website: yup
+        .string()
+        .trim()
+        .transform((v) => (v === '' ? undefined : v))
+        .url(t('tourism.urlInvalid'))
+        .notRequired(),
+      whatsapp: yup.string().trim().notRequired(),
+    })
+    .test('phone-or-email', t('tourism.phoneOrEmailRequired'), (value) => {
       const phone = value?.phone?.trim();
       const email = value?.email?.trim();
       return Boolean(phone || email);
-    },
-  );
+    });
+}
 
-const mediaLinkSchema = yup.object({
-  platform: yup.string().trim().min(1, 'Platform is required.').required(),
-  url: yup.string().trim().url('Enter a valid URL.').required(),
-});
+function mediaLinkSchema(t: ValidationTFunction) {
+  return yup.object({
+    platform: yup.string().trim().min(1, t('tourism.platformRequired')).required(),
+    url: yup.string().trim().url(t('tourism.urlInvalid')).required(),
+  });
+}
 
 /** Step 1 — location & description (draft-friendly). */
-export const tourismAdLocationStepSchema = yup.object({
-  location_name: yup
-    .string()
-    .trim()
-    .min(2, 'Location name must be at least 2 characters.')
-    .required('Location name is required.'),
-  latitude: yup
-    .number()
-    .typeError('Latitude is required.')
-    .min(-90)
-    .max(90)
-    .required('Latitude is required.'),
-  longitude: yup
-    .number()
-    .typeError('Longitude is required.')
-    .min(-180)
-    .max(180)
-    .required('Longitude is required.'),
-  description: yup
-    .string()
-    .trim()
-    .min(50, 'Description must be at least 50 characters.')
-    .max(5000, 'Description must be at most 5000 characters.')
-    .required('Description is required.'),
-});
+export function createTourismAdLocationStepSchema(t: ValidationTFunction) {
+  return yup.object({
+    location_name: yup
+      .string()
+      .trim()
+      .min(2, t('tourism.locationNameMin'))
+      .required(t('tourism.locationNameRequired')),
+    latitude: yup
+      .number()
+      .typeError(t('tourism.latitudeRequired'))
+      .min(-90)
+      .max(90)
+      .required(t('tourism.latitudeRequired')),
+    longitude: yup
+      .number()
+      .typeError(t('tourism.longitudeRequired'))
+      .min(-180)
+      .max(180)
+      .required(t('tourism.longitudeRequired')),
+    description: yup
+      .string()
+      .trim()
+      .min(50, t('tourism.descriptionMin'))
+      .max(5000, t('tourism.descriptionMax'))
+      .required(t('tourism.descriptionRequired')),
+  });
+}
 
 /** Step 2 — hours & services. */
-export const tourismAdHoursStepSchema = yup.object({
-  opening_hours: yup
-    .mixed<TourismAdOpeningHours>()
-    .required('Opening hours are required.')
-    .test('opening-hours', 'Check opening hours.', function (value) {
-      const errors = validateOpeningHours(value as TourismAdOpeningHours);
-      const keys = Object.keys(errors);
-      if (keys.length === 0) return true;
-      const first = keys[0];
-      return this.createError({
-        path: first,
-        message: errors[first],
-      });
-    }),
-  services: yup
-    .array()
-    .of(
-      yup
-        .string()
-        .defined()
-        .trim()
-        .min(1, 'Service name cannot be empty.')
-        .max(80, 'Each service must be at most 80 characters.'),
-    )
-    .min(1, 'Add at least one service.')
-    .max(20, 'At most 20 services.')
-    .required(),
-});
+export function createTourismAdHoursStepSchema(t: ValidationTFunction) {
+  return yup.object({
+    opening_hours: yup
+      .mixed<TourismAdOpeningHours>()
+      .required(t('tourism.openingHoursRequired'))
+      .test('opening-hours', t('tourism.checkOpeningHours'), function (value) {
+        const errors = validateOpeningHours(value as TourismAdOpeningHours, t);
+        const keys = Object.keys(errors);
+        if (keys.length === 0) return true;
+        const first = keys[0];
+        return this.createError({
+          path: first,
+          message: errors[first],
+        });
+      }),
+    services: yup
+      .array()
+      .of(
+        yup
+          .string()
+          .defined()
+          .trim()
+          .min(1, t('tourism.serviceNameEmpty'))
+          .max(80, t('tourism.serviceNameMax')),
+      )
+      .min(1, t('tourism.addAtLeastOneService'))
+      .max(20, t('tourism.maxServices'))
+      .required(),
+  });
+}
 
 /** Step 3 — contact & media links. */
-export const tourismAdContactStepSchema = yup.object({
-  contact: contactSchema.required(),
-  media_links: yup.array().of(mediaLinkSchema).max(10).default([]),
-});
+export function createTourismAdContactStepSchema(t: ValidationTFunction) {
+  return yup.object({
+    contact: contactSchema(t).required(),
+    media_links: yup.array().of(mediaLinkSchema(t)).max(10).default([]),
+  });
+}
 
 /** Step 4 — gallery (submit requires min 1). */
-export const tourismAdGalleryStepSchema = yup.object({
-  gallery_urls: yup
-    .array()
-    .of(yup.string().trim().url().required())
-    .min(1, 'Upload at least one gallery image.')
-    .max(20, 'At most 20 gallery images.')
-    .required(),
-});
+export function createTourismAdGalleryStepSchema(t: ValidationTFunction) {
+  return yup.object({
+    gallery_urls: yup
+      .array()
+      .of(yup.string().trim().url().required())
+      .min(1, t('tourism.uploadAtLeastOneImage'))
+      .max(20, t('tourism.maxGalleryImages'))
+      .required(),
+  });
+}
 
 /** Full publish rules (used before API submit). */
-export const tourismAdSubmitSchema = tourismAdLocationStepSchema
-  .concat(tourismAdHoursStepSchema)
-  .concat(tourismAdContactStepSchema)
-  .concat(tourismAdGalleryStepSchema);
+export function createTourismAdSubmitSchema(t: ValidationTFunction) {
+  return createTourismAdLocationStepSchema(t)
+    .concat(createTourismAdHoursStepSchema(t))
+    .concat(createTourismAdContactStepSchema(t))
+    .concat(createTourismAdGalleryStepSchema(t));
+}
 
-export type TourismAdFormValues = yup.InferType<typeof tourismAdSubmitSchema>;
+export type TourismAdFormValues = yup.InferType<ReturnType<typeof createTourismAdSubmitSchema>>;
 
 export const EMPTY_TOURISM_AD_FORM: TourismAdFormValues = {
   location_name: '',

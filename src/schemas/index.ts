@@ -1,11 +1,13 @@
 /**
  * Yup validation schemas for every form on the Main Website.
  *
- * Schemas are pure `yup.ObjectSchema` instances with no UI binding. Adopt
- * them via either:
- *   1. Direct call: `await schema.validate(values, { abortEarly: false })`.
- *   2. `react-hook-form` + `@hookform/resolvers/yup` when migrating a form.
+ * Schemas are factory functions `createXSchema(t)` bound to the `validation`
+ * i18n namespace. Adopt them via either:
+ *   1. Direct call: `await createXSchema(t).validate(values, { abortEarly: false })`.
+ *   2. `react-hook-form` + `@hookform/resolvers/yup` with `useMemo(() => createXSchema(t), [t, i18n.language])`.
  */
+
+export * from './types';
 
 export * from './auth';
 export * from './profile';

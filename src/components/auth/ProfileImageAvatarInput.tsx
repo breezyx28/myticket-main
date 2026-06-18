@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Camera } from '@phosphor-icons/react';
 import { toAuthApiError } from '@/lib/authErrors';
 import { initialsFromName, isProfileImageUrl } from '@/lib/initials';
@@ -25,6 +26,7 @@ export function ProfileImageAvatarInput({
   onFileSelected,
   onRemove,
 }: ProfileImageAvatarInputProps) {
+  const { t } = useTranslation('authPages');
   const fileRef = useRef<HTMLInputElement>(null);
   const previewObjectUrlRef = useRef<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -69,12 +71,12 @@ export function ProfileImageAvatarInput({
         clearPreview();
       } catch (err) {
         clearPreview();
-        setUploadError(toAuthApiError(err, 'Could not upload photo.').message);
+        setUploadError(toAuthApiError(err, t('onboarding.errors.uploadPhotoFailed')).message);
       } finally {
         setUploading(false);
       }
     },
-    [clearPreview, onFileSelected],
+    [clearPreview, onFileSelected, t],
   );
 
   const handleRemove = useCallback(async () => {
@@ -85,15 +87,15 @@ export function ProfileImageAvatarInput({
     try {
       await onRemove();
     } catch (err) {
-      setUploadError(toAuthApiError(err, 'Could not remove photo.').message);
+      setUploadError(toAuthApiError(err, t('onboarding.errors.removePhotoFailed')).message);
     } finally {
       setUploading(false);
     }
-  }, [clearPreview, onRemove]);
+  }, [clearPreview, onRemove, t]);
 
   return (
     <div className={cn('flex flex-col items-start gap-3', className)}>
-      <span className="text-[12px] font-semibold text-ink-60">Profile photo (optional)</span>
+      <span className="text-[12px] font-semibold text-ink-60">{t('onboarding.profilePhoto.label')}</span>
       <div className="flex flex-wrap items-end gap-4">
         <button
           type="button"
@@ -104,7 +106,7 @@ export function ProfileImageAvatarInput({
             !disabled && !uploading && 'cursor-pointer hover:border-coral hover:shadow-md focus:outline-none focus:ring-2 focus:ring-coral focus:ring-offset-2',
             (disabled || uploading) && 'cursor-not-allowed opacity-70'
           )}
-          aria-label="Upload profile photo"
+          aria-label={t('onboarding.profilePhoto.uploadAria')}
         >
           {showImage && displaySrc ? (
             <img src={displaySrc} alt="" className="h-full w-full object-cover" />
@@ -133,7 +135,7 @@ export function ProfileImageAvatarInput({
         {!disabled && (
           <div className="flex min-w-0 flex-col gap-2 text-[12px] text-ink-60">
             <p className="max-w-[220px] leading-snug">
-              {hintText ?? 'Tap the circle to choose a photo from your device.'}
+              {hintText ?? t('onboarding.profilePhoto.hint')}
             </p>
             {uploadError && (
               <p className="max-w-[220px] font-semibold text-coral" role="alert">
@@ -147,7 +149,7 @@ export function ProfileImageAvatarInput({
                 disabled={uploading}
                 onClick={() => void handleRemove()}
               >
-                Remove photo
+                {t('onboarding.profilePhoto.remove')}
               </button>
             )}
           </div>

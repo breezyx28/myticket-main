@@ -7,6 +7,7 @@ import {
   type CSSProperties,
   type HTMLAttributes,
 } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useInView } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useCountUp } from '@/hooks/useCountUp';
@@ -66,6 +67,7 @@ const MORPH_MS = 600;
 
 /** Single 2×2 stat grid clipped by one SVG path that morphs (flubber) between shape assets. */
 export function StatsShapeCluster({ stats, shapeIndex }: StatsShapeClusterProps) {
+  const { t } = useTranslation('landing');
   const maskId = useId().replace(/:/g, '');
   const rootRef = useRef<HTMLDivElement>(null);
   const isInView = useInView(rootRef, { once: true, margin: '-12% 0px' });
@@ -99,7 +101,7 @@ export function StatsShapeCluster({ stats, shapeIndex }: StatsShapeClusterProps)
             viewBox="0 0 100 100"
             preserveAspectRatio="xMidYMid meet"
             role="img"
-            aria-label="Statistics"
+            aria-label={t('stats.ariaLabel')}
           >
             <defs>
               <mask

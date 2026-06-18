@@ -52,8 +52,14 @@ function boolFromUnknown(value: unknown): boolean | null {
 }
 
 export function TalentProfilePage() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation(['marketplace', 'common', 'nav']);
+  const { t: tValidation } = useTranslation('validation');
+  const engagementSchema = useMemo(
+    () => createEngagementSchema(tValidation),
+    [tValidation, i18n.language],
+  );
   const language = i18n.language === 'ar' ? 'ar' : 'en';
+  const tp = (key: string, opts?: Record<string, unknown>) => t(`talentProfile.${key}`, opts);
   const { slug, id } = useParams();
   const talentSlug = slug ?? id;
   const location = useLocation();
@@ -61,7 +67,7 @@ export function TalentProfilePage() {
   const { user } = useAuth();
   const fromMarketplace = location.pathname.startsWith('/marketplace');
   const backHref = fromMarketplace ? '/marketplace' : '/';
-  const backLabel = fromMarketplace ? 'Marketplace' : 'Home';
+  const backLabel = fromMarketplace ? t('nav:marketplace') : t('common:home');
   const notFoundHref = fromMarketplace ? '/marketplace' : '/events';
 
   const [contactOpen, setContactOpen] = useState(false);
@@ -93,9 +99,10 @@ export function TalentProfilePage() {
   const displayRating = summaryAverage !== null ? summaryAverage : (talent?.rating ?? 0);
   const ratingsCount = ratingsSummary?.count ?? apiTalent?.rating_count ?? 0;
   const relatedEvents = apiTalent?.events ?? [];
-  const categories = talent?.categories?.length ? talent.categories : ['General Talent'];
-  const bio = textOr(talent?.bio, 'No bio added yet.');
-  const city = textOr(talent?.city, 'City not shared');
+  const categories = talent?.categories?.length ? talent.categories : [tp('generalTalent')];
+  const bio = textOr(talent?.bio, tp('noBio'));
+  const city = textOr(talent?.city, tp('cityNotShared'));
+  const notProvided = tp('notProvided');
   const profileImage = talent?.image?.trim() || PLACEHOLDER_PHOTO;
   const instagramHandle = textOr(
     typeof apiTalent?.instagram_handle === 'string'
@@ -103,18 +110,18 @@ export function TalentProfilePage() {
         ? apiTalent.instagram_handle
         : `@${apiTalent.instagram_handle}`
       : null,
-    'Not provided',
+    notProvided,
   );
   const websiteUrl = textOr(
     typeof apiTalent?.website_url === 'string' ? apiTalent.website_url : null,
-    'Not provided',
+    notProvided,
   );
   const travelReady = boolFromUnknown(apiTalent?.travel_ready);
   const locationPublic = boolFromUnknown(apiTalent?.location_public);
   const completedBookings = numberOr(apiTalent?.completed_bookings, 0);
   const availabilityRaw =
     typeof apiTalent?.availability_status === 'string' ? apiTalent.availability_status : talent?.availability;
-  const availabilityLabel = availabilityRaw === 'reserved' ? 'Reserved' : 'Available';
+  const availabilityLabel = availabilityRaw === 'reserved' ? tp('reserved') : tp('available');
   const availabilityTone =
     availabilityRaw === 'reserved'
       ? 'bg-amber/15 text-amber-dark border-amber/30'
@@ -125,7 +132,7 @@ export function TalentProfilePage() {
   }
 
   if (talentLoading) {
-    return <div className="px-6 py-24 text-center text-ink-40">Loading…</div>;
+    return <div className="px-6 py-24 text-center text-ink-40">{tp('loading')}</div>;
   }
 
   if (talentError || !talent) {
@@ -150,7 +157,7 @@ export function TalentProfilePage() {
                 />
                 <div className="min-w-0">
                   <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-coral">
-                    Talent profile
+                    {tp('eyebrow')}
                   </p>
                   <h1 className="truncate text-[30px] font-extrabold leading-tight text-ink">{talent.name}</h1>
                   <p className="mt-1 flex items-center gap-1.5 text-[13px] text-ink-60">
@@ -172,39 +179,47 @@ export function TalentProfilePage() {
 
           <div className="grid gap-6 px-6 py-6 md:grid-cols-4 md:px-8">
             <div className="rounded-2xl border border-ink-10 bg-ink-5/30 p-4">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-ink-40">Rating</p>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-ink-40">{tp('rating')}</p>
               <p className="mt-2 flex items-center gap-2 text-[26px] font-extrabold text-ink">
                 <Star size={20} className="text-amber" weight="fill" />
                 {displayRating.toFixed(1)}
               </p>
               <p className="mt-1 text-[12px] text-ink-60">
-                {ratingsCount > 0 ? `${ratingsCount} rating${ratingsCount === 1 ? '' : 's'}` : 'No ratings yet'}
+                {ratingsCount > 0 ? t('talentProfile.ratingCount', { count: ratingsCount }) : tp('noRatings')}
               </p>
             </div>
             <div className="rounded-2xl border border-ink-10 bg-ink-5/30 p-4">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-ink-40">Bookings</p>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-ink-40">{tp('bookings')}</p>
               <p className="mt-2 text-[26px] font-extrabold text-ink">{completedBookings}</p>
-              <p className="mt-1 text-[12px] text-ink-60">Completed engagements</p>
+              <p className="mt-1 text-[12px] text-ink-60">{tp('completedEngagements')}</p>
             </div>
             <div className="rounded-2xl border border-ink-10 bg-ink-5/30 p-4">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-ink-40">Travel</p>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-ink-40">{tp('travel')}</p>
               <p className="mt-2 flex items-center gap-2 text-[17px] font-bold text-ink">
                 <SuitcaseSimple size={18} />
-                {travelReady === null ? 'Not provided' : travelReady ? 'Travel-ready' : 'Local only'}
+                {travelReady === null
+                  ? notProvided
+                  : travelReady
+                    ? tp('travelReady')
+                    : tp('localOnly')}
               </p>
-              <p className="mt-1 text-[12px] text-ink-60">Talent mobility</p>
+              <p className="mt-1 text-[12px] text-ink-60">{tp('mobility')}</p>
             </div>
             <div className="rounded-2xl border border-ink-10 bg-ink-5/30 p-4">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-ink-40">Location visibility</p>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-ink-40">{tp('locationVisibility')}</p>
               <p className="mt-2 text-[17px] font-bold text-ink">
-                {locationPublic === null ? 'Not provided' : locationPublic ? 'Public profile' : 'Private profile'}
+                {locationPublic === null
+                  ? notProvided
+                  : locationPublic
+                    ? tp('publicProfile')
+                    : tp('privateProfile')}
               </p>
-              <p className="mt-1 text-[12px] text-ink-60">City/region sharing</p>
+              <p className="mt-1 text-[12px] text-ink-60">{tp('citySharing')}</p>
             </div>
           </div>
 
           <div className="border-t border-ink-10 px-6 py-6 md:px-8">
-            <p className="text-[11px] font-bold uppercase tracking-wide text-ink-40">Categories</p>
+            <p className="text-[11px] font-bold uppercase tracking-wide text-ink-40">{tp('categories')}</p>
             <div className="mt-3 flex flex-wrap gap-2">
               {categories.map((category) => (
                 <span
@@ -218,18 +233,18 @@ export function TalentProfilePage() {
             <p className="mt-5 text-[15px] leading-relaxed text-ink-60">{bio}</p>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               <div className="rounded-xl border border-ink-10 bg-white px-4 py-3">
-                <p className="text-[11px] font-bold uppercase tracking-wide text-ink-40">Instagram</p>
+                <p className="text-[11px] font-bold uppercase tracking-wide text-ink-40">{tp('instagram')}</p>
                 <p className="mt-1 flex items-center gap-2 text-[14px] font-medium text-ink">
                   <InstagramLogo size={16} />
                   {instagramHandle}
                 </p>
               </div>
               <div className="rounded-xl border border-ink-10 bg-white px-4 py-3">
-                <p className="text-[11px] font-bold uppercase tracking-wide text-ink-40">Website</p>
-                {websiteUrl === 'Not provided' ? (
+                <p className="text-[11px] font-bold uppercase tracking-wide text-ink-40">{tp('website')}</p>
+                {websiteUrl === notProvided ? (
                   <p className="mt-1 flex items-center gap-2 text-[14px] font-medium text-ink">
                     <GlobeHemisphereWest size={16} />
-                    Not provided
+                    {notProvided}
                   </p>
                 ) : (
                   <a
@@ -239,7 +254,7 @@ export function TalentProfilePage() {
                     className="mt-1 inline-flex items-center gap-2 text-[14px] font-semibold text-coral hover:underline"
                   >
                     <GlobeHemisphereWest size={16} />
-                    Visit website
+                    {tp('visitWebsite')}
                   </a>
                 )}
               </div>
@@ -255,7 +270,7 @@ export function TalentProfilePage() {
                   setContactOpen(true);
                 }}
               >
-                Contact talent
+                {tp('contactTalent')}
               </Button>
             )}
           </div>
@@ -264,7 +279,7 @@ export function TalentProfilePage() {
         <section className="mt-12">
           <div className="flex items-center gap-2">
             <Ticket size={18} className="text-coral" />
-            <h2 className="text-lg font-extrabold text-ink">Related events</h2>
+            <h2 className="text-lg font-extrabold text-ink">{tp('relatedEvents')}</h2>
           </div>
           {relatedEvents.length > 0 ? (
             <ul className="mt-4 space-y-4">
@@ -281,15 +296,15 @@ export function TalentProfilePage() {
                     />
                     <div className="flex min-w-0 flex-1 flex-col justify-between">
                       <div>
-                        <p className="text-[16px] font-bold text-ink">{textOr(event.title, 'Untitled event')}</p>
+                        <p className="text-[16px] font-bold text-ink">{textOr(event.title, tp('untitledEvent'))}</p>
                         <p className="mt-1 text-[13px] leading-relaxed text-ink-60">
-                          {textOr(event.excerpt as string | null | undefined, 'Event details will be announced soon.')}
+                          {textOr(event.excerpt as string | null | undefined, tp('eventDetailsSoon'))}
                         </p>
                       </div>
                       <div className="mt-3 flex flex-wrap items-center gap-2 text-[12px] font-semibold text-ink-60">
                         <span className="inline-flex items-center gap-1 rounded-full bg-ink-5 px-2.5 py-1">
                           <MapPin size={12} />
-                          {textOr(event.venue_name, 'Venue TBA')}
+                          {textOr(event.venue_name, tp('venueTba'))}
                         </span>
                         <span className="inline-flex items-center gap-1 rounded-full bg-ink-5 px-2.5 py-1">
                           <CalendarBlank size={12} />
@@ -299,10 +314,10 @@ export function TalentProfilePage() {
                                 day: 'numeric',
                                 year: 'numeric',
                               })
-                            : 'Date TBA'}
+                            : tp('dateTba')}
                         </span>
                         <span className="inline-flex items-center gap-1 rounded-full bg-ink-5 px-2.5 py-1">
-                          {textOr(event.proficiency as string | null | undefined, 'Performer')}
+                          {textOr(event.proficiency as string | null | undefined, tp('performer'))}
                         </span>
                       </div>
                     </div>
@@ -312,7 +327,7 @@ export function TalentProfilePage() {
             </ul>
           ) : (
             <div className="mt-4 rounded-2xl border border-dashed border-ink-20 bg-white px-5 py-6 text-center text-[14px] text-ink-60">
-              No published events are linked to this talent yet.
+              {tp('noRelatedEvents')}
             </div>
           )}
         </section>
@@ -320,24 +335,24 @@ export function TalentProfilePage() {
         {canBrowseMarketplace(user) ? (
           <p className="mt-8 text-[13px] text-ink-60">
             <Link to="/marketplace?type=talent" className="font-semibold text-coral hover:underline">
-              Browse more talents
+              {tp('browseMore')}
             </Link>
           </p>
         ) : null}
 
         <section className="mt-12 rounded-2xl border border-ink-10 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-extrabold text-ink">Verification &amp; credentials</h2>
+          <h2 className="text-lg font-extrabold text-ink">{tp('verificationTitle')}</h2>
           <ul className="mt-3 list-inside list-disc space-y-1 text-[14px] text-ink-60">
-            <li>Identity verified (mock)</li>
-            <li>Public liability coverage on file for festival-scale bookings (demo)</li>
-            <li>Portfolio links reviewed by marketplace ops (simulated)</li>
+            <li>{tp('verifyIdentity')}</li>
+            <li>{tp('verifyLiability')}</li>
+            <li>{tp('verifyPortfolio')}</li>
           </ul>
         </section>
 
         <section className="mt-12">
           <div className="flex items-center gap-2">
             <ImagesSquare size={18} className="text-coral" />
-            <h2 className="text-lg font-extrabold text-ink">Gallery</h2>
+            <h2 className="text-lg font-extrabold text-ink">{tp('gallery')}</h2>
           </div>
           {talent.gallery.length > 0 ? (
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -347,20 +362,20 @@ export function TalentProfilePage() {
             </div>
           ) : (
             <div className="mt-4 rounded-2xl border border-dashed border-ink-20 bg-white px-5 py-6 text-center text-[14px] text-ink-60">
-              No gallery photos yet.
+              {tp('noGallery')}
             </div>
           )}
         </section>
 
         <section className="mt-12 rounded-2xl border border-ink-10 bg-ink-5/40 p-6">
-          <h2 className="text-lg font-extrabold text-ink">Ratings</h2>
+          <h2 className="text-lg font-extrabold text-ink">{tp('ratings')}</h2>
           <p className="mt-2 flex flex-wrap items-center gap-2 text-[15px] text-ink">
             <Star size={22} className="text-amber" weight="fill" />
             <span className="font-bold">{displayRating.toFixed(1)}</span>
             <span className="text-[13px] font-medium text-ink-60">
               {ratingsCount > 0
-                ? `from ${ratingsCount} ${ratingsCount === 1 ? 'rating' : 'ratings'}`
-                : 'No public ratings yet'}
+                ? t('talentProfile.fromRatings', { count: ratingsCount })
+                : tp('noPublicRatings')}
             </span>
           </p>
           {recentRatings.length > 0 ? (
@@ -370,32 +385,32 @@ export function TalentProfilePage() {
                   <p className="font-semibold text-ink">
                     <span className="inline-flex items-center gap-1">
                       <UserCircle size={16} />
-                      {r.user_name?.trim() ? r.user_name : 'Anonymous'}
+                      {r.user_name?.trim() ? r.user_name : tp('anonymous')}
                     </span>{' '}
                     <span className="font-normal text-ink-40">· ★ {r.stars}</span>
                   </p>
                   {r.comment?.trim() ? (
                     <p className="mt-1 leading-relaxed">{r.comment}</p>
                   ) : (
-                    <p className="mt-1 leading-relaxed text-ink-40">No written comment provided.</p>
+                    <p className="mt-1 leading-relaxed text-ink-40">{tp('noComment')}</p>
                   )}
                 </li>
               ))}
             </ul>
           ) : (
             <p className="mt-4 rounded-xl border border-dashed border-ink-20 bg-white px-4 py-3 text-[13px] text-ink-60">
-              No public ratings yet.
+              {tp('noPublicRatings')}
             </p>
           )}
           <p className="mt-4 text-[13px] text-ink-60">
-            Mutual ratings between organizers and talent unlock after a completed engagement (full product).
+            {tp('mutualRatingsNote')}
           </p>
           <button
             type="button"
             disabled
             className="mt-4 w-full rounded-full border border-dashed border-ink-20 bg-white px-5 py-3 text-[13px] font-semibold text-ink-40 sm:w-auto"
           >
-            Mutual ratings after completed work
+            {tp('mutualRatingsCta')}
           </button>
         </section>
       </div>
@@ -414,14 +429,14 @@ export function TalentProfilePage() {
         onSubmit={async ({ topic, initial_message }) => {
           setContactError(null);
           try {
-            await createEngagementSchema.validate({
+            await engagementSchema.validate({
               target_type: 'talent',
               target_id: talent.id,
               topic,
               initial_message: initial_message || undefined,
             });
           } catch (err) {
-            setContactError(err instanceof Error ? err.message : 'Please review the form.');
+            setContactError(err instanceof Error ? err.message : tp('formReview'));
             return;
           }
           try {
@@ -438,7 +453,7 @@ export function TalentProfilePage() {
               err && typeof err === 'object' && 'data' in err && err.data
                 && typeof (err as { data: { message?: unknown } }).data.message === 'string'
                 ? ((err as { data: { message: string } }).data.message)
-                : 'Could not start engagement.';
+                : tp('startEngagementError');
             setContactError(message);
           }
         }}

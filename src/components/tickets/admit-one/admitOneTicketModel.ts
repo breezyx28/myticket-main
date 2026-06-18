@@ -4,10 +4,14 @@ import {
   admissionLine,
   eventEndIso,
   eventStartIso,
+  formatTicketTimeOnly,
   formatTicketStatusLabel,
   pickFirst,
+  type TicketTranslate,
 } from '@/components/tickets/ticketDisplayUtils';
 import { pickCoverUrl } from '@/components/tickets/admit-one/resolveEventCover';
+import { formatDate } from '@/lib/intlFormat';
+import type { AppLanguage } from '@/lib/language';
 
 export type AdmitOneTicketViewModel = {
   eventTitle: string;
@@ -24,19 +28,22 @@ export type AdmitOneTicketViewModel = {
   status: TicketStatus | string;
   statusLabel: string;
   isActive: boolean;
+  timeTbc: string;
+  timeTo: string;
 };
 
-function formatWeekday(iso: string): string {
+function formatWeekday(iso: string, language: AppLanguage): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString(undefined, { weekday: 'long' }).toUpperCase();
+  return formatDate(iso, language, { weekday: 'long' }).toUpperCase();
 }
 
-function formatMonthDay(iso: string): string {
+function formatMonthDay(iso: string, language: AppLanguage, dateTbc: string): string {
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return 'DATE TBC';
-  const month = d.toLocaleDateString(undefined, { month: 'long' }).toUpperCase();
+  if (Number.isNaN(d.getTime())) return dateTbc;
+  const month = formatDate(iso, language, { month: 'long' }).toUpperCase();
   const day = d.getDate();
+  if (language === 'ar') return `${month} ${day}`;
   const suffix =
     day % 10 === 1 && day !== 11
       ? 'ST'
@@ -48,21 +55,16 @@ function formatMonthDay(iso: string): string {
   return `${month} ${day}${suffix}`;
 }
 
-function formatYear(iso: string): string {
+function formatYear(iso: string, language: AppLanguage): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
-  return String(d.getFullYear());
-}
-
-function formatTime(iso: string | null | undefined): string | null {
-  if (!iso?.trim()) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  return formatDate(iso, language, { year: 'numeric' });
 }
 
 export function mapAdmitOneTicketViewModel(
   ticket: MockTicket,
+  t: TicketTranslate,
+  language: AppLanguage,
   apiTicket?: Ticket | null,
   scanValue?: string | null,
   coverImageOverride?: string | null,
@@ -74,33 +76,36 @@ export function mapAdmitOneTicketViewModel(
     apiTicket?.ticket_type_name,
     apiTicket?.type_name_cache,
     ticket.typeName,
-  ) ?? 'Ticket';
+  ) ?? t('detail.fallbackTicket');
   const seatLabel = pickFirst(apiTicket?.seat_label, apiTicket?.seat_label_cache, ticket.seatLabel);
-  const subtitle = admissionLine(typeName, seatLabel ?? undefined);
+  const subtitle = admissionLine(typeName, seatLabel ?? undefined, t);
 
   const code = pickFirst(scanValue, ticket.ticketCode, apiTicket?.qr_scan_value, apiTicket?.code);
   const ticketNumber = code ? `#${code}` : `#${ticket.orderRef}`;
 
-  const venue = pickFirst(apiTicket?.venue, apiTicket?.venue_cache, ticket.venue) ?? 'Venue TBC';
+  const venue = pickFirst(apiTicket?.venue, apiTicket?.venue_cache, ticket.venue) ?? t('detail.venueTbc');
   const city = pickFirst(apiTicket?.city, apiTicket?.city_cache, ticket.city) ?? '';
 
   const status = ticket.status;
   const isActive = status === 'active';
+  const dateTbc = t('detail.dateTbc');
 
   return {
-    eventTitle: ticket.eventTitle?.trim() || 'Event',
+    eventTitle: ticket.eventTitle?.trim() || t('detail.fallbackEvent'),
     subtitle,
-    weekday: startIso ? formatWeekday(startIso) : '—',
-    monthDay: startIso ? formatMonthDay(startIso) : 'DATE TBC',
-    year: startIso ? formatYear(startIso) : '—',
-    timeStart: formatTime(startIso),
-    timeEnd: formatTime(endIso),
+    weekday: startIso ? formatWeekday(startIso, language) : '—',
+    monthDay: startIso ? formatMonthDay(startIso, language, dateTbc) : dateTbc,
+    year: startIso ? formatYear(startIso, language) : '—',
+    timeStart: formatTicketTimeOnly(startIso, language),
+    timeEnd: formatTicketTimeOnly(endIso, language),
     venue,
     city,
     ticketNumber,
     coverImageUrl: pickFirst(coverImageOverride, pickCoverUrl(apiTicket)),
     status,
-    statusLabel: formatTicketStatusLabel(status),
+    statusLabel: formatTicketStatusLabel(status, t),
     isActive,
+    timeTbc: t('detail.timeTbc'),
+    timeTo: t('detail.timeTo'),
   };
 }

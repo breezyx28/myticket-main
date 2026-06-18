@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -10,10 +10,15 @@ import { FormSectionCard } from '@/components/ui/form/FormSectionCard';
 import { Field } from '@/components/ui/form/Field';
 import { InlineNotice } from '@/components/ui/form/InlineNotice';
 import { TextInput } from '@/components/ui/form/inputs';
-import { resetPasswordSchema, type ResetPasswordSchema } from '@/schemas/auth';
+import { createResetPasswordSchema, type ResetPasswordSchema } from '@/schemas/auth';
 
 export function ResetPasswordPage() {
   const { t } = useTranslation(['authPages', 'common']);
+  const { t: tValidation, i18n } = useTranslation('validation');
+  const resetPasswordSchema = useMemo(
+    () => createResetPasswordSchema(tValidation),
+    [tValidation, i18n.language],
+  );
   const [searchParams] = useSearchParams();
   const tokenFromUrl = searchParams.get('token') ?? '';
   const { confirmPasswordReset } = useAuth();

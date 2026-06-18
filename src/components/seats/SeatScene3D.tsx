@@ -1,9 +1,10 @@
 import { Suspense, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Text } from '@react-three/drei';
 import type { SeatRecord } from '@/types/seating';
 import { getSeatStatusColor, isSeatSelectable } from '@/lib/seating';
-import { buildBlueprintLayout } from '@/components/seats/blueprintLayout';
+import { blueprintSectionLabel, buildBlueprintLayout } from '@/components/seats/blueprintLayout';
 import { MOUSE, type Camera } from 'three';
 
 interface SeatScene3DProps {
@@ -131,6 +132,8 @@ function SectionBlock({
 }
 
 function StageAndBalcony() {
+  const { t } = useTranslation('seats');
+
   return (
     <group>
       <group position={[0, 0.16, 8.9]}>
@@ -146,7 +149,7 @@ function StageAndBalcony() {
           anchorX="center"
           anchorY="middle"
         >
-          STAGE
+          {t('stage').toUpperCase()}
         </Text>
       </group>
       <group position={[0, 1.2, -10.2]}>
@@ -162,7 +165,7 @@ function StageAndBalcony() {
           anchorX="center"
           anchorY="middle"
         >
-          BALCONY
+          {t('balcony').toUpperCase()}
         </Text>
       </group>
     </group>
@@ -182,6 +185,7 @@ function GroundPlane() {
 }
 
 export function SeatScene3D({ seats, selectedSeatIds, onToggleSeat, onSelectSectionSeats }: SeatScene3DProps) {
+  const { t } = useTranslation('seats');
   const [hoveredSeatId, setHoveredSeatId] = useState<string | null>(null);
   const [hoveredSectionId, setHoveredSectionId] = useState<string | null>(null);
   const controlsRef = useRef<any>(null);
@@ -216,6 +220,17 @@ export function SeatScene3D({ seats, selectedSeatIds, onToggleSeat, onSelectSect
     controls.update();
   }
 
+  function sectionLabel(sectionId: string, fallback: string) {
+    return blueprintSectionLabel(t, sectionId, fallback);
+  }
+
+  function seatStatusLabel(status: SeatRecord['status']) {
+    if (status === 'available' || status === 'held' || status === 'booked') {
+      return t(status);
+    }
+    return status;
+  }
+
   return (
     <div className="relative h-[460px] w-full overflow-hidden rounded-2xl border border-ink-10 bg-white">
       <Canvas
@@ -242,7 +257,7 @@ export function SeatScene3D({ seats, selectedSeatIds, onToggleSeat, onSelectSect
                 z={section.centerZ}
                 width={section.width}
                 depth={section.depth}
-                label={section.label}
+                label={sectionLabel(section.id, section.label)}
                 hovered={hoveredSectionId === section.id}
                 onHover={() => setHoveredSectionId(section.id)}
                 onLeave={() => {
@@ -290,35 +305,46 @@ export function SeatScene3D({ seats, selectedSeatIds, onToggleSeat, onSelectSect
         </Suspense>
       </Canvas>
       <div className="absolute bottom-3 left-3 rounded-full border border-ink-10 bg-white px-3 py-1.5 text-[11px] font-semibold text-ink shadow-sm">
-        Top view locked · Drag to pan · Scroll to zoom
+        {t('controlsHint')}
       </div>
       <div className="pointer-events-none absolute right-3 top-3 min-h-[72px] w-[250px] rounded-lg border border-ink-10 bg-white/95 p-3 text-[12px] shadow-sm">
         {hoveredSeat ? (
           <>
-            <p className="font-bold text-ink">Seat {hoveredSeat.label}</p>
-            <p className="mt-1 text-ink-60">Section: {hoveredSection?.label ?? hoveredSeat.section}</p>
+            <p className="font-bold text-ink">{t('seatLabel', { label: hoveredSeat.label })}</p>
             <p className="mt-1 text-ink-60">
-              Row {hoveredSeat.row}, Seat {hoveredSeat.number}
+              {t('sectionLabel', {
+                label:
+                  (hoveredSection && sectionLabel(hoveredSection.id, hoveredSection.label)) ??
+                  hoveredSeat.section,
+              })}
             </p>
             <p className="mt-1 text-ink-60">
-              Column:{' '}
-              {layout.seats.find((item) => item.seat.id === hoveredSeat.id)?.column ?? hoveredSeat.number}
+              {t('rowSeat', { row: hoveredSeat.row, seat: hoveredSeat.number })}
             </p>
-            <p className="mt-1 capitalize text-ink-60">State: {hoveredSeat.status}</p>
+            <p className="mt-1 text-ink-60">
+              {t('columnLabel', {
+                col: layout.seats.find((item) => item.seat.id === hoveredSeat.id)?.column ?? hoveredSeat.number,
+              })}
+            </p>
+            <p className="mt-1 text-ink-60">{t('stateLabel', { status: seatStatusLabel(hoveredSeat.status) })}</p>
           </>
         ) : hoveredSection && sectionStats ? (
           <>
-            <p className="font-bold text-ink">{hoveredSection.label}</p>
-            <p className="mt-1 text-ink-60">{sectionStats.total} seats in this section</p>
+            <p className="font-bold text-ink">{sectionLabel(hoveredSection.id, hoveredSection.label)}</p>
+            <p className="mt-1 text-ink-60">{t('seatsInSection', { count: sectionStats.total })}</p>
             <p className="mt-1 text-ink-60">
-              {sectionStats.available} available · {sectionStats.held} held · {sectionStats.booked} booked
+              {t('sectionStats', {
+                available: sectionStats.available,
+                held: sectionStats.held,
+                booked: sectionStats.booked,
+              })}
             </p>
-            <p className="mt-1 font-semibold text-ink">Select all the section?</p>
+            <p className="mt-1 font-semibold text-ink">{t('selectSection')}</p>
           </>
         ) : (
           <>
-            <p className="font-bold text-ink">Blueprint map</p>
-            <p className="mt-1 text-ink-60">Hover sections or seats to view details.</p>
+            <p className="font-bold text-ink">{t('blueprintMap')}</p>
+            <p className="mt-1 text-ink-60">{t('hoverHint')}</p>
           </>
         )}
       </div>

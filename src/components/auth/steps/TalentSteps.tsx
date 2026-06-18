@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { TalentOnboardingDraft } from "@/types/domain";
 import { DraftProfileImageAvatarInput } from "@/components/auth/DraftProfileImageAvatarInput";
 import {
@@ -41,6 +42,7 @@ export function TalentSteps({
   setMediaInput,
   onChange,
 }: TalentStepsProps) {
+  const { t } = useTranslation("authPages");
   const bioLen = draft.bio.trim().length;
   const { data: regionsRes } = useGetSaudiRegionsQuery();
   const apiRegions = regionsRes?.data;
@@ -53,11 +55,11 @@ export function TalentSteps({
         <DraftProfileImageAvatarInput
           value={draft.profileImage}
           onChange={(url) => onChange({ profileImage: url })}
-          displayName={draft.fullName.trim() || "User"}
+          displayName={draft.fullName.trim() || t("onboarding.talent.defaultDisplayName")}
         />
 
         <Field
-          label="Talent bio *"
+          label={t("onboarding.talent.bioLabel")}
           right={
             <CharCounter
               valueLength={bioLen}
@@ -65,14 +67,14 @@ export function TalentSteps({
               max={TALENT_BIO_MAX_CHARS}
             />
           }
-          helperText="Write a short overview of what you do and what makes you a great fit."
+          helperText={t("onboarding.talent.bioHelper")}
         >
           <TextArea
             rows={5}
             maxLength={TALENT_BIO_MAX_CHARS}
             value={draft.bio}
             onChange={(e) => onChange({ bio: e.target.value })}
-            placeholder="Share your skills, experience, and specialties."
+            placeholder={t("onboarding.talent.bioPlaceholder")}
           />
         </Field>
       </div>
@@ -82,11 +84,8 @@ export function TalentSteps({
   if (step === 1) {
     return (
       <div className="space-y-4">
-        <InlineNotice variant="info" title="Verification uploads *">
-          <p className="text-[12px]">
-            Add at least one item: video, image, URL, or certificate document
-            (demo).
-          </p>
+        <InlineNotice variant="info" title={t("onboarding.talent.verificationTitle")}>
+          <p className="text-[12px]">{t("onboarding.talent.verificationBody")}</p>
         </InlineNotice>
 
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -94,7 +93,7 @@ export function TalentSteps({
             value={mediaInput}
             onChange={(e) => setMediaInput(e.target.value)}
             className="min-w-0 flex-1 !py-2.5"
-            placeholder="Paste URL (https://…)"
+            placeholder={t("onboarding.talent.urlPlaceholder")}
           />
           <button
             type="button"
@@ -104,14 +103,14 @@ export function TalentSteps({
             }}
             className="shrink-0 rounded-xl border border-ink-10 px-4 py-2.5 text-[12px] font-semibold hover:bg-ink-5"
           >
-            Add URL
+            {t("onboarding.buttons.addUrl")}
           </button>
         </div>
 
         <div className="grid gap-2 sm:grid-cols-2">
           <UploadTileInput
-            title="Video file"
-            subtitle="mp4, webm, mov…"
+            title={t("onboarding.talent.videoFile")}
+            subtitle={t("onboarding.talent.videoSubtitle")}
             accept="video/*"
             onPick={(file) => {
               const url = URL.createObjectURL(file);
@@ -119,8 +118,8 @@ export function TalentSteps({
             }}
           />
           <UploadTileInput
-            title="Image file"
-            subtitle="jpg, png, webp…"
+            title={t("onboarding.talent.imageFile")}
+            subtitle={t("onboarding.talent.imageSubtitle")}
             accept="image/*"
             onPick={(file) => {
               const url = URL.createObjectURL(file);
@@ -128,8 +127,8 @@ export function TalentSteps({
             }}
           />
           <UploadTileInput
-            title="Certificate or document"
-            subtitle="pdf, image, or scan"
+            title={t("onboarding.talent.certificateFile")}
+            subtitle={t("onboarding.talent.certificateSubtitle")}
             accept="image/*,.pdf,application/pdf"
             className="sm:col-span-2"
             onPick={(file) => {
@@ -177,7 +176,7 @@ export function TalentSteps({
                           rel="noreferrer"
                           className="text-coral font-semibold"
                         >
-                          Open {name}
+                          {t("onboarding.buttons.open", { name })}
                         </a>
                       ) : rest?.startsWith("http") ? (
                         <UrlPreview url={rest} />
@@ -205,7 +204,7 @@ export function TalentSteps({
                             }}
                           />
                           <span className="cursor-pointer text-coral">
-                            Replace
+                            {t("onboarding.buttons.replace")}
                           </span>
                         </label>
                         <button
@@ -219,7 +218,7 @@ export function TalentSteps({
                           }
                           className="font-semibold text-coral"
                         >
-                          Remove
+                          {t("onboarding.buttons.remove")}
                         </button>
                       </div>
                       <div className="text-[11px] text-ink-40">{name}</div>
@@ -267,8 +266,8 @@ export function TalentSteps({
               .querySelector('meta[property="og:image"]')
               ?.getAttribute("content") ?? undefined;
           setMeta({ title, description, image });
-        } catch (e) {
-          setErr("Preview unavailable");
+        } catch {
+          setErr(t("onboarding.talent.previewUnavailable"));
         }
       }
       fetchMeta();
@@ -286,7 +285,7 @@ export function TalentSteps({
     if (!meta)
       return (
         <div className="rounded-md border p-2 text-[12px] text-ink-40">
-          Loading preview…
+          {t("onboarding.talent.loadingPreview")}
         </div>
       );
     return (
@@ -310,7 +309,7 @@ export function TalentSteps({
 
   return (
     <div className="space-y-4">
-      <Field label="Saudi region *">
+      <Field label={t("onboarding.shared.saudiRegion")}>
         <Select
           value={draft.saudiRegionId}
           onChange={(e) => {
@@ -318,7 +317,7 @@ export function TalentSteps({
             onChange({ saudiRegionId: id, city: "" });
           }}
         >
-          <option value="">Select region</option>
+          <option value="">{t("onboarding.shared.selectRegion")}</option>
           {regions.map((r) => (
             <option key={r.id} value={r.id}>
               {r.name}
@@ -327,14 +326,16 @@ export function TalentSteps({
         </Select>
       </Field>
 
-      <Field label="City *">
+      <Field label={t("onboarding.shared.city")}>
         <Select
           value={draft.city}
           onChange={(e) => onChange({ city: e.target.value })}
           disabled={!draft.saudiRegionId}
         >
           <option value="">
-            {draft.saudiRegionId ? "Select city" : "Choose a region first"}
+            {draft.saudiRegionId
+              ? t("onboarding.shared.selectCity")
+              : t("onboarding.shared.chooseRegionFirst")}
           </option>
           {cities.map((c) => (
             <option key={c.id} value={c.name}>
@@ -350,7 +351,7 @@ export function TalentSteps({
           checked={draft.locationPublic}
           onChange={(e) => onChange({ locationPublic: e.target.checked })}
         />
-        Show my city publicly
+        {t("onboarding.talent.showCityPublicly")}
       </label>
       <label className="inline-flex items-center gap-2 text-[12px] text-ink-60">
         <input
@@ -360,7 +361,7 @@ export function TalentSteps({
             onChange({ acceptedQualityDisclaimer: e.target.checked })
           }
         />
-        I acknowledge upload quality requirements.
+        {t("onboarding.talent.qualityDisclaimer")}
       </label>
     </div>
   );

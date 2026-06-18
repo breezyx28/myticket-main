@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Star, DownloadSimple } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/Button';
 import { TicketDetailActions } from '@/components/tickets/TicketDetailActions';
@@ -25,8 +26,9 @@ import { apiTicketToMockTicket } from '@/lib/ticketMappers';
 import { downloadAdmitOneTicketPdf } from '@/lib/admitOneTicketPdf';
 import { toSameOriginStorageUrl } from '@/lib/storageUrl';
 import { uiSeatIdToApi } from '@/lib/seatMappers';
+import type { AppLanguage } from '@/lib/language';
 import { ticketQrScanValue, useTicketQrDataUrl } from '@/lib/ticketQr';
-import { listForAuctionSchema } from '@/schemas/auction';
+import { createListForAuctionSchema } from '@/schemas/auction';
 
 type ApiError = { data?: { message?: string; errors?: Record<string, string[]> } };
 function readApiErrorMessage(err: unknown): string | null {
@@ -50,6 +52,14 @@ function SectionHeading({ title, description }: { title: string; description?: s
 }
 
 export function TicketDetailPage() {
+  const { t: tValidation, i18n } = useTranslation('validation');
+  const { t } = useTranslation('tickets');
+  const { t: tCommon } = useTranslation('common');
+  const language = i18n.language as AppLanguage;
+  const listForAuctionSchema = useMemo(
+    () => createListForAuctionSchema(tValidation),
+    [tValidation, i18n.language],
+  );
   const { ticketId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -99,8 +109,10 @@ export function TicketDetailPage() {
 
   const admitOneModel = useMemo(
     () =>
-      ticket ? mapAdmitOneTicketViewModel(ticket, apiTicket, scanValue, eventCoverUrl) : null,
-    [ticket, apiTicket, scanValue, eventCoverUrl],
+      ticket
+        ? mapAdmitOneTicketViewModel(ticket, t, language, apiTicket, scanValue, eventCoverUrl)
+        : null,
+    [ticket, t, language, apiTicket, scanValue, eventCoverUrl],
   );
 
   const qr = useTicketQrDataUrl(scanValue);
@@ -141,7 +153,7 @@ export function TicketDetailPage() {
   if (isLoading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center bg-ink-5/30 px-6">
-        <p className="text-[14px] font-medium text-ink-40">Loading your ticket…</p>
+        <p className="text-[14px] font-medium text-ink-40">{t('detail.loading')}</p>
       </div>
     );
   }
@@ -160,7 +172,7 @@ export function TicketDetailPage() {
     setError(null);
     const recipientTrim = recipient.trim();
     if (!recipientTrim) {
-      setError('Enter an email or username.');
+      setError(t('detail.enterRecipient'));
       return;
     }
     try {
@@ -169,8 +181,8 @@ export function TicketDetailPage() {
         body: { recipient: recipientTrim, message: giftMessage.trim() || undefined },
       }).unwrap();
       pushNotification({
-        title: 'Gift sent',
-        body: `Ticket for ${ticket.eventTitle} sent to ${recipientTrim}.`,
+        title: t('detail.giftSent'),
+        body: t('detail.giftSentBody'),
         kind: 'gift',
         href: '/my-tickets',
       });
@@ -179,7 +191,7 @@ export function TicketDetailPage() {
       setGiftMessage('');
       navigate('/my-tickets');
     } catch (err) {
-      setError(readApiErrorMessage(err) ?? 'Could not send gift. Please try again.');
+      setError(readApiErrorMessage(err) ?? t('detail.giftFailed'));
     }
   }
 
@@ -197,26 +209,26 @@ export function TicketDetailPage() {
       }).unwrap();
       setCancelSummary(res.refund ?? null);
       pushNotification({
-        title: 'Ticket cancelled',
-        body: `Cancellation requested for ${ticket.eventTitle}.`,
+        title: t('detail.ticketCancelled'),
+        body: t('detail.ticketCancelled'),
         kind: 'order',
         href: '/my-tickets',
       });
       setCancelOpen(false);
       void refetch();
     } catch (err) {
-      setError(readApiErrorMessage(err) ?? 'Could not cancel this ticket. Please try again.');
+      setError(readApiErrorMessage(err) ?? t('detail.cancelFailed'));
     }
   }
 
   async function onDownloadPdf() {
     if (!ticket) return;
     if (!displayTicketRef.current) {
-      setPdfError('Ticket preview is not ready. Refresh the page and try again.');
+      setPdfError(t('detail.pdfNotReady'));
       return;
     }
     if (!qr.dataUrl) {
-      setPdfError('QR code is not ready yet. Wait a moment and try again.');
+      setPdfError(t('detail.qrNotReady'));
       return;
     }
     setPdfError(null);
@@ -227,7 +239,7 @@ export function TicketDetailPage() {
         ticket.ticketCode ?? ticket.orderRef,
       );
     } catch (err) {
-      setPdfError(err instanceof Error ? err.message : 'Could not build PDF. Try again.');
+      setPdfError(err instanceof Error ? err.message : t('detail.pdfFailed'));
     } finally {
       setPdfLoading(false);
     }
@@ -245,7 +257,7 @@ export function TicketDetailPage() {
         { context: { originalPrice: ticket.pricePaid } }
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Invalid listing details.');
+      setError(err instanceof Error ? err.message : t('detail.invalidListing'));
       return;
     }
     try {
@@ -257,7 +269,7 @@ export function TicketDetailPage() {
       setAuctionOpen(false);
       void refetch();
     } catch (err) {
-      setError(readApiErrorMessage(err) ?? 'Could not list this ticket for auction.');
+      setError(readApiErrorMessage(err) ?? t('detail.auctionFailed'));
     }
   }
 
@@ -268,7 +280,7 @@ export function TicketDetailPage() {
       await cancelAuction({ id: uiSeatIdToApi(ticket.listedAuctionId) }).unwrap();
       void refetch();
     } catch (err) {
-      setError(readApiErrorMessage(err) ?? 'Could not cancel this listing.');
+      setError(readApiErrorMessage(err) ?? t('detail.cancelListingFailed'));
     }
   }
 
@@ -279,14 +291,14 @@ export function TicketDetailPage() {
           to="/my-tickets"
           className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-coral transition-colors hover:text-coral/80"
         >
-          <span aria-hidden>←</span> My tickets
+          <span aria-hidden>←</span> {t('detail.backToTickets')}
         </Link>
 
         <div className="mt-8">
           {admitOneModel && (
             <section className="mb-8 rounded-3xl bg-coral/10 p-4 sm:p-6">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <p className="text-[13px] font-semibold text-ink-60">Your event ticket</p>
+                <p className="text-[13px] font-semibold text-ink-60">{t('detail.yourTicket')}</p>
                 <Button
                   type="button"
                   variant="outline"
@@ -296,7 +308,7 @@ export function TicketDetailPage() {
                   disabled={pdfLoading || !qr.dataUrl}
                   onClick={() => void onDownloadPdf()}
                 >
-                  Download PDF
+                  {t('detail.downloadPdf')}
                 </Button>
               </div>
               {pdfError ? <p className="mb-3 text-[13px] text-red-600">{pdfError}</p> : null}
@@ -344,22 +356,23 @@ export function TicketDetailPage() {
             )}
             {cancelSummary && (
               <div className="rounded-xl border border-amber/40 bg-amber/10 px-4 py-3.5 text-[13px] text-ink-60">
-                <p className="font-semibold text-ink">Refund queued</p>
+                <p className="font-semibold text-ink">{t('detail.refundQueued')}</p>
                 <p className="mt-1">
-                  Amount:{' '}
-                  <span className="font-mono font-bold text-ink">{Number(cancelSummary.amount)} SAR</span> · Status:{' '}
+                  {t('detail.amountLabel')}{' '}
+                  <span className="font-mono font-bold text-ink">{Number(cancelSummary.amount)} SAR</span> ·{' '}
+                  {t('detail.statusLabel')}{' '}
                   <span className="font-bold text-ink">{cancelSummary.status}</span>
                 </p>
               </div>
             )}
             {ticket.status === 'cancelled' && !cancelSummary && (
               <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3.5 text-[13px] text-red-800">
-                This ticket has been cancelled.
+                {t('detail.ticketCancelledBanner')}
               </div>
             )}
             {ticket.status === 'refunded' && (
               <div className="rounded-xl border border-purple-200 bg-purple-50 px-4 py-3.5 text-[13px] text-purple-800">
-                This ticket has been refunded.
+                {t('detail.ticketRefundedBanner')}
               </div>
             )}
           </div>
@@ -368,10 +381,7 @@ export function TicketDetailPage() {
         <div className="mt-8 space-y-6">
           {apiTicket?.signed_qr_payload && ticket.status === 'active' && (
             <section className="rounded-2xl border border-ink-10 bg-white p-6 shadow-sm lg:p-8">
-              <SectionHeading
-                title="Verify authenticity"
-                description="Optional check for ticket holders. The gate scans the QR on your ticket document, not the encrypted payload."
-              />
+              <SectionHeading title={t('detail.verifyTitle')} description={t('detail.verifyDesc')} />
               <Button
                 type="button"
                 variant="outline"
@@ -397,23 +407,21 @@ export function TicketDetailPage() {
                   }
                 }}
               >
-                Verify ticket authenticity
+                {t('detail.verifyButton')}
               </Button>
               {qrValidateResult === 'valid' && (
                 <p className="mt-3 rounded-lg bg-mint/10 px-3 py-2 text-[13px] font-semibold text-mint-dark">
-                  Valid — this ticket matches the server record.
+                  {t('detail.verifyValid')}
                 </p>
               )}
               {qrValidateResult === 'mismatch' && (
                 <p className="mt-3 rounded-lg bg-coral/10 px-3 py-2 text-[13px] leading-relaxed font-semibold text-coral">
-                  Authenticity check failed — the encrypted payload on this page does not match the server record.
-                  Your entry QR code is unchanged. Refresh this page once (the server may repair legacy tickets on
-                  load), then try again. If it still fails, contact support.
+                  {t('detail.verifyMismatch')}
                 </p>
               )}
               {qrValidateResult === 'error' && (
                 <p className="mt-3 rounded-lg bg-coral/10 px-3 py-2 text-[13px] font-semibold text-coral">
-                  Could not reach the verify service. Check your connection and try again.
+                  {t('detail.verifyError')}
                 </p>
               )}
             </section>
@@ -421,26 +429,20 @@ export function TicketDetailPage() {
 
           {ticket.status === 'used' && (
             <section className="rounded-2xl border border-lemon/60 bg-lemon/15 p-6 lg:p-8">
-              <SectionHeading
-                title="Rate your experience"
-                description="Star ratings only — one rating per event."
-              />
+              <SectionHeading title={t('detail.rateTitle')} description={t('detail.rateDesc')} />
               <Link
                 to={`/events/${ticket.eventId}#rate`}
                 className="inline-flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-ink-80"
               >
                 <Star size={18} weight="fill" className="text-lemon" />
-                Rate this event
+                {t('detail.rateEvent')}
               </Link>
             </section>
           )}
 
           {ticket.status === 'auction' && ticket.listedAuctionId && (
             <section className="rounded-2xl border border-amber/40 bg-amber/10 p-6">
-              <SectionHeading
-                title="Listed for resale"
-                description="Your listing is visible in the auction area. You can cancel before it sells."
-              />
+              <SectionHeading title={t('detail.listedTitle')} description={t('detail.listedDesc')} />
               <Button
                 variant="outline"
                 size="sm"
@@ -448,7 +450,7 @@ export function TicketDetailPage() {
                 loading={cancellingAuction}
                 disabled={cancellingAuction}
               >
-                Cancel listing
+                {t('detail.cancelListing')}
               </Button>
             </section>
           )}
@@ -481,14 +483,11 @@ export function TicketDetailPage() {
       {giftOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6" role="dialog">
           <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-6 shadow-card-lg">
-            <h2 className="text-lg font-extrabold text-ink">Gift ticket</h2>
-            <p className="mt-2 text-[13px] leading-relaxed text-ink-60">
-              Enter recipient email or phone. Gifts are free; gifted tickets cannot be re-gifted; auction tickets
-              cannot be gifted.
-            </p>
+            <h2 className="text-lg font-extrabold text-ink">{t('detail.giftTicket')}</h2>
+            <p className="mt-2 text-[13px] leading-relaxed text-ink-60">{t('detail.giftModalDesc')}</p>
             <form onSubmit={onConfirmGift} className="mt-6 space-y-4">
               <label className="block">
-                <span className="text-[12px] font-semibold text-ink-60">Email or phone</span>
+                <span className="text-[12px] font-semibold text-ink-60">{t('detail.emailOrPhone')}</span>
                 <input
                   type="text"
                   required
@@ -499,14 +498,14 @@ export function TicketDetailPage() {
                 />
               </label>
               <label className="block">
-                <span className="text-[12px] font-semibold text-ink-60">Message (optional)</span>
+                <span className="text-[12px] font-semibold text-ink-60">{t('detail.messageOptional')}</span>
                 <textarea
                   rows={3}
                   value={giftMessage}
                   onChange={(e) => setGiftMessage(e.target.value)}
                   maxLength={280}
                   className="mt-1.5 w-full rounded-xl border border-ink-10 px-4 py-3 text-[14px]"
-                  placeholder="Have a great time!"
+                  placeholder={t('detail.giftPlaceholder')}
                 />
               </label>
               {error && <p className="text-[13px] text-red-600">{error}</p>}
@@ -518,10 +517,10 @@ export function TicketDetailPage() {
                   onClick={() => setGiftOpen(false)}
                   disabled={gifting}
                 >
-                  Cancel
+                  {tCommon('cancel')}
                 </Button>
                 <Button type="submit" variant="dark" className="flex-1" loading={gifting} disabled={gifting}>
-                  Send gift
+                  {t('detail.sendGift')}
                 </Button>
               </div>
             </form>
@@ -532,14 +531,11 @@ export function TicketDetailPage() {
       {cancelOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6" role="dialog">
           <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-6 shadow-card-lg">
-            <h2 className="text-lg font-extrabold text-ink">Cancel ticket</h2>
-            <p className="mt-2 text-[13px] leading-relaxed text-ink-60">
-              Cancelling releases the ticket. If you opt for a refund, the request goes to the organizer per the
-              refund policy.
-            </p>
+            <h2 className="text-lg font-extrabold text-ink">{t('detail.cancelTicket')}</h2>
+            <p className="mt-2 text-[13px] leading-relaxed text-ink-60">{t('detail.cancelModalDesc')}</p>
             <form onSubmit={onConfirmCancel} className="mt-6 space-y-4">
               <label className="block">
-                <span className="text-[12px] font-semibold text-ink-60">Reason (optional)</span>
+                <span className="text-[12px] font-semibold text-ink-60">{t('detail.reasonOptional')}</span>
                 <textarea
                   rows={3}
                   value={cancelReason}
@@ -554,7 +550,7 @@ export function TicketDetailPage() {
                   checked={refundRequested}
                   onChange={(e) => setRefundRequested(e.target.checked)}
                 />
-                Request a refund
+                {t('detail.requestRefund')}
               </label>
               {error && <p className="text-[13px] text-red-600">{error}</p>}
               <div className="flex gap-2">
@@ -565,7 +561,7 @@ export function TicketDetailPage() {
                   onClick={() => setCancelOpen(false)}
                   disabled={cancelling}
                 >
-                  Keep ticket
+                  {t('detail.keepTicket')}
                 </Button>
                 <Button
                   type="submit"
@@ -574,7 +570,7 @@ export function TicketDetailPage() {
                   loading={cancelling}
                   disabled={cancelling}
                 >
-                  Confirm cancel
+                  {t('detail.confirmCancel')}
                 </Button>
               </div>
             </form>
@@ -585,13 +581,13 @@ export function TicketDetailPage() {
       {auctionOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6" role="dialog">
           <div className="max-w-md rounded-2xl bg-white p-6 shadow-card-lg">
-            <h2 className="text-lg font-extrabold text-ink">List for auction</h2>
+            <h2 className="text-lg font-extrabold text-ink">{t('detail.listForAuction')}</h2>
             <p className="mt-2 text-[13px] text-ink-60">
-              Max price: {ticket.pricePaid} SAR (original or less). Listing ends in 48h (demo).
+              {t('detail.auctionModalDesc', { price: ticket.pricePaid })}
             </p>
             <form onSubmit={onConfirmAuction} className="mt-6 space-y-4">
               <label className="block">
-                <span className="text-[12px] font-semibold text-ink-60">Your price (SAR)</span>
+                <span className="text-[12px] font-semibold text-ink-60">{t('detail.yourPrice')}</span>
                 <input
                   type="number"
                   required
@@ -611,7 +607,7 @@ export function TicketDetailPage() {
                   onClick={() => setAuctionOpen(false)}
                   disabled={listingForAuction}
                 >
-                  Cancel
+                  {tCommon('cancel')}
                 </Button>
                 <Button
                   type="submit"
@@ -620,7 +616,7 @@ export function TicketDetailPage() {
                   loading={listingForAuction}
                   disabled={listingForAuction}
                 >
-                  List ticket
+                  {t('detail.listTicket')}
                 </Button>
               </div>
             </form>

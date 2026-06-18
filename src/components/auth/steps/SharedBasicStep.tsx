@@ -1,10 +1,11 @@
 import type { FieldErrors } from "react-hook-form";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Eye, EyeSlash } from "@phosphor-icons/react";
 import type { BaseRegistrationFields } from "@/types/domain";
 import { Field } from "@/components/ui/form/Field";
 import { SaudiPhoneInput } from "@/components/ui/form/SaudiPhoneInput";
 import { TextInput } from "@/components/ui/form/inputs";
-import { Eye, EyeSlash } from "@phosphor-icons/react";
-import { useState } from "react";
 
 type BasicFieldErrors = FieldErrors<{
   fullName?: string;
@@ -28,6 +29,7 @@ export function SharedBasicStep({
   hideTerms = false,
   errors,
 }: SharedBasicStepProps) {
+  const { t } = useTranslation("authPages");
   const fullNameError = errors?.fullName?.message as string | undefined;
   const emailError = errors?.email?.message as string | undefined;
   const phoneError = errors?.contactPhone?.message as string | undefined;
@@ -42,7 +44,7 @@ export function SharedBasicStep({
   return (
     <div className="space-y-4">
       <Field
-        label="Full name"
+        label={t("register.fields.fullName")}
         htmlFor="register-full-name"
         errorText={fullNameError}
       >
@@ -52,23 +54,23 @@ export function SharedBasicStep({
           autoComplete="name"
           value={value.fullName}
           onChange={(e) => onChange({ fullName: e.target.value })}
-          placeholder="Your full name"
+          placeholder={t("register.fields.fullNamePlaceholder")}
           aria-invalid={Boolean(fullNameError)}
         />
       </Field>
-      <Field label="Email" htmlFor="register-email" errorText={emailError}>
+      <Field label={t("register.fields.email")} htmlFor="register-email" errorText={emailError}>
         <TextInput
           id="register-email"
           type="email"
           autoComplete="email"
           value={value.email}
           onChange={(e) => onChange({ email: e.target.value })}
-          placeholder="you@example.com"
+          placeholder={t("register.fields.emailPlaceholder")}
           aria-invalid={Boolean(emailError)}
         />
       </Field>
       <Field
-        label="Contact phone"
+        label={t("register.fields.contactPhone")}
         htmlFor="register-phone"
         errorText={phoneError}
       >
@@ -79,9 +81,9 @@ export function SharedBasicStep({
         />
       </Field>
       <Field
-        label="Password"
+        label={t("register.fields.password")}
         htmlFor="register-password"
-        helperText={passwordError ? undefined : "At least 8 characters."}
+        helperText={passwordError ? undefined : t("register.fields.passwordHelper")}
         errorText={passwordError}
       >
         <div className="relative">
@@ -92,14 +94,14 @@ export function SharedBasicStep({
             minLength={8}
             value={value.password}
             onChange={(e) => onChange({ password: e.target.value })}
-            placeholder="At least 8 characters"
+            placeholder={t("register.fields.passwordPlaceholder")}
             aria-invalid={Boolean(passwordError)}
           />
           <button
             type="button"
             onClick={() => setShowPassword((s) => !s)}
             className="absolute right-3 top-1/2 -translate-y-1/2 rounded"
-            aria-label={showPassword ? "Hide password" : "Show password"}
+            aria-label={showPassword ? t("register.fields.hidePassword") : t("register.fields.showPassword")}
           >
             {showPassword ? (
               <EyeSlash size={18} weight="bold" />
@@ -110,7 +112,7 @@ export function SharedBasicStep({
         </div>
       </Field>
       <Field
-        label="Confirm password"
+        label={t("register.fields.confirmPassword")}
         htmlFor="register-password-confirm"
         errorText={confirmError}
       >
@@ -122,14 +124,14 @@ export function SharedBasicStep({
             minLength={8}
             value={value.passwordConfirmation ?? ""}
             onChange={(e) => onChange({ passwordConfirmation: e.target.value })}
-            placeholder="Confirm password"
+            placeholder={t("register.fields.confirmPasswordPlaceholder")}
             aria-invalid={Boolean(confirmError)}
           />
           <button
             type="button"
             onClick={() => setShowConfirm((s) => !s)}
             className="absolute right-3 top-1/2 -translate-y-1/2 rounded"
-            aria-label={showConfirm ? "Hide password" : "Show password"}
+            aria-label={showConfirm ? t("register.fields.hidePassword") : t("register.fields.showPassword")}
           >
             {showConfirm ? (
               <EyeSlash size={18} weight="bold" />
@@ -147,7 +149,7 @@ export function SharedBasicStep({
               checked={value.agreeTerms}
               onChange={(e) => onChange({ agreeTerms: e.target.checked })}
             />
-            I agree to Terms of Service.
+            {t("register.fields.agreeTerms")}
           </label>
           {termsError && (
             <p className="text-[12px] font-semibold text-coral">{termsError}</p>

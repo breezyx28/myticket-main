@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   Calendar,
   Copy,
@@ -50,11 +51,14 @@ import {
 import { formatTicketRemainingLabel } from '@/lib/ticketTypeFromApi';
 import { apiAuctionToMockAuctionListing } from '@/lib/auctionMappers';
 import type { MockAuctionListing, MockEvent } from '@/types/domain';
+import { formatDate, formatTime } from '@/lib/intlFormat';
+import type { AppLanguage } from '@/lib/language';
 import { cn } from '@/lib/utils';
 import { canBrowseMarketplace } from '@/lib/marketplaceAccess';
 import type { UseEmblaCarouselType } from 'embla-carousel-react';
 
 function EventCoverSlider({ slides }: { slides: string[] }) {
+  const { t } = useTranslation('eventDetail');
   const [activeCoverIdx, setActiveCoverIdx] = useState(0);
   const [coverApi, setCoverApi] = useState<NonNullable<UseEmblaCarouselType[1]>>();
 
@@ -102,7 +106,7 @@ function EventCoverSlider({ slides }: { slides: string[] }) {
                 'h-2.5 w-2.5 rounded-full transition-all',
                 idx === activeCoverIdx ? 'w-6 bg-coral' : 'bg-ink-20 hover:bg-ink-40',
               )}
-              aria-label={`Show image ${idx + 1}`}
+              aria-label={t('showImage', { n: idx + 1 })}
             />
           ))}
         </div>
@@ -126,6 +130,7 @@ function EventWaitlistCta({
   joinWaitlist,
   onJoined,
 }: EventWaitlistCtaProps) {
+  const { t } = useTranslation('eventDetail');
   const [optimisticJoined, setOptimisticJoined] = useState(false);
   const waitlistJoined = optimisticJoined || joinedFromApi;
 
@@ -143,7 +148,7 @@ function EventWaitlistCta({
   return (
     <>
       {waitlistJoined ? (
-        <p className="text-center text-[12px] text-ink-60">You&apos;re on the waitlist — we&apos;ll notify you if tickets return.</p>
+        <p className="text-center text-[12px] text-ink-60">{t('waitlistJoined')}</p>
       ) : (
         <button
           type="button"
@@ -151,33 +156,32 @@ function EventWaitlistCta({
           disabled={joiningWaitlist}
           className="flex h-12 w-full items-center justify-center rounded-full border-2 border-ink bg-white text-[14px] font-semibold text-ink hover:bg-ink-5 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {joiningWaitlist ? 'Joining…' : 'Join waitlist'}
+          {joiningWaitlist ? t('joining') : t('joinWaitlist')}
         </button>
       )}
     </>
   );
 }
 
-function formatRange(start: string, end: string) {
+function formatRange(start: string, end: string, language: AppLanguage) {
   const a = new Date(start);
   const b = new Date(end);
   const sameDay = a.toDateString() === b.toDateString();
   const opts: Intl.DateTimeFormatOptions = { month: 'long', day: 'numeric', year: 'numeric' };
-  const time: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit' };
   if (sameDay) {
-    return `${a.toLocaleDateString('en-US', opts)} · ${a.toLocaleTimeString('en-US', time)} – ${b.toLocaleTimeString('en-US', time)}`;
+    return `${formatDate(start, language, opts)} · ${formatTime(start, language)} – ${formatTime(end, language)}`;
   }
-  return `${a.toLocaleString('en-US', { ...opts, ...time })} → ${b.toLocaleString('en-US', { ...opts, ...time })}`;
+  return `${formatDate(start, language, { ...opts, hour: 'numeric', minute: '2-digit' })} → ${formatDate(end, language, { ...opts, hour: 'numeric', minute: '2-digit' })}`;
 }
 
-function formatRemaining(endsAt: string) {
+function formatRemaining(endsAt: string, t: (key: string, options?: Record<string, unknown>) => string) {
   const ms = new Date(endsAt).getTime() - Date.now();
-  if (ms <= 0) return 'ended';
+  if (ms <= 0) return t('ended');
   const h = Math.floor(ms / (1000 * 60 * 60));
   const d = Math.floor(h / 24);
-  if (d > 0) return `${d}d ${h % 24}h left`;
+  if (d > 0) return t('timeLeftDays', { days: d, hours: h % 24 });
   const m = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
-  return `${h}h ${m}m left`;
+  return t('timeLeftHours', { hours: h, minutes: m });
 }
 
 function buildMapEmbedUrl(event: MockEvent) {
@@ -195,6 +199,7 @@ function buildMapOpenUrl(event: MockEvent) {
 }
 
 function ShareRow({ title, url }: { title: string; url: string }) {
+  const { t } = useTranslation('eventDetail');
   const [copied, setCopied] = useState(false);
   const encoded = encodeURIComponent(url);
   const text = encodeURIComponent(title);
@@ -217,7 +222,7 @@ function ShareRow({ title, url }: { title: string; url: string }) {
         className="inline-flex items-center gap-2 rounded-full border-2 border-ink bg-white px-4 py-2 text-[12px] font-bold text-ink shadow-sm transition-colors hover:bg-ink-5"
       >
         <Copy size={16} weight="bold" />
-        {copied ? 'Copied!' : 'Copy link'}
+        {copied ? t('copied') : t('copyLink')}
       </button>
       <a
         href={`https://twitter.com/intent/tweet?url=${encoded}&text=${text}`}
@@ -225,7 +230,7 @@ function ShareRow({ title, url }: { title: string; url: string }) {
         rel="noreferrer"
         className="inline-flex items-center gap-2 rounded-full border border-ink-10 bg-white px-4 py-2 text-[12px] font-semibold text-ink hover:bg-ink-5"
       >
-        X / Twitter
+        {t('shareTwitter')}
       </a>
       <a
         href={`https://wa.me/?text=${text}%20${encoded}`}
@@ -233,13 +238,13 @@ function ShareRow({ title, url }: { title: string; url: string }) {
         rel="noreferrer"
         className="inline-flex items-center gap-2 rounded-full border border-ink-10 bg-white px-4 py-2 text-[12px] font-semibold text-ink hover:bg-ink-5"
       >
-        WhatsApp
+        {t('shareWhatsApp')}
       </a>
       <a
         href={`mailto:?subject=${text}&body=${text}%0A${encoded}`}
         className="inline-flex items-center gap-2 rounded-full border border-ink-10 bg-white px-4 py-2 text-[12px] font-semibold text-ink hover:bg-ink-5"
       >
-        Email
+        {t('shareEmail')}
       </a>
       <button
         type="button"
@@ -253,13 +258,17 @@ function ShareRow({ title, url }: { title: string; url: string }) {
         className="inline-flex items-center gap-2 rounded-full bg-ink px-4 py-2 text-[12px] font-semibold text-white hover:bg-ink-80"
       >
         <ShareNetwork size={16} weight="bold" />
-        Share
+        {t('share')}
       </button>
     </div>
   );
 }
 
 export function EventDetailPage() {
+  const { t } = useTranslation('eventDetail');
+  const { t: tEvents } = useTranslation('events');
+  const { i18n } = useTranslation();
+  const language = i18n.language as AppLanguage;
   const { eventId } = useParams();
   const navigate = useNavigate();
   const slugParam = (eventId ?? '').trim();
@@ -369,21 +378,19 @@ export function EventDetailPage() {
 
   if (event === undefined) {
     return (
-      <div className="px-6 py-24 text-center text-[14px] text-ink-40">Loading…</div>
+      <div className="px-6 py-24 text-center text-[14px] text-ink-40">{t('loading')}</div>
     );
   }
   if (!event) {
     return (
       <div className="mx-auto max-w-lg px-6 py-24 text-center">
-        <p className="text-[16px] font-extrabold text-ink">This event could not be loaded</p>
-        <p className="mt-2 text-[13px] leading-relaxed text-ink-60">
-          The link may be incorrect or the event is no longer available.
-        </p>
+        <p className="text-[16px] font-extrabold text-ink">{t('loadErrorTitle')}</p>
+        <p className="mt-2 text-[13px] leading-relaxed text-ink-60">{t('loadErrorBody')}</p>
         <Link
           to="/events"
           className="mt-8 inline-flex h-11 items-center justify-center rounded-full bg-ink px-6 text-[13px] font-semibold text-white transition-colors hover:bg-ink-80"
         >
-          Back to events
+          {t('browseEvents')}
         </Link>
       </div>
     );
@@ -426,20 +433,20 @@ export function EventDetailPage() {
               </span>
               {event.featured && (
                 <span className="inline-block rounded-full bg-coral px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
-                  Featured
+                  {tEvents('featured')}
                 </span>
               )}
               {soldOut ? (
                 <span className="inline-block rounded-full bg-coral px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
-                  No seats
+                  {t('noSeats')}
                 </span>
               ) : event.layoutType === 'free' ? (
                 <span className="inline-block rounded-full bg-mint/95 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-ink">
-                  Free seating
+                  {t('freeSeating')}
                 </span>
               ) : (
                 <span className="inline-block rounded-full bg-white/90 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-ink">
-                  Assigned seats
+                  {t('assignedSeats')}
                 </span>
               )}
               {ratingStats.count > 0 && (
@@ -455,7 +462,7 @@ export function EventDetailPage() {
             <div className="mt-4 flex flex-wrap items-center gap-3 text-[12px] text-white/90">
               <span className="inline-flex items-center gap-1.5">
                 <Calendar size={16} weight="bold" />
-                {formatRange(event.dateStart, event.dateEnd)}
+                {formatRange(event.dateStart, event.dateEnd, language)}
               </span>
               {locationLabel ? (
                 <span className="inline-flex items-center gap-1.5">
@@ -490,7 +497,7 @@ export function EventDetailPage() {
                     ) : null}
                     <div className="inline-flex items-center gap-2 text-[13px] font-semibold text-ink">
                       <span className="font-mono text-[15px] font-extrabold text-ink">{boughtLabel}</span>
-                      <span className="text-[12px] font-medium text-ink-60">tickets bought</span>
+                      <span className="text-[12px] font-medium text-ink-60">{t('ticketsBought')}</span>
                     </div>
                   </div>
                 ) : (
@@ -498,11 +505,11 @@ export function EventDetailPage() {
                 )}
                 {event.ticketsLeft !== null ? (
                   <Badge
-                    label={soldOut ? 'Sold out' : `${event.ticketsLeft} left now`}
+                    label={soldOut ? t('soldOut') : t('leftNow', { count: event.ticketsLeft })}
                     variant={soldOut ? 'danger' : 'success'}
                   />
                 ) : hasInventory ? (
-                  <Badge label="Tickets available" variant="success" />
+                  <Badge label={t('ticketsAvailable')} variant="success" />
                 ) : null}
               </div>
             </div>
@@ -511,8 +518,8 @@ export function EventDetailPage() {
           <div className="mt-10">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-ink-40">Images & highlights</p>
-                <h2 className="mt-1 text-lg font-extrabold text-ink">Event cover slider</h2>
+                <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-ink-40">{t('imagesHighlights')}</p>
+                <h2 className="mt-1 text-lg font-extrabold text-ink">{t('coverSlider')}</h2>
               </div>
             </div>
             {gallerySlides.length > 0 && <EventCoverSlider key={event.id} slides={gallerySlides} />}
@@ -520,7 +527,7 @@ export function EventDetailPage() {
               <div className="mt-4 aspect-video w-full overflow-hidden rounded-3xl border border-ink-10 bg-black">
                 <iframe
                   src={event.videoUrl}
-                  title="Event video"
+                  title={t('eventVideo')}
                   className="h-full w-full"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   allowFullScreen
@@ -530,21 +537,21 @@ export function EventDetailPage() {
           </div>
 
           <div className="mt-10">
-            <h2 className="text-lg font-extrabold text-ink">About</h2>
+            <h2 className="text-lg font-extrabold text-ink">{t('about')}</h2>
             <p className="mt-3 whitespace-pre-line text-[15px] leading-relaxed text-ink-60">{event.description}</p>
             {event.organizerNotes && (
               <div className="mt-5 rounded-2xl border border-lemon bg-lemon/15 p-4">
-                <p className="text-[11px] font-bold uppercase tracking-[0.13em] text-ink-60">Note from organizer</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.13em] text-ink-60">{t('organizerNote')}</p>
                 <p className="mt-2 text-[14px] leading-relaxed text-ink-60">{event.organizerNotes}</p>
               </div>
             )}
           </div>
 
           <div className="mt-10">
-            <h2 className="text-lg font-extrabold text-ink">Map & location</h2>
+            <h2 className="text-lg font-extrabold text-ink">{t('mapLocation')}</h2>
             <div className="mt-4 overflow-hidden rounded-3xl border border-ink-10 bg-ink-5">
               <iframe
-                title="Map"
+                title={t('mapEmbedTitle')}
                 className="aspect-[21/9] w-full min-h-[220px] border-0"
                 loading="lazy"
                 src={mapEmbedUrl}
@@ -556,13 +563,13 @@ export function EventDetailPage() {
               rel="noreferrer"
               className="mt-3 inline-block text-[13px] font-semibold text-coral hover:underline"
             >
-              Open in Google Maps
+              {t('openInMaps')}
             </a>
           </div>
 
           {(event.venueImages?.length ?? 0) > 0 && (
             <div className="mt-10">
-              <h2 className="text-lg font-extrabold text-ink">Images of the event place</h2>
+              <h2 className="text-lg font-extrabold text-ink">{t('venueImages')}</h2>
               <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {event.venueImages!.map((src) => (
                   <img key={src} src={src} alt="" className="aspect-[16/10] w-full rounded-2xl object-cover" />
@@ -573,15 +580,13 @@ export function EventDetailPage() {
 
           {event.layoutType === 'seated' && (
             <div className="mt-10">
-              <h2 className="text-lg font-extrabold text-ink">Seat map</h2>
-              <p className="mt-2 text-[13px] text-ink-60">
-                Interactive preview — full seat choice happens on the seat selection step before payment.
-              </p>
+              <h2 className="text-lg font-extrabold text-ink">{t('seatMap')}</h2>
+              <p className="mt-2 text-[13px] text-ink-60">{t('seatMapHint')}</p>
               <div className="mt-4 flex aspect-[2/1] max-h-[320px] w-full items-center justify-center rounded-2xl border border-dashed border-ink-20 bg-ink-5/80">
                 <svg viewBox="0 0 400 200" className="h-full w-full max-w-[640px] text-ink-20" aria-hidden>
                   <ellipse cx="200" cy="100" rx="180" ry="85" fill="none" stroke="currentColor" strokeWidth="2" />
                   <text x="200" y="105" textAnchor="middle" className="fill-ink-40 text-[10px] font-sans">
-                    STAGE
+                    {t('stage')}
                   </text>
                   {[0, 1, 2, 3, 4].map((row) => (
                     <g key={row}>
@@ -609,8 +614,8 @@ export function EventDetailPage() {
           <div id="rate" className="mt-10 scroll-mt-28 rounded-3xl border border-ink-10 bg-surface-card p-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-extrabold text-ink">Ratings</h2>
-                <p className="mt-1 text-[13px] text-ink-60">Stars only. Ratings appear after verified attendance.</p>
+                <h2 className="text-lg font-extrabold text-ink">{t('ratings')}</h2>
+                <p className="mt-1 text-[13px] text-ink-60">{t('ratingsHint')}</p>
               </div>
               {ratingStats.count > 0 ? (
                 <div className="inline-flex items-center gap-2 rounded-full bg-ink-5 px-3 py-1.5 text-[13px] font-semibold text-ink">
@@ -619,13 +624,13 @@ export function EventDetailPage() {
                   <span className="text-ink-40">({ratingStats.count})</span>
                 </div>
               ) : (
-                <Badge label="No ratings yet" variant="outline" />
+                <Badge label={t('noRatingsYet')} variant="outline" />
               )}
             </div>
 
             {user && hasUsedTicket && !rated ? (
               <div className="mt-4">
-                <p className="text-[13px] text-ink-60">You can rate this event once.</p>
+                <p className="text-[13px] text-ink-60">{t('rateOnce')}</p>
                 <div className="mt-3 flex gap-2">
                   {[1, 2, 3, 4, 5].map((n) => (
                     <button
@@ -634,7 +639,7 @@ export function EventDetailPage() {
                       disabled={rateSubmitting}
                       onClick={() => onRate(n)}
                       className="rounded-lg p-2 text-amber transition-transform hover:scale-110 disabled:opacity-50"
-                      aria-label={`${n} stars`}
+                      aria-label={t('nStars', { count: n })}
                     >
                       <Star size={30} weight="fill" />
                     </button>
@@ -643,18 +648,18 @@ export function EventDetailPage() {
               </div>
             ) : rated && user && hasUsedTicket ? (
               <p className="mt-4 rounded-xl bg-ink-5 px-4 py-3 text-[13px] text-ink-60">
-                Thanks, you already rated this event.
+                {t('alreadyRated')}
               </p>
             ) : (
               <p className="mt-4 text-[13px] text-ink-60">
-                Attend the event with a used ticket to unlock rating.
+                {t('rateAfterAttend')}
               </p>
             )}
           </div>
 
           {showOrganizerBlock && (
             <div className="mt-10 rounded-3xl border border-ink-10 bg-ink-5/40 p-6">
-              <h2 className="text-lg font-extrabold text-ink">Organizer profile</h2>
+              <h2 className="text-lg font-extrabold text-ink">{t('organizerProfile')}</h2>
               <div className="mt-4 flex gap-4">
                 {org.logo ? (
                   <img
@@ -668,21 +673,21 @@ export function EventDetailPage() {
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="font-bold text-ink">{org.name || 'Organizer'}</p>
+                  <p className="font-bold text-ink">{org.name || t('organizer')}</p>
                   <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] text-ink-50">
                     {org.id ? (
                       <span>
-                        ID: <span className="font-mono text-ink-60">{org.id}</span>
+                        {t('id')}: <span className="font-mono text-ink-60">{org.id}</span>
                       </span>
                     ) : null}
                     {org.code ? (
                       <span>
-                        Code: <span className="font-mono text-ink-60">{org.code}</span>
+                        {t('code')}: <span className="font-mono text-ink-60">{org.code}</span>
                       </span>
                     ) : null}
                     {typeof org.eventsCount === 'number' ? (
                       <span className="font-semibold text-ink-60">
-                        {org.eventsCount} event{org.eventsCount === 1 ? '' : 's'}
+                        {t('eventsCount', { count: org.eventsCount })}
                       </span>
                     ) : null}
                   </div>
@@ -695,14 +700,14 @@ export function EventDetailPage() {
                         to={`/organizers/${encodeURIComponent(org.slug.trim())}`}
                         className="inline-flex items-center justify-center rounded-full border border-ink bg-ink px-4 py-2 text-[13px] font-semibold text-white hover:bg-ink-80"
                       >
-                        View organizer profile
+                        {t('viewOrganizer')}
                       </Link>
                     ) : (
                       <span
                         className="inline-flex cursor-not-allowed items-center justify-center rounded-full border border-ink-10 bg-ink-5 px-4 py-2 text-[13px] font-semibold text-ink-40"
-                        title="This organizer has no public profile URL yet."
+                        title={t('noOrganizerUrl')}
                       >
-                        View organizer profile
+                        {t('viewOrganizer')}
                       </span>
                     )}
                     {org.name ? (
@@ -710,7 +715,7 @@ export function EventDetailPage() {
                         to={`/events?keyword=${encodeURIComponent(org.name)}`}
                         className="text-[13px] font-semibold text-coral hover:underline"
                       >
-                        Search events by name
+                        {t('searchByOrganizer')}
                       </Link>
                     ) : null}
                   </div>
@@ -721,34 +726,32 @@ export function EventDetailPage() {
 
           {event.showTalents && event.talents.length > 0 && (
             <div className="mt-10">
-              <h2 className="text-lg font-extrabold text-ink">Participated talents</h2>
+              <h2 className="text-lg font-extrabold text-ink">{t('participatedTalents')}</h2>
               <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {event.talents.map((t) => (
-                  <li key={t.id}>
+                {event.talents.map((talent) => (
+                  <li key={talent.id}>
                     <article className="rounded-2xl border border-ink-10 bg-white p-4">
                       <div className="flex items-start gap-3">
-                        {t.photo ? (
-                          <img src={t.photo} alt="" className="h-14 w-14 rounded-full object-cover" />
+                        {talent.photo ? (
+                          <img src={talent.photo} alt="" className="h-14 w-14 rounded-full object-cover" />
                         ) : (
                           <div className="h-14 w-14 rounded-full bg-mint/40" />
                         )}
                         <div className="min-w-0">
-                          <p className="truncate font-semibold text-ink">{t.name}</p>
-                          <p className="mt-0.5 text-[12px] text-ink-40">{t.proficiency ?? 'Performer'}</p>
-                          <Badge label="Participating" variant="default" className="mt-2 text-[10px]" />
+                          <p className="truncate font-semibold text-ink">{talent.name}</p>
+                          <p className="mt-0.5 text-[12px] text-ink-40">{talent.proficiency ?? t('performer')}</p>
+                          <Badge label={t('participating')} variant="default" className="mt-2 text-[10px]" />
                         </div>
                       </div>
                       {showMarketplaceLinks ? (
                         <Link
-                          to={`/marketplace/talent/${t.slug ?? t.id}`}
+                          to={`/marketplace/talent/${talent.slug ?? talent.id}`}
                           className="mt-3 inline-flex h-9 items-center justify-center rounded-full border border-ink-10 px-4 text-[12px] font-semibold text-ink hover:bg-ink-5"
                         >
-                          View profile
+                          {t('viewProfile')}
                         </Link>
                       ) : (
-                        <p className="mt-3 text-[11px] text-ink-40">
-                          Marketplace profiles are visible to organizers and vendors.
-                        </p>
+                        <p className="mt-3 text-[11px] text-ink-40">{t('marketplaceRestricted')}</p>
                       )}
                     </article>
                   </li>
@@ -759,7 +762,7 @@ export function EventDetailPage() {
 
           {event.showVendors && event.vendors.length > 0 && (
             <div className="mt-10">
-              <h2 className="text-lg font-extrabold text-ink">Vendors</h2>
+              <h2 className="text-lg font-extrabold text-ink">{t('vendors')}</h2>
               <ul className="mt-4 space-y-2">
                 {event.vendors.map((v) => (
                   <li key={v.id}>
@@ -785,8 +788,8 @@ export function EventDetailPage() {
 
           <div className="mt-10 rounded-3xl border border-ink-10 bg-surface-card p-6">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-extrabold text-ink">Auctioned tickets for this event</h2>
-              <Badge label={`${eventAuctionListings.length} live listings`} variant="outline" />
+              <h2 className="text-lg font-extrabold text-ink">{t('auctionTickets')}</h2>
+              <Badge label={t('liveListings', { count: eventAuctionListings.length })} variant="outline" />
             </div>
             {eventAuctionListings.length > 0 ? (
               <ul className="mt-4 space-y-3">
@@ -801,9 +804,9 @@ export function EventDetailPage() {
                           <p className="font-mono text-[11px] font-semibold text-ink-50">{listing.listingCode}</p>
                         )}
                         <p className="font-semibold text-ink">
-                          {listing.seatLabel ?? listing.ticketTypeLabel ?? 'General admission'}
+                          {listing.seatLabel ?? listing.ticketTypeLabel ?? t('generalAdmission')}
                         </p>
-                        <p className="mt-1 text-[12px] text-ink-40">Seller: {listing.sellerLabel}</p>
+                        <p className="mt-1 text-[12px] text-ink-40">{t('seller', { name: listing.sellerLabel })}</p>
                       </div>
                       <div className="text-right">
                         <p className="font-mono text-[17px] font-black text-ink">
@@ -816,27 +819,27 @@ export function EventDetailPage() {
                         )}
                       </div>
                     </div>
-                    <p className="mt-2 text-[12px] font-semibold text-coral">{formatRemaining(listing.endsAt)}</p>
+                    <p className="mt-2 text-[12px] font-semibold text-coral">{formatRemaining(listing.endsAt, t)}</p>
                   </li>
                 ))}
               </ul>
             ) : (
               <p className="mt-4 text-[13px] text-ink-60">
-                No resale tickets are live right now. Join waitlist updates or check back later.
+                {t('noResale')}
               </p>
             )}
             <Link
               to={`/auction/events/${event.id}`}
               className="mt-4 inline-flex h-10 items-center justify-center rounded-full bg-ink px-5 text-[13px] font-semibold text-white hover:bg-ink-80"
             >
-              Open auction for this event
+              {t('openAuction')}
             </Link>
           </div>
 
           {relatedEvents.length > 0 && (
             <div className="mt-10">
-              <h2 className="text-lg font-extrabold text-ink">Related events</h2>
-              <p className="mt-1 text-[13px] text-ink-60">You may also like these nearby picks.</p>
+              <h2 className="text-lg font-extrabold text-ink">{t('relatedEvents')}</h2>
+              <p className="mt-1 text-[13px] text-ink-60">{t('relatedHint')}</p>
               <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {relatedEvents.map((re) => {
                   const props = eventListItemToCardProps(re);
@@ -856,8 +859,8 @@ export function EventDetailPage() {
           )}
 
           <div className="mt-10 border-t border-ink-10 pt-8">
-            <h2 className="text-lg font-extrabold text-ink">Share</h2>
-            <p className="mt-2 text-[13px] text-ink-60">Send this event to friends or copy the link.</p>
+            <h2 className="text-lg font-extrabold text-ink">{t('shareTitle')}</h2>
+            <p className="mt-2 text-[13px] text-ink-60">{t('shareHint')}</p>
             <div className="mt-4">
               <ShareRow title={event.title} url={url} />
             </div>
@@ -868,29 +871,29 @@ export function EventDetailPage() {
           <div className="sticky top-24 rounded-3xl border border-ink-10 bg-white p-6">
             <h2 className="flex items-center gap-2 text-[15px] font-extrabold text-ink">
               <TicketIcon size={22} weight="fill" className="text-coral" />
-              Tickets
+              {t('tickets')}
             </h2>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               {soldOut ? (
-                <Badge label="No seats" variant="danger" className="text-[11px] font-bold uppercase tracking-wide" />
+                <Badge label={t('noSeats')} variant="danger" className="text-[11px] font-bold uppercase tracking-wide" />
               ) : event.layoutType === 'free' ? (
-                <Badge label="Free seating" variant="success" className="text-[11px] font-bold uppercase tracking-wide" />
+                <Badge label={t('freeSeating')} variant="success" className="text-[11px] font-bold uppercase tracking-wide" />
               ) : (
-                <Badge label="Assigned seats" variant="default" className="text-[11px] font-bold uppercase tracking-wide" />
+                <Badge label={t('assignedSeats')} variant="default" className="text-[11px] font-bold uppercase tracking-wide" />
               )}
             </div>
             <p className="mt-2 text-[12px] text-ink-40">
               {soldOut
-                ? 'There is no primary inventory left — try the waitlist or verified resale.'
+                ? t('soldOutSidebar')
                 : event.layoutType === 'seated'
-                  ? 'Choose your seats on the next screen, then pay on checkout.'
-                  : 'Start a short ticket hold on the next screen (no seat map), then complete payment on checkout.'}
+                  ? t('seatedHint')
+                  : t('freeHint')}
             </p>
             {event.ticketTypes.length > 0 && (
               <p className="mt-1 font-mono text-[13px] font-bold text-ink">
                 {event.priceMin === event.priceMax
-                  ? `From ${event.priceMin} SAR`
-                  : `${event.priceMin} – ${event.priceMax} SAR`}
+                  ? t('fromPrice', { price: event.priceMin })
+                  : t('priceRange', { min: event.priceMin, max: event.priceMax })}
               </p>
             )}
             <ul className="mt-4 space-y-3">
@@ -924,11 +927,11 @@ export function EventDetailPage() {
                 }
                 className="mt-6 flex h-12 w-full items-center justify-center rounded-full bg-ink text-[14px] font-semibold text-white transition-colors hover:bg-ink-80"
               >
-                {event.layoutType === 'seated' ? 'Choose seats' : 'Continue to checkout'}
+                {event.layoutType === 'seated' ? t('chooseSeats') : t('continueCheckout')}
               </Link>
             ) : (
               <div className="mt-6 space-y-3">
-                <p className="text-center text-[13px] font-semibold text-coral">Sold out</p>
+                <p className="text-center text-[13px] font-semibold text-coral">{t('soldOut')}</p>
                 {detail ? (
                   <EventWaitlistCta
                     key={String(detail.id)}
@@ -938,8 +941,8 @@ export function EventDetailPage() {
                     joinWaitlist={joinWaitlistMutation}
                     onJoined={() => {
                       pushNotification({
-                        title: "You're on the waitlist",
-                        body: `We'll notify you if tickets return for ${event.title}.`,
+                        title: t('waitlistNotifTitle'),
+                        body: t('waitlistNotifBody', { title: event.title }),
                         kind: 'waitlist',
                         href: `/events/${encodeURIComponent(String(detail.slug ?? slugParam))}`,
                       });
@@ -950,7 +953,7 @@ export function EventDetailPage() {
                   to={`/auction/events/${event.id}`}
                   className="flex h-11 w-full items-center justify-center rounded-full bg-ink-5 text-[13px] font-semibold text-ink hover:bg-ink-10"
                 >
-                  Check auction for resale
+                  {t('checkAuctionResale')}
                 </Link>
               </div>
             )}
@@ -959,14 +962,12 @@ export function EventDetailPage() {
                 to={`/auction/events/${event.id}`}
                 className="mt-3 flex h-11 w-full items-center justify-center rounded-full border border-ink-10 bg-white text-[13px] font-semibold text-ink hover:bg-ink-5"
               >
-                View resale auction
+                {t('viewResaleAuction')}
               </Link>
             )}
             <div className="mt-4 rounded-xl border border-ink-10 bg-ink-5/50 p-3">
-              <p className="text-[11px] uppercase tracking-[0.12em] text-ink-40">Reminder</p>
-              <p className="mt-1 text-[12px] text-ink-60">
-                You will receive reminder notifications before event time based on platform settings.
-              </p>
+              <p className="text-[11px] uppercase tracking-[0.12em] text-ink-40">{t('reminder')}</p>
+              <p className="mt-1 text-[12px] text-ink-60">{t('reminderBody')}</p>
             </div>
           </div>
         </aside>

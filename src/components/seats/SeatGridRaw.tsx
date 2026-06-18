@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { isSeatSelectable, seatsByRows } from '@/lib/seating';
 import type { SeatRecord } from '@/types/seating';
@@ -15,16 +16,17 @@ export function SeatGridRaw({
   highlightTicketTypeId,
   onToggleSeat,
 }: SeatGridRawProps) {
+  const { t } = useTranslation('seats');
   const rows = seatsByRows(seats);
 
   return (
     <div className="rounded-2xl border border-ink-10 bg-white p-4">
       <div className="mb-4 rounded-xl bg-ink px-4 py-2 text-center text-[11px] font-bold uppercase tracking-[0.13em] text-white">
-        Stage
+        {t('stage')}
       </div>
       <div className="space-y-2">
         {rows.map((row) => {
-          const rowHeader = row.seats[0]?.rowLabel ?? `Row ${row.row}`;
+          const rowHeader = row.seats[0]?.rowLabel ?? t('row', { n: row.row });
           return (
             <div key={row.row} className="flex items-center gap-2">
               <span className="w-12 shrink-0 text-[11px] font-semibold text-ink-40">{rowHeader}</span>

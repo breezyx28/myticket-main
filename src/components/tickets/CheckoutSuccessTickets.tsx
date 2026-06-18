@@ -1,10 +1,12 @@
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import type { ConfirmPaymentTicket } from '@/api/types/ticket';
 import { TicketQrPanel } from '@/components/tickets/TicketQrPanel';
 import { ticketQrScanValue, useTicketQrDataUrl } from '@/lib/ticketQr';
 import { cn } from '@/lib/utils';
 
 function CheckoutTicketQrRow({ ticket }: { ticket: ConfirmPaymentTicket }) {
+  const { t } = useTranslation('tickets');
   const scanValue = ticketQrScanValue(ticket);
   const qr = useTicketQrDataUrl(scanValue);
   const label = [ticket.type_name_cache, ticket.seat_label_cache].filter(Boolean).join(' · ');
@@ -26,7 +28,7 @@ function CheckoutTicketQrRow({ ticket }: { ticket: ConfirmPaymentTicket }) {
             to={`/my-tickets/${ticket.id}`}
             className="text-[12px] font-semibold text-coral hover:underline"
           >
-            Open full ticket
+            {t('detail.openFullTicket')}
           </Link>
         </p>
       )}
@@ -51,8 +53,8 @@ export function CheckoutSuccessTickets({ tickets, className }: CheckoutSuccessTi
         className,
       )}
     >
-      {tickets.map((t) => (
-        <CheckoutTicketQrRow key={String(t.id)} ticket={t} />
+      {tickets.map((ticket) => (
+        <CheckoutTicketQrRow key={String(ticket.id)} ticket={ticket} />
       ))}
     </div>
   );

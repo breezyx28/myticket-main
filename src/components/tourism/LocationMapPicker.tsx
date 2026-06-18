@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MapPin, MagnifyingGlass } from '@phosphor-icons/react';
 import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import type { LatLngExpression } from 'leaflet';
@@ -56,6 +57,7 @@ export function LocationMapPicker({
   disabled,
   errorText,
 }: LocationMapPickerProps) {
+  const { t } = useTranslation('tourism');
   const [query, setQuery] = useState(locationName ?? '');
   const [results, setResults] = useState<GeocodeResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -93,14 +95,14 @@ export function LocationMapPicker({
       void searchPlaces(q)
         .then((rows) => {
           setResults(rows);
-          if (rows.length === 0) setSearchError('No places found. Try another search.');
+          if (rows.length === 0) setSearchError(t('mapPicker.noPlacesFound'));
         })
-        .catch(() => setSearchError('Search unavailable. Click the map to set a pin.'))
+        .catch(() => setSearchError(t('mapPicker.searchUnavailable')))
         .finally(() => setSearching(false));
     }, 400);
 
     return () => window.clearTimeout(timer);
-  }, [query]);
+  }, [query, t]);
 
   function selectResult(row: GeocodeResult) {
     setQuery(row.display_name);
@@ -120,7 +122,7 @@ export function LocationMapPicker({
           value={query}
           disabled={disabled}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search city, landmark, or address in Saudi Arabia"
+          placeholder={t('mapPicker.searchPlaceholder')}
           className={cn(
             'w-full rounded-xl border border-ink-10 bg-white py-3 pl-10 pr-4 text-[14px] outline-none transition-colors',
             'focus:border-coral focus:ring-2 focus:ring-coral/20',
@@ -128,7 +130,7 @@ export function LocationMapPicker({
           )}
         />
         {searching ? (
-          <p className="mt-1.5 text-[12px] text-ink-40">Searching…</p>
+          <p className="mt-1.5 text-[12px] text-ink-40">{t('mapPicker.searching')}</p>
         ) : null}
         {searchError ? (
           <p className="mt-1.5 text-[12px] text-coral">{searchError}</p>
@@ -189,11 +191,11 @@ export function LocationMapPicker({
       </div>
 
       <p className="text-[12px] leading-relaxed text-ink-50">
-        Search for a place or click the map to drop a pin. Drag the marker to fine-tune.
+        {t('mapPicker.hint')}
         {hasCoords ? (
           <>
             {' '}
-            Selected:{' '}
+            {t('mapPicker.selected')}{' '}
             <span className="font-mono text-[11px] text-ink-60">
               {latitude.toFixed(6)}, {longitude.toFixed(6)}
             </span>

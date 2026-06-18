@@ -45,6 +45,7 @@ export const enExt = {
       ticketsSold: 'Tickets Sold',
       cities: 'Cities',
       satisfaction: 'Satisfaction',
+      ariaLabel: 'Statistics',
     },
     cta: {
       titleLine1: 'Ready to experience',

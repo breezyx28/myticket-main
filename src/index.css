@@ -2,12 +2,21 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
-@import "@fontsource/noto-sans-arabic";
+@import "@fontsource/tajawal/400.css";
+@import "@fontsource/tajawal/500.css";
+@import "@fontsource/tajawal/700.css";
+@import "@fontsource/tajawal/800.css";
 
 @custom-variant dark (&:is(.dark *));
 
-[dir="rtl"] {
-  font-family: "Noto Sans Arabic", "Plus Jakarta Sans", system-ui, sans-serif;
+/* Arabic UI only — English keeps Plus Jakarta / Geist from --font-sans */
+html[lang="ar"] {
+  --font-sans: "Tajawal", system-ui, sans-serif;
+  font-family: "Tajawal", system-ui, sans-serif;
+}
+
+html[lang="ar"] body {
+  font-family: "Tajawal", system-ui, sans-serif;
 }
 
 @theme {

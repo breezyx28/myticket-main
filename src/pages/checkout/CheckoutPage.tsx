@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Trans, useTranslation } from 'react-i18next';
 import { CheckCircle, ShieldCheck, Warning } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -95,6 +96,7 @@ function readApiErrorMessage(err: unknown): string | null {
 const FREE_LOCK_TTL_SECONDS = 180;
 
 export function CheckoutPage() {
+  const { t } = useTranslation('checkout');
   const { eventId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -281,7 +283,7 @@ export function CheckoutPage() {
         });
       })
       .catch((err) => {
-        setFreeLockError(readApiErrorMessage(err) ?? 'Could not start your ticket hold.');
+        setFreeLockError(readApiErrorMessage(err) ?? t('freeLockFailed'));
         freeLockInFlightRef.current = false;
       });
   }, [
@@ -329,21 +331,19 @@ export function CheckoutPage() {
     setPaymentErrorMessage(null);
     if (!usingSavedCard && !paymentValidation.isValid) return;
     if (!user) {
-      setPaymentErrorMessage('Please sign in to complete your purchase.');
+      setPaymentErrorMessage(t('signInBody'));
       return;
     }
     if (selectedSavedCardId !== null && !selectedSavedCard) {
-      setPaymentErrorMessage(
-        'That saved card is no longer available. Choose another card or use a new one.',
-      );
+      setPaymentErrorMessage(t('savedCardGone'));
       return;
     }
     if (lockId == null) {
       if (event.layoutType === 'seated') {
-        setPaymentErrorMessage('Your seat hold is missing or expired. Return to seat selection to continue.');
+        setPaymentErrorMessage(t('holdMissing'));
         navigate(`/checkout/${event.id}/seats`, { state: locationState });
       } else {
-        setPaymentErrorMessage('Your ticket hold is not ready yet. Wait a moment and try again.');
+        setPaymentErrorMessage(t('holdNotReady'));
       }
       return;
     }
@@ -371,10 +371,10 @@ export function CheckoutPage() {
     if (!event || !selectedType || !detail) return;
     if (lockId == null) {
       if (event.layoutType === 'seated') {
-        setPaymentErrorMessage('Your seat hold is missing or expired. Return to seat selection to continue.');
+        setPaymentErrorMessage(t('holdMissing'));
         navigate(`/checkout/${event.id}/seats`, { replace: false, state: locationState });
       } else {
-        setPaymentErrorMessage('Your ticket hold is not ready yet. Wait a moment and try again.');
+        setPaymentErrorMessage(t('holdNotReady'));
       }
       return;
     }
@@ -389,7 +389,7 @@ export function CheckoutPage() {
         tokenResult = await tokenizeCardForPayment(paymentForm);
       } catch (err) {
         const message =
-          err instanceof Error ? err.message : 'We could not secure your card details. Please try again.';
+          err instanceof Error ? err.message : t('cardSecureFailed');
         setPaymentErrorMessage(message);
         setPayFailOpen(true);
         return;
@@ -416,7 +416,7 @@ export function CheckoutPage() {
     try {
       order = await createOrder(orderBody).unwrap();
     } catch (err) {
-      const message = readApiErrorMessage(err) ?? 'We could not create your order. Please try again.';
+      const message = readApiErrorMessage(err) ?? t('orderCreateFailed');
       setPaymentErrorMessage(message);
       setPayFailOpen(true);
       return;
@@ -424,9 +424,7 @@ export function CheckoutPage() {
 
     const orderId = order.id ?? (order as { order_id?: Id }).order_id;
     if (orderId == null) {
-      setPaymentErrorMessage(
-        'The server returned an order without an id, so payment could not continue. Please try again or contact support.',
-      );
+      setPaymentErrorMessage(t('orderNoId'));
       setPayFailOpen(true);
       return;
     }
@@ -460,14 +458,14 @@ export function CheckoutPage() {
       });
       pushNotification({
         kind: 'order',
-        title: 'Order confirmed',
-        body: `${event.title} · ${orderRef} · ${qty} ticket${qty === 1 ? '' : 's'}`,
+        title: t('orderConfirmed'),
+        body: `${event.title} · ${orderRef} · ${t('ticketCount', { count: qty })}`,
         href: `/my-tickets`,
       });
       return;
     } catch (err) {
       const message =
-        readApiErrorMessage(err) ?? 'Payment was declined or interrupted. Seat holds will release shortly.';
+        readApiErrorMessage(err) ?? t('paymentDeclined');
       setPaymentErrorMessage(message);
       setPayFailOpen(true);
       return;
@@ -508,7 +506,7 @@ export function CheckoutPage() {
         <CheckoutShell>
           <CheckoutPageHeader
             backTo={`/events/${event.id}`}
-            title="Could not start hold"
+            title={t('couldNotStartHold')}
             subtitle={freeLockError}
           />
           <CheckoutMainPanel className="mt-8 max-w-lg">
@@ -520,7 +518,7 @@ export function CheckoutPage() {
                 setFreeLockRetry((n) => n + 1);
               }}
             >
-              Try again
+              {t('tryAgain')}
             </Button>
           </CheckoutMainPanel>
         </CheckoutShell>
@@ -568,21 +566,21 @@ export function CheckoutPage() {
     <CheckoutShell>
       <CheckoutPageHeader
         backTo={`/events/${event.id}`}
-        title="Checkout"
+        title={t('title')}
         subtitle={event.title}
       />
 
       {!user && (
-        <CheckoutAlertBanner title="Sign in to complete checkout">
-          Orders are tied to your account.{' '}
+        <CheckoutAlertBanner title={t('signInTitle')}>
+          {t('signInBody')}{' '}
           <Link
             to="/login"
             state={{ from: { pathname: loginReturnPath } }}
             className="font-semibold text-coral hover:underline"
           >
-            Log in or create an account
+            {t('signInLink')}
           </Link>{' '}
-          to continue.
+          {t('signInContinue')}
         </CheckoutAlertBanner>
       )}
 
@@ -595,7 +593,7 @@ export function CheckoutPage() {
               <CheckoutStepContent>
                 <div className="space-y-6">
                   <label className="flex flex-col gap-2">
-                    <span className="text-[12px] font-semibold text-ink-60">Ticket type</span>
+                    <span className="text-[12px] font-semibold text-ink-60">{t('ticketType')}</span>
                     <select
                       value={ticketTypeId}
                       onChange={(e) => setTicketTypeId(e.target.value)}
@@ -608,13 +606,13 @@ export function CheckoutPage() {
                           disabled={tt.remaining != null && tt.remaining < 1}
                         >
                           {tt.name} — {tt.price} SAR (
-                          {tt.remaining != null ? `${tt.remaining} left` : 'available'})
+                          {tt.remaining != null ? t('left', { count: tt.remaining }) : t('available')})
                         </option>
                       ))}
                     </select>
                   </label>
                   <label className="flex flex-col gap-2">
-                    <span className="text-[12px] font-semibold text-ink-60">Quantity</span>
+                    <span className="text-[12px] font-semibold text-ink-60">{t('quantity')}</span>
                     <input
                       type="number"
                       min={1}
@@ -625,7 +623,7 @@ export function CheckoutPage() {
                     />
                   </label>
                   <Button variant="dark" size="md" className="w-full" onClick={() => setStep(2)}>
-                    Continue
+                    {t('continue')}
                   </Button>
                 </div>
               </CheckoutStepContent>
@@ -636,20 +634,20 @@ export function CheckoutPage() {
                 <div className="space-y-6">
                   <div>
                     <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-ink-40">
-                      Review your order
+                      {t('reviewOrder')}
                     </p>
                     <p className="mt-2 text-[15px] font-semibold text-ink">
                       {qty}× {selectedType?.name}
                     </p>
                     <p className="mt-1 inline-flex items-center gap-1 text-[14px] text-ink-60 tabular-nums">
                       <SaudiRiyalIcon className="h-[0.85em] w-[0.85em]" />
-                      {formatSaudiRiyalAmountLatin(unitPrice)} each
+                      {formatSaudiRiyalAmountLatin(unitPrice)} {t('each')}
                     </p>
                   </div>
 
                   {event.layoutType === 'seated' && (
                     <div className="rounded-xl bg-ink-5/60 p-4">
-                      <p className="text-[12px] font-semibold text-ink">Selected seats</p>
+                      <p className="text-[12px] font-semibold text-ink">{t('selectedSeats')}</p>
                       <p className="mt-1.5 text-[13px] leading-relaxed text-ink-60">
                         {selectedSeats.map((seat) => seat.label).join(', ')}
                       </p>
@@ -672,15 +670,15 @@ export function CheckoutPage() {
                           })
                         }
                       >
-                        Back to seats
+                        {t('backToSeats')}
                       </Button>
                     ) : (
                       <Button variant="outline" size="md" className="flex-1" onClick={() => setStep(1)}>
-                        Back
+                        {t('back')}
                       </Button>
                     )}
                     <Button variant="dark" size="md" className="flex-1" onClick={() => setStep(3)}>
-                      Proceed to payment
+                      {t('proceedToPayment')}
                     </Button>
                   </div>
                 </div>
@@ -691,15 +689,12 @@ export function CheckoutPage() {
               <CheckoutStepContent>
                 <div className="space-y-5">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-[15px] font-extrabold tracking-tight text-ink">Payment</p>
+                    <p className="text-[15px] font-extrabold tracking-tight text-ink">{t('payment')}</p>
                     <span className="rounded-full bg-ink-5 px-2.5 py-1 text-[11px] font-semibold text-ink-60">
-                      Secure checkout
+                      {t('secureCheckout')}
                     </span>
                   </div>
-                  <p className="text-[13px] leading-relaxed text-ink-60">
-                    Enter your card details. We detect the network from your card number and update
-                    the preview automatically.
-                  </p>
+                  <p className="text-[13px] leading-relaxed text-ink-60">{t('paymentIntro')}</p>
 
                   {user && savedCardsLoading && (
                     <div className="flex gap-4 overflow-hidden" aria-hidden>
@@ -714,7 +709,7 @@ export function CheckoutPage() {
 
                   {user && !savedCardsLoading && !savedCardsError && savedCards.length > 0 && (
                     <div className="space-y-3">
-                      <p className="text-[12px] font-semibold text-ink-60">Use a saved card</p>
+                      <p className="text-[12px] font-semibold text-ink-60">{t('useSavedCard')}</p>
                       <div className="-mx-1 flex gap-4 overflow-x-auto px-1 pb-2 snap-x snap-mandatory">
                         {savedCards.map((card) => {
                           const cardId = card.id;
@@ -756,7 +751,7 @@ export function CheckoutPage() {
                     <div className="rounded-2xl bg-ink-5/50 p-4 sm:p-5">
                       <div className="grid gap-3 sm:grid-cols-2">
                         <label className="flex flex-col gap-2 sm:col-span-2">
-                          <span className="text-[12px] font-semibold text-ink-60">Card number</span>
+                          <span className="text-[12px] font-semibold text-ink-60">{t('cardNumber')}</span>
                           <input
                             value={paymentForm.cardNumber}
                             onChange={(e) => onPaymentFieldChange('cardNumber', e.target.value)}
@@ -767,11 +762,11 @@ export function CheckoutPage() {
                           />
                           {detectedNetwork ? (
                             <p className="text-[11px] font-medium text-ink-60">
-                              {networkLabel(detectedNetwork)} detected
+                              {t('networkDetected', { network: networkLabel(detectedNetwork) })}
                             </p>
                           ) : paymentForm.cardNumber.trim() ? (
                             <p className="text-[11px] text-ink-40">
-                              Keep typing — we will identify Visa, Mastercard, or mada.
+                              {t('keepTypingCard')}
                             </p>
                           ) : null}
                           {paymentTouched && paymentValidation.errors.cardNumber && (
@@ -779,21 +774,21 @@ export function CheckoutPage() {
                           )}
                         </label>
                         <label className="flex flex-col gap-2 sm:col-span-2">
-                          <span className="text-[12px] font-semibold text-ink-60">Card nickname</span>
+                          <span className="text-[12px] font-semibold text-ink-60">{t('cardNickname')}</span>
                           <input
                             value={paymentForm.cardLabel}
                             onChange={(e) => onPaymentFieldChange('cardLabel', e.target.value)}
-                            placeholder="Personal, Travel, Work…"
+                            placeholder={t('cardLabelPlaceholder')}
                             maxLength={24}
                             autoComplete="off"
                             className="w-full rounded-xl border border-ink-10 bg-white px-4 py-3 text-[14px]"
                           />
                           <p className="text-[11px] text-ink-40">
-                            Shown on your card preview. Only you can see saved cards on your account.
+                            {t('cardNicknameHint')}
                           </p>
                         </label>
                         <label className="flex flex-col gap-2 sm:col-span-2">
-                          <span className="text-[12px] font-semibold text-ink-60">Cardholder name</span>
+                          <span className="text-[12px] font-semibold text-ink-60">{t('cardholderName')}</span>
                           <input
                             value={paymentForm.cardholder}
                             onChange={(e) => onPaymentFieldChange('cardholder', e.target.value)}
@@ -806,11 +801,11 @@ export function CheckoutPage() {
                           )}
                         </label>
                         <label className="flex flex-col gap-2">
-                          <span className="text-[12px] font-semibold text-ink-60">Expiry</span>
+                          <span className="text-[12px] font-semibold text-ink-60">{t('expiry')}</span>
                           <input
                             value={paymentForm.expiry}
                             onChange={(e) => onPaymentFieldChange('expiry', e.target.value)}
-                            placeholder="MM/YY"
+                            placeholder={t('expiryPlaceholder')}
                             inputMode="numeric"
                             autoComplete="cc-exp"
                             className="w-full rounded-xl border border-ink-10 bg-white px-4 py-3 font-mono text-[14px] tabular-nums"
@@ -847,8 +842,7 @@ export function CheckoutPage() {
                         >
                           {atSavedCardLimit ? (
                             <p className="text-[12px] leading-relaxed text-ink-60">
-                              You have reached the maximum of {SAVED_CARDS_MAX} saved cards. Remove one
-                              from your profile to save another at checkout.
+                              {t('savedCardsMax', { max: SAVED_CARDS_MAX })}
                             </p>
                           ) : (
                             <>
@@ -863,11 +857,10 @@ export function CheckoutPage() {
                                 />
                                 <span className="flex flex-col gap-1">
                                   <span className="text-[13px] font-semibold text-ink">
-                                    Save this card for next time
+                                    {t('saveCardCheckbox')}
                                   </span>
                                   <span className="text-[11px] leading-relaxed text-ink-60">
-                                    Your card is tokenized by our payment provider — we never store the
-                                    full number or CVV. Only you can use saved cards on your account.
+                                    {t('saveCardHint')}
                                   </span>
                                 </span>
                               </label>
@@ -878,7 +871,7 @@ export function CheckoutPage() {
                                     weight="fill"
                                     aria-hidden
                                   />
-                                  A secure token is saved to your account after payment succeeds.
+                                  {t('secureTokenNote')}
                                 </p>
                               ) : null}
                             </>
@@ -906,8 +899,10 @@ export function CheckoutPage() {
                         />
                       </div>
                       <p className="rounded-xl bg-ink-5/60 px-4 py-3 text-[12px] text-ink-60">
-                        Paying with {formatCardBrand(selectedSavedCard.brand)} ending in ••••{' '}
-                        {selectedSavedCard.last4}. No card details required.
+                        {t('payingWithSavedCard', {
+                          brand: formatCardBrand(selectedSavedCard.brand),
+                          last4: selectedSavedCard.last4,
+                        })}
                       </p>
                     </>
                   )}
@@ -915,22 +910,22 @@ export function CheckoutPage() {
                   {payLoading && (
                     <p className="rounded-xl bg-ink-5 px-4 py-3 text-[12px] font-semibold text-ink-60">
                       {tokenizingPayment
-                        ? 'Securing card details…'
+                        ? t('securingCard')
                         : creatingOrder
-                          ? 'Creating your order…'
-                          : 'Confirming payment with gateway…'}
+                          ? t('creatingOrder')
+                          : t('confirmingPayment')}
                     </p>
                   )}
 
                   {paymentErrorMessage && !payFailOpen && (
-                    <CheckoutAlertBanner title="Payment issue" variant="coral">
+                    <CheckoutAlertBanner title={t('paymentIssue')} variant="coral">
                       {paymentErrorMessage}
                     </CheckoutAlertBanner>
                   )}
 
                   <div className="flex flex-col gap-3 sm:flex-row">
                     <Button variant="outline" size="md" className="flex-1" onClick={() => setStep(2)}>
-                      Back
+                      {t('back')}
                     </Button>
                     <Button
                       variant="dark"
@@ -941,7 +936,7 @@ export function CheckoutPage() {
                       onClick={handlePay}
                     >
                       <span className="inline-flex items-center justify-center gap-1 tabular-nums">
-                        Pay
+                        {t('pay')}
                         <SaudiRiyalIcon className="h-[0.9em] w-[0.9em]" />
                         {formatSaudiRiyalAmountLatin(total)}
                       </span>
@@ -975,21 +970,21 @@ export function CheckoutPage() {
               <div className="flex items-start gap-3">
                 <Warning size={28} weight="fill" className="shrink-0 text-amber" />
                 <div>
-                  <h2 className="text-lg font-extrabold text-ink">Scheduling overlap</h2>
+                  <h2 className="text-lg font-extrabold text-ink">{t('overlapTitle')}</h2>
                   <p className="mt-2 text-[14px] leading-relaxed text-ink-60">
                     {overlapConflictTitle ? (
-                      <>
-                        This event overlaps with{' '}
-                        <strong className="text-ink">{overlapConflictTitle}</strong>, which you already hold a ticket
-                        for.
-                      </>
+                      <Trans
+                        t={t}
+                        i18nKey="overlapWithEvent"
+                        values={{ title: overlapConflictTitle }}
+                        components={{ 1: <strong className="text-ink" /> }}
+                      />
                     ) : (
-                      'You already hold tickets for another event that overlaps this time.'
+                      t('overlapWarning')
                     )}{' '}
-                    MyTicket is not responsible for scheduling conflicts from purchasing overlapping tickets.
-                    Overlapping-event purchases are non-refundable per our{' '}
+                    {t('overlapDisclaimer')}{' '}
                     <Link to="/terms" className="font-semibold text-coral underline">
-                      Terms of Service
+                      {t('termsOfService')}
                     </Link>
                     .
                   </p>
@@ -1004,7 +999,7 @@ export function CheckoutPage() {
                   disabled={payLoading}
                   onClick={() => void completePurchase()}
                 >
-                  Ignore &amp; continue
+                  {t('ignoreContinue')}
                 </Button>
                 <Button
                   variant="outline"
@@ -1013,7 +1008,7 @@ export function CheckoutPage() {
                   disabled={payLoading}
                   onClick={() => setOverlapOpen(false)}
                 >
-                  Go back
+                  {t('goBack')}
                 </Button>
               </div>
             </motion.div>
@@ -1046,21 +1041,21 @@ export function CheckoutPage() {
                   <CheckCircle size={40} weight="fill" className="text-coral" />
                 </motion.div>
                 <h2 className="mt-4 text-balance text-2xl font-extrabold tracking-tight text-ink">
-                  You&apos;re in!
+                  {t('successTitle')}
                 </h2>
                 <p className="mt-2 text-[14px] text-ink-60">
-                  {event.title} · {qty} ticket{qty === 1 ? '' : 's'}
+                  {event.title} · {t('ticketCount', { count: qty })}
                 </p>
                 <p className="mt-1 inline-flex items-center justify-center gap-1 text-[13px] text-ink tabular-nums">
                   <SaudiRiyalIcon className="h-[0.85em] w-[0.85em]" />
-                  {formatSaudiRiyalAmountLatin(total)} paid
+                  {formatSaudiRiyalAmountLatin(total)} {t('paid')}
                 </p>
-                <p className="mt-1 text-[13px] text-ink-40">Order {success.orderRef}</p>
+                <p className="mt-1 text-[13px] text-ink-40">{t('orderLabel', { ref: success.orderRef })}</p>
               </div>
               {success.tickets.length > 0 && (
                 <div className="border-t border-ink-10 px-6 py-4">
                   <p className="text-center text-[11px] font-semibold uppercase tracking-wide text-ink-40">
-                    {success.tickets.length === 1 ? 'Your entry QR' : 'Your entry QRs'}
+                    {success.tickets.length === 1 ? t('yourEntryQr') : t('yourEntryQrs')}
                   </p>
                   <CheckoutSuccessTickets tickets={success.tickets} className="mt-3" />
                 </div>
@@ -1070,13 +1065,13 @@ export function CheckoutPage() {
                   to="/my-tickets"
                   className="flex h-12 w-full items-center justify-center rounded-full bg-ink text-[14px] font-semibold text-white hover:bg-ink-80"
                 >
-                  View my tickets
+                  {t('viewMyTickets')}
                 </Link>
                 <Link
                   to={`/events/${event.id}`}
                   className="block text-center text-[13px] font-semibold text-coral hover:underline"
                 >
-                  Back to event
+                  {t('backToEvent')}
                 </Link>
               </div>
             </motion.div>
@@ -1100,13 +1095,12 @@ export function CheckoutPage() {
               transition={{ type: 'spring', duration: 0.3, bounce: 0 }}
               className="max-w-md rounded-[2rem] bg-white p-6 shadow-[0_24px_48px_-20px_rgba(26,26,26,0.18)]"
             >
-              <h2 className="text-lg font-extrabold text-ink">Payment didn&apos;t go through</h2>
+              <h2 className="text-lg font-extrabold text-ink">{t('paymentFailedTitle')}</h2>
               <p className="mt-2 text-[14px] leading-relaxed text-ink-60">
-                {paymentErrorMessage ??
-                  'Seat locks are released automatically. Return to payment and try again, or pick different seats.'}
+                {paymentErrorMessage ?? t('seatLocksReleased')}
               </p>
               <Button variant="dark" size="md" className="mt-6 w-full" onClick={() => setPayFailOpen(false)}>
-                OK
+                {t('ok')}
               </Button>
             </motion.div>
           </motion.div>

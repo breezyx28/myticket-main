@@ -27,11 +27,14 @@ import { pickRecentRatings } from '@/lib/marketplaceMappers';
 import { resolvePublicStorageUrl } from '@/lib/organizerMedia';
 import { cn } from '@/lib/utils';
 
-function organizerLabel(o: { display_name?: string | null; name?: string | null }): string {
+function organizerLabel(
+  o: { display_name?: string | null; name?: string | null },
+  fallback = 'Organizer',
+): string {
   const d = typeof o.display_name === 'string' ? o.display_name.trim() : '';
   if (d) return d;
   const n = typeof o.name === 'string' ? o.name.trim() : '';
-  return n || 'Organizer';
+  return n || fallback;
 }
 
 function parseRatingAverage(raw: unknown): number {
@@ -98,19 +101,20 @@ function normalizeSocialLinks(o: Organizer): OrganizerSocialLink[] {
   return out;
 }
 
-function socialPlatformLabel(platform: string): string {
+function socialPlatformLabel(platform: string, t: (key: string) => string): string {
   const p = platform.toLowerCase();
   const map: Record<string, string> = {
-    website: 'Website',
-    instagram: 'Instagram',
-    twitter: 'X / Twitter',
-    x: 'X / Twitter',
-    tiktok: 'TikTok',
-    facebook: 'Facebook',
-    youtube: 'YouTube',
-    linkedin: 'LinkedIn',
+    website: 'organizerProfile.website',
+    instagram: 'organizerProfile.instagram',
+    twitter: 'organizerProfile.twitter',
+    x: 'organizerProfile.twitter',
+    tiktok: 'organizerProfile.tiktok',
+    facebook: 'organizerProfile.facebook',
+    youtube: 'organizerProfile.youtube',
+    linkedin: 'organizerProfile.linkedin',
   };
-  return map[p] ?? platform.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  const key = map[p];
+  return key ? t(key) : platform.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function SocialIcon({ platform }: { platform: string }) {
@@ -150,7 +154,8 @@ function previousEventsList(o: Organizer): EventListItem[] {
 }
 
 export function OrganizerProfilePage() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation(['marketplace', 'nav']);
+  const op = (key: string, opts?: Record<string, unknown>) => t(`organizerProfile.${key}`, opts);
   const language = i18n.language === 'ar' ? 'ar' : 'en';
   const { slug: slugParam } = useParams<{ slug: string }>();
   const slug = useMemo(() => {
@@ -178,7 +183,7 @@ export function OrganizerProfilePage() {
     { skip: !slug },
   );
 
-  const displayName = organizer ? organizerLabel(organizer) : '';
+  const displayName = organizer ? organizerLabel(organizer, op('defaultName')) : '';
   const logo = organizer?.logo_url?.trim() ? organizer.logo_url.trim() : undefined;
   const socialRows = useMemo(() => (organizer ? normalizeSocialLinks(organizer) : []), [organizer]);
   const websiteFromSocial = useMemo(
@@ -235,7 +240,7 @@ export function OrganizerProfilePage() {
   }
 
   if (orgLoading) {
-    return <div className="px-6 py-24 text-center text-ink-40">Loading…</div>;
+    return <div className="px-6 py-24 text-center text-ink-40">{op('loading')}</div>;
   }
 
   if (orgError || !organizer) {
@@ -243,10 +248,10 @@ export function OrganizerProfilePage() {
       <div className="bg-white pb-20 pt-10">
         <div className="mx-auto max-w-[960px] px-6 lg:px-8">
           <Link to="/events" className="text-[13px] font-semibold text-coral hover:underline">
-            ← Events
+            ← {t('nav:events')}
           </Link>
           <p className="mt-8 rounded-lg border border-coral/40 bg-coral/10 px-4 py-3 text-[14px] font-semibold text-coral">
-            Organizer not found or unavailable.
+            {op('notFound')}
           </p>
         </div>
       </div>
@@ -264,7 +269,7 @@ export function OrganizerProfilePage() {
     <div className="bg-white pb-20 pt-10">
       <div className="mx-auto max-w-[960px] px-6 lg:px-8">
         <Link to="/events" className="text-[13px] font-semibold text-coral hover:underline">
-          ← Events
+          ← {t('nav:events')}
         </Link>
 
         <div className="mt-8 flex flex-col gap-8 md:flex-row md:items-start">
@@ -280,7 +285,7 @@ export function OrganizerProfilePage() {
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-bold uppercase tracking-wide text-coral">Organizer</p>
+            <p className="text-[11px] font-bold uppercase tracking-wide text-coral">{op('eyebrow')}</p>
             <h1 className="mt-2 text-3xl font-extrabold text-ink">{displayName}</h1>
             {companyLine && companyLine !== displayName ? (
               <p className="mt-1 text-[15px] font-semibold text-ink-60">{companyLine}</p>
@@ -301,15 +306,15 @@ export function OrganizerProfilePage() {
               <span className="inline-flex items-center gap-1.5">
                 <Ticket size={16} className="text-ink-40" weight="bold" />
                 <span>
-                  <span className="font-semibold text-ink">{totalEvents}</span> events
+                  <span className="font-semibold text-ink">{totalEvents}</span> {op('events')}
                 </span>
               </span>
             </div>
             <p className="mt-3 inline-flex flex-wrap items-center gap-1.5 text-[14px] text-ink-60">
               <Star size={18} className="text-amber" weight="fill" />
               <span className="font-semibold text-ink">{displayRating.toFixed(1)}</span>
-              <span className="text-ink-40">({ratingsCount} ratings)</span>
-              {ratingsLoading ? <span className="text-[12px] text-ink-40"> · loading…</span> : null}
+              <span className="text-ink-40">({ratingsCount} {op('ratings')})</span>
+              {ratingsLoading ? <span className="text-[12px] text-ink-40"> · {op('loadingEllipsis')}</span> : null}
             </p>
             {organizer.city ? (
               <p className="mt-2 flex items-center gap-1.5 text-[14px] text-ink-60">
@@ -344,7 +349,7 @@ export function OrganizerProfilePage() {
             ) : null}
             {companyInfo ? (
               <div className="mt-4 rounded-2xl border border-ink-10 bg-ink-5/50 p-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ink-40">Company</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ink-40">{op('company')}</p>
                 <p className="mt-2 text-[14px] leading-relaxed text-ink-70">{companyInfo}</p>
               </div>
             ) : null}
@@ -357,13 +362,13 @@ export function OrganizerProfilePage() {
                 className="mt-4 inline-flex items-center gap-2 text-[13px] font-semibold text-coral hover:underline"
               >
                 <Globe size={18} weight="bold" />
-                Visit website
+                {op('visitWebsite')}
               </a>
             ) : null}
 
             {socialRows.length > 0 ? (
               <div className="mt-6">
-                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ink-40">Social</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ink-40">{op('social')}</p>
                 <ul className="mt-2 flex flex-wrap gap-2">
                   {socialRows.map((s) => (
                     <li key={String(s.id)}>
@@ -377,7 +382,7 @@ export function OrganizerProfilePage() {
                         )}
                       >
                         <SocialIcon platform={s.platform} />
-                        {socialPlatformLabel(s.platform)}
+                        {socialPlatformLabel(s.platform, (key) => t(key))}
                       </a>
                     </li>
                   ))}
@@ -389,7 +394,7 @@ export function OrganizerProfilePage() {
 
         {documentHref ? (
           <section className="mt-10 rounded-2xl border border-ink-10 bg-ink-5/40 p-5">
-            <h2 className="text-sm font-extrabold uppercase tracking-wide text-ink-50">Document</h2>
+            <h2 className="text-sm font-extrabold uppercase tracking-wide text-ink-50">{op('document')}</h2>
             <a
               href={documentHref}
               target="_blank"
@@ -397,14 +402,14 @@ export function OrganizerProfilePage() {
               className="mt-3 inline-flex items-center gap-2 text-[14px] font-semibold text-coral hover:underline"
             >
               <FilePdf size={22} weight="fill" />
-              View organizer document (PDF)
+              {op('viewDocument')}
             </a>
           </section>
         ) : null}
 
         {galleryResolved.length > 0 ? (
           <section className="mt-10">
-            <h2 className="text-lg font-extrabold text-ink">Gallery</h2>
+            <h2 className="text-lg font-extrabold text-ink">{op('gallery')}</h2>
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
               {galleryResolved.map((src, i) => (
                 <a
@@ -423,7 +428,7 @@ export function OrganizerProfilePage() {
 
         {venues.length > 0 ? (
           <section className="mt-12">
-            <h2 className="text-lg font-extrabold text-ink">Venues</h2>
+            <h2 className="text-lg font-extrabold text-ink">{op('venues')}</h2>
             <ul className="mt-4 space-y-4">
               {venues.map((v) => {
                 const mapHref = venueMapHref(v);
@@ -439,7 +444,7 @@ export function OrganizerProfilePage() {
                           {v.name}
                           {v.is_default ? (
                             <span className="rounded-full bg-lemon/80 px-2 py-0.5 text-[10px] font-bold uppercase text-ink">
-                              Default
+                              {op('defaultVenue')}
                             </span>
                           ) : null}
                         </p>
@@ -450,7 +455,7 @@ export function OrganizerProfilePage() {
                           </p>
                         ) : null}
                         {typeof v.capacity === 'number' && v.capacity > 0 ? (
-                          <p className="mt-2 text-[12px] text-ink-50">Capacity · {v.capacity.toLocaleString()}</p>
+                          <p className="mt-2 text-[12px] text-ink-50">{op('capacity', { count: v.capacity.toLocaleString() })}</p>
                         ) : null}
                         {v.facilities && v.facilities.length > 0 ? (
                           <ul className="mt-3 flex flex-wrap gap-1.5">
@@ -472,7 +477,7 @@ export function OrganizerProfilePage() {
                           rel="noreferrer"
                           className="shrink-0 rounded-full border border-ink-10 bg-ink-5 px-4 py-2 text-[12px] font-semibold text-ink hover:bg-ink-10"
                         >
-                          Map
+                          {op('map')}
                         </a>
                       ) : null}
                     </div>
@@ -485,12 +490,12 @@ export function OrganizerProfilePage() {
 
         {recentRatings.length > 0 && (
           <section className="mt-12 rounded-2xl border border-ink-10 bg-ink-5/40 p-6">
-            <h2 className="text-lg font-extrabold text-ink">Recent reviews</h2>
+            <h2 className="text-lg font-extrabold text-ink">{op('recentReviews')}</h2>
             <ul className="mt-4 space-y-4">
               {recentRatings.map((r) => (
                 <li key={String(r.id)} className="rounded-xl border border-ink-10 bg-white p-4">
                   <div className="flex items-center gap-2 text-[13px] font-semibold text-ink">
-                    <span>{r.user_name ?? 'User'}</span>
+                    <span>{r.user_name ?? op('userFallback')}</span>
                     <span className="inline-flex items-center gap-0.5 text-amber">
                       <Star size={14} weight="fill" />
                       {r.stars}
@@ -506,11 +511,11 @@ export function OrganizerProfilePage() {
         )}
 
         <section className="mt-12">
-          <h2 className="text-lg font-extrabold text-ink">Upcoming &amp; listed events</h2>
+          <h2 className="text-lg font-extrabold text-ink">{op('upcomingEvents')}</h2>
           {eventsLoading ? (
-            <p className="mt-4 text-[13px] text-ink-40">Loading events…</p>
+            <p className="mt-4 text-[13px] text-ink-40">{op('loadingEvents')}</p>
           ) : eventRows.length === 0 ? (
-            <p className="mt-4 text-[13px] text-ink-40">No public events listed.</p>
+            <p className="mt-4 text-[13px] text-ink-40">{op('noEvents')}</p>
           ) : (
             <ul className="mt-4 divide-y divide-ink-10 rounded-2xl border border-ink-10 bg-white">
               {eventRows.map((e) => {
@@ -541,7 +546,7 @@ export function OrganizerProfilePage() {
 
         {pastEvents.length > 0 ? (
           <section className="mt-12">
-            <h2 className="text-lg font-extrabold text-ink">Previous events</h2>
+            <h2 className="text-lg font-extrabold text-ink">{op('previousEvents')}</h2>
             <ul className="mt-4 divide-y divide-ink-10 rounded-2xl border border-ink-10 bg-white">
               {pastEvents.map((e) => {
                 const startAt = e.date_start ?? e.starts_at ?? '';

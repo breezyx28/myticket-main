@@ -31,6 +31,14 @@ export interface BlueprintLayout {
   seats: BlueprintSeatPlacement[];
 }
 
+export function blueprintSectionLabel(
+  t: (key: string, options?: { defaultValue?: string }) => string,
+  sectionId: string,
+  fallbackLabel: string,
+): string {
+  return t(`sections.${sectionId}`, { defaultValue: fallbackLabel });
+}
+
 const SECTION_TEMPLATE: Record<string, Omit<BlueprintSection, 'seatIds' | 'availableSeatIds'>> = {
   'front-left-wing': { id: 'front-left-wing', label: 'Front Left Wing', tier: 'front', slot: 'left-wing', centerX: -11.2, centerZ: 6.2, width: 2.9, depth: 2.7 },
   'front-left': { id: 'front-left', label: 'Front Left', tier: 'front', slot: 'left', centerX: -6.7, centerZ: 6.1, width: 3.8, depth: 2.8 },

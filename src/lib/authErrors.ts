@@ -1,5 +1,10 @@
 import type { FetchBaseQueryError } from '@reduxjs/toolkit/query';
 import type { SerializedError } from '@reduxjs/toolkit';
+import i18n from '@/i18n';
+
+function t(key: string): string {
+  return i18n.t(key);
+}
 
 /**
  * Thrown by `AuthContext.signIn` when the backend signals that a 2FA
@@ -10,8 +15,8 @@ import type { SerializedError } from '@reduxjs/toolkit';
 export class TwoFactorRequiredError extends Error {
   readonly challengeToken: string;
 
-  constructor(challengeToken: string, message = 'Two-factor authentication required.') {
-    super(message);
+  constructor(challengeToken: string, message?: string) {
+    super(message ?? t('common:apiErrors.twoFactorRequired'));
     this.name = 'TwoFactorRequiredError';
     this.challengeToken = challengeToken;
   }
@@ -21,17 +26,17 @@ export function isTwoFactorRequiredError(value: unknown): value is TwoFactorRequ
   return value instanceof TwoFactorRequiredError;
 }
 
-/** Default copy when login is blocked until the user verifies their email. */
-export const EMAIL_VERIFICATION_REQUIRED_MESSAGE =
-  'Sign-in is incomplete; verification required. Check your email for a verification link, then sign in again.';
+/** @deprecated Use `i18n.t('common:apiErrors.emailVerificationRequired')` */
+export const EMAIL_VERIFICATION_REQUIRED_MESSAGE = () =>
+  t('common:apiErrors.emailVerificationRequired');
 
 /**
  * Thrown by `AuthContext.signIn` when the account exists but email verification
  * is still pending. Registration may return the same signal without throwing.
  */
 export class EmailVerificationRequiredError extends Error {
-  constructor(message = EMAIL_VERIFICATION_REQUIRED_MESSAGE) {
-    super(message);
+  constructor(message?: string) {
+    super(message ?? t('common:apiErrors.emailVerificationRequired'));
     this.name = 'EmailVerificationRequiredError';
   }
 }
@@ -86,7 +91,10 @@ function isSerializedError(value: unknown): value is SerializedError {
  * `AuthApiError` instance carrying a human-readable message and any 422
  * field-level errors the backend produced.
  */
-export function toAuthApiError(value: unknown, fallback = 'Something went wrong. Please try again.'): AuthApiError {
+export function toAuthApiError(
+  value: unknown,
+  fallback = t('common:apiErrors.generic'),
+): AuthApiError {
   if (value instanceof AuthApiError) return value;
 
   if (isFetchBaseQueryError(value)) {
@@ -104,22 +112,22 @@ export function toAuthApiError(value: unknown, fallback = 'Something went wrong.
       const message =
         normalizedMessage ??
         (err.status === 401
-          ? 'Invalid credentials. Please try again.'
+          ? t('common:apiErrors.invalidCredentials')
           : err.status === 422
-            ? 'Please correct the highlighted fields.'
+            ? t('common:apiErrors.validation')
             : err.status === 429
-              ? 'Too many attempts. Try again in a moment.'
+              ? t('common:apiErrors.tooManyAttempts')
               : fallback);
       return new AuthApiError(message, err.status, data?.errors ?? {});
     }
     if (err.status === 'FETCH_ERROR') {
-      return new AuthApiError('Network error. Check your connection and try again.', err.status);
+      return new AuthApiError(t('common:apiErrors.network'), err.status);
     }
     if (err.status === 'PARSING_ERROR') {
-      return new AuthApiError('Unexpected server response.', err.status);
+      return new AuthApiError(t('common:apiErrors.unexpectedResponse'), err.status);
     }
     if (err.status === 'TIMEOUT_ERROR') {
-      return new AuthApiError('The server took too long to respond.', err.status);
+      return new AuthApiError(t('common:apiErrors.timeout'), err.status);
     }
     return new AuthApiError(fallback, err.status);
   }

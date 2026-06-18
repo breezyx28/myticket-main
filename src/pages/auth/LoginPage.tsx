@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -14,10 +14,12 @@ import {
 import { FormSectionCard } from '@/components/ui/form/FormSectionCard';
 import { Field } from '@/components/ui/form/Field';
 import { TextInput } from '@/components/ui/form/inputs';
-import { loginSchema } from '@/schemas/auth';
+import { createLoginSchema } from '@/schemas/auth';
 
 export function LoginPage() {
   const { t } = useTranslation('authPages');
+  const { t: tValidation, i18n } = useTranslation('validation');
+  const loginSchema = useMemo(() => createLoginSchema(tValidation), [tValidation, i18n.language]);
   const { signIn, signInWithOtp, signInWithOAuth } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();

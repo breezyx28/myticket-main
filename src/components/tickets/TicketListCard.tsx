@@ -1,14 +1,16 @@
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { ArrowRight } from '@phosphor-icons/react';
 import type { MockTicket, TicketStatus } from '@/types/domain';
 import {
   formatTicketDateTime,
   STATUS_HEADER_STYLES,
-  STATUS_LABEL,
   ticketMetaLine,
+  ticketStatusLabel,
   venueLine,
 } from '@/components/tickets/ticketDisplayUtils';
+import type { AppLanguage } from '@/lib/language';
 import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
 import { cn } from '@/lib/utils';
 
@@ -18,10 +20,17 @@ type TicketListCardProps = {
 };
 
 export function TicketListCard({ ticket, index = 0 }: TicketListCardProps) {
+  const { t, i18n } = useTranslation('tickets');
+  const language = i18n.language as AppLanguage;
   const reduceMotion = usePrefersReducedMotion();
-  const statusKey = (ticket.status in STATUS_LABEL ? ticket.status : 'active') as TicketStatus;
-  const venue = venueLine(ticket.venue, ticket.city);
-  const dateLabel = ticket.dateStart ? formatTicketDateTime(ticket.dateStart) : 'Date TBC';
+  const statusKey = (
+    ['active', 'auction', 'gifted', 'used', 'expired', 'cancelled', 'refunded'].includes(ticket.status)
+      ? ticket.status
+      : 'active'
+  ) as TicketStatus;
+  const venue = venueLine(ticket.venue, ticket.city, t('detail.venueTbc'));
+  const dateTbc = t('dateTbc');
+  const dateLabel = ticket.dateStart ? formatTicketDateTime(ticket.dateStart, language, dateTbc) : dateTbc;
 
   const content = (
     <Link
@@ -43,20 +52,20 @@ export function TicketListCard({ ticket, index = 0 }: TicketListCardProps) {
           {ticket.ticketCode || ticket.orderRef}
         </span>
         <span className="shrink-0 rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide">
-          {STATUS_LABEL[statusKey]}
+          {ticketStatusLabel(statusKey, t)}
         </span>
       </div>
       <div className="p-5">
         <h2 className="text-balance text-[17px] font-extrabold leading-snug tracking-tight text-ink">
-          {ticket.eventTitle || 'Event'}
+          {ticket.eventTitle || t('detail.fallbackEvent')}
         </h2>
         <p className="mt-2 text-[13px] text-ink-60">
           {venue}
           {ticket.dateStart ? ` · ${dateLabel}` : ''}
         </p>
-        <p className="mt-1 text-[12px] text-ink-40">{ticketMetaLine(ticket)}</p>
+        <p className="mt-1 text-[12px] text-ink-40">{ticketMetaLine(ticket, t)}</p>
         <p className="mt-4 flex items-center justify-end gap-1 text-[13px] font-semibold text-coral transition-colors group-hover:text-coral/80">
-          View ticket
+          {t('detail.viewTicket')}
           <ArrowRight size={14} weight="bold" className="transition-transform group-hover:translate-x-0.5" />
         </p>
       </div>

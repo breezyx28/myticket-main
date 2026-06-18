@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   useCreateSeatLockMutation,
   useExtendSeatLockMutation,
@@ -66,6 +67,7 @@ function applyLockToState(lock: SeatLock, setters: {
 }
 
 export function SeatSelectionPage() {
+  const { t } = useTranslation(['checkout', 'common']);
   const { eventId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -292,7 +294,7 @@ export function SeatSelectionPage() {
     } catch (err) {
       const message =
         (err as { data?: { message?: string } })?.data?.message ??
-        'Could not lock these seats. Someone may have just booked them — try refreshing.';
+        t('lockError');
       setLockError(message);
     }
   }
@@ -338,9 +340,9 @@ export function SeatSelectionPage() {
   const lowTime = secondsLeft != null && secondsLeft <= LOW_TIME_WARNING_SECONDS;
   const continueDisabled = selectedSeats.length < 1 || creatingLock || !user;
   const pendingTargetTypeName = pendingCrossTypeSeat
-    ? (ticketTypeNameById.get(pendingCrossTypeSeat.ticketTypeId) ?? 'another ticket type')
+    ? (ticketTypeNameById.get(pendingCrossTypeSeat.ticketTypeId) ?? t('anotherTicketType'))
     : '';
-  const pendingCurrentTypeName = currentTicketType?.name ?? 'the highlighted type';
+  const pendingCurrentTypeName = currentTicketType?.name ?? t('theHighlightedType');
 
   const loginReturnPath = `/checkout/${eventId}/seats`;
 
@@ -348,20 +350,19 @@ export function SeatSelectionPage() {
     <CheckoutShell>
       <CheckoutPageHeader
         backTo={`/events/${event.id}`}
-        title="Select your seats"
-        subtitle={`${event.title} · Choose seats on the map. Highlighted seats match the ticket type below; other seats are still selectable.`}
+        title={t('selectSeats')}
+        subtitle={`${event.title} · ${t('selectSeatsSubtitle')}`}
       />
 
       <details className="mt-4 overflow-hidden rounded-2xl border border-ink-10/80 bg-white shadow-[0_8px_24px_-12px_rgba(26,26,26,0.08)]">
         <summary className="cursor-pointer px-4 py-3.5 text-[13px] font-semibold text-ink sm:px-5">
-          Seat hold &amp; checkout
+          {t('seatHoldTitle')}
         </summary>
         <div className="border-t border-ink-10 px-4 py-3 text-[12px] leading-relaxed text-ink-60 sm:px-5">
           <p>
-            Selected seats are held server-side while you complete payment. If you walk away, the hold
-            expires and seats become available to others. See our{' '}
+            {t('seatHoldBody')}{' '}
             <Link to="/terms" className="font-semibold text-coral hover:underline">
-              Terms
+              {t('terms')}
             </Link>{' '}
             for details.
           </p>
@@ -369,16 +370,16 @@ export function SeatSelectionPage() {
       </details>
 
       {!user && (
-        <CheckoutAlertBanner title="Sign in to hold seats">
-          Seat holds are tied to your account.{' '}
+        <CheckoutAlertBanner title={t('signInHoldSeats')}>
+          {t('signInHoldBody')}{' '}
           <Link
             to="/login"
             state={{ from: { pathname: loginReturnPath } }}
             className="font-semibold text-coral hover:underline"
           >
-            Log in or create an account
+            {t('signInLink')}
           </Link>{' '}
-          to continue.
+          {t('signInContinue')}
         </CheckoutAlertBanner>
       )}
 
@@ -386,8 +387,8 @@ export function SeatSelectionPage() {
         <CheckoutAlertBanner
           title={
             secondsLeft > 0
-              ? `Seats held · ${formatCountdown(secondsLeft)} remaining`
-              : 'Hold expired — please re-select your seats.'
+              ? t('seatsHeldCountdown', { time: formatCountdown(secondsLeft) })
+              : t('holdExpired')
           }
           variant={lowTime ? 'coral' : 'neutral'}
           action={
@@ -398,21 +399,19 @@ export function SeatSelectionPage() {
                 loading={extendingLock}
                 onClick={() => void onExtend()}
               >
-                Extend hold
+                {t('extendHold')}
               </Button>
             ) : undefined
           }
         >
           <span className="tabular-nums">
-            {secondsLeft > 0
-              ? 'Your selection is reserved while you complete checkout.'
-              : 'Select seats again to continue.'}
+            {secondsLeft > 0 ? t('holdReserved') : t('selectAgain')}
           </span>
         </CheckoutAlertBanner>
       )}
 
       {lockError && (
-        <CheckoutAlertBanner title="Could not lock seats" variant="coral">
+        <CheckoutAlertBanner title={t('couldNotLock')} variant="coral">
           {lockError}
         </CheckoutAlertBanner>
       )}
@@ -420,7 +419,7 @@ export function SeatSelectionPage() {
       <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
         <CheckoutMainPanel className="mt-0">
           <label className="flex flex-col gap-2">
-            <span className="text-[12px] font-semibold text-ink-60">Highlight ticket type</span>
+            <span className="text-[12px] font-semibold text-ink-60">{t('highlightTicketType')}</span>
             <select
               value={selectedTicketTypeId}
               onChange={(e) => setSelectedTicketTypeId(e.target.value)}
@@ -452,17 +451,15 @@ export function SeatSelectionPage() {
               </div>
             ) : !seatsFetching && displaySeats.length === 0 ? (
               <div className="py-12 text-center">
-                <p className="text-[14px] font-semibold text-ink">No seats available</p>
+                <p className="text-[14px] font-semibold text-ink">{t('noSeatsAvailable')}</p>
                 <p className="mt-2 text-[12px] text-ink-40">
-                  {seatsError
-                    ? 'We could not load the seat map. Try again or return to the event.'
-                    : 'All seats are currently held or sold.'}
+                  {seatsError ? t('seatMapError') : t('allSeatsTaken')}
                 </p>
                 <Link
                   to={`/events/${event.id}`}
                   className="mt-4 inline-flex min-h-10 items-center text-[13px] font-semibold text-coral hover:underline"
                 >
-                  Back to event
+                  {t('backToEvent')}
                 </Link>
               </div>
             ) : (
@@ -479,28 +476,28 @@ export function SeatSelectionPage() {
         <aside className="lg:sticky lg:top-24">
           <article className="overflow-hidden rounded-[2rem] border border-ink-10 bg-white shadow-[0_24px_48px_-20px_rgba(26,26,26,0.12)]">
             <div className="border-b border-ink-10 px-6 py-5">
-              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-ink-40">Selection</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-ink-40">{t('selection')}</p>
               <h2 className="mt-1 text-[17px] font-extrabold tracking-tight text-ink">
-                {selectedSeats.length} seat{selectedSeats.length === 1 ? '' : 's'} selected
+                {t('seatsSelected', { count: selectedSeats.length })}
               </h2>
               <p className="mt-1 text-[12px] text-ink-40">
                 {selectedSeats.length > 0
                   ? (ticketTypeNameById.get(lockTicketTypeId) ?? currentTicketType?.name ?? '—')
-                  : `Highlighting ${currentTicketType?.name ?? '—'}`}
+                  : t('highlighting', { name: currentTicketType?.name ?? '—' })}
               </p>
             </div>
 
             <div className="divide-y divide-ink-10 px-6 py-2 text-[12px] text-ink-60">
               <div className="flex items-center justify-between py-2.5">
-                <span>Available on map</span>
+                <span>{t('availableOnMap')}</span>
                 <span className="font-semibold tabular-nums text-ink">{seatStats.available}</span>
               </div>
               <div className="flex items-center justify-between py-2.5">
-                <span>Held on map</span>
+                <span>{t('heldOnMap')}</span>
                 <span className="font-semibold tabular-nums text-ink">{seatStats.held}</span>
               </div>
               <div className="flex items-center justify-between py-2.5">
-                <span>Booked on map</span>
+                <span>{t('bookedOnMap')}</span>
                 <span className="font-semibold tabular-nums text-ink">{seatStats.booked}</span>
               </div>
             </div>
@@ -521,7 +518,7 @@ export function SeatSelectionPage() {
                   ))}
                 </ul>
               ) : (
-                <p className="text-[12px] text-ink-40">Choose seats from the map to continue.</p>
+                <p className="text-[12px] text-ink-40">{t('chooseSeatsHint')}</p>
               )}
 
               <button
@@ -529,7 +526,7 @@ export function SeatSelectionPage() {
                 onClick={() => setSelectedSeatIds([])}
                 className="mt-3 inline-flex min-h-10 items-center text-[12px] font-semibold text-coral transition-colors hover:text-coral/80"
               >
-                Clear selection
+                {t('clearSelection')}
               </button>
 
               <Button
@@ -540,7 +537,7 @@ export function SeatSelectionPage() {
                 disabled={continueDisabled}
                 onClick={continueToCheckout}
               >
-                Continue to checkout
+                {t('continueCheckout')}
               </Button>
             </div>
           </article>
@@ -556,23 +553,24 @@ export function SeatSelectionPage() {
         >
           <div className="w-full max-w-md rounded-[2rem] bg-white p-6 shadow-[0_24px_48px_-20px_rgba(26,26,26,0.18)]">
             <h2 id="cross-type-seat-title" className="text-balance text-[17px] font-extrabold text-ink">
-              Different ticket type
+              {t('crossTypeTitle')}
             </h2>
             <p className="mt-3 text-pretty text-[14px] leading-relaxed text-ink-60">
-              Seat <span className="font-semibold text-ink">{pendingCrossTypeSeat.label}</span> is{' '}
-              <span className="font-semibold text-ink">{pendingTargetTypeName}</span>, not{' '}
-              <span className="font-semibold text-ink">{pendingCurrentTypeName}</span>.
+              {t('crossTypeBody', {
+                seat: pendingCrossTypeSeat.label,
+                targetType: pendingTargetTypeName,
+                currentType: pendingCurrentTypeName,
+              })}
             </p>
             <p className="mt-2 text-[13px] text-ink-60">
-              Continue will switch the highlight to {pendingTargetTypeName} and update your selection.
-              Seats from other types will be removed.
+              {t('crossTypeContinue', { targetType: pendingTargetTypeName })}
             </p>
             <div className="mt-6 flex flex-wrap justify-end gap-3">
               <Button variant="outline" size="md" onClick={cancelCrossTypeSeat}>
-                Cancel
+                {t('common:cancel')}
               </Button>
               <Button variant="dark" size="md" onClick={confirmCrossTypeSeat}>
-                Continue
+                {t('continue')}
               </Button>
             </div>
           </div>

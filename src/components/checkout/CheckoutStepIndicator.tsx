@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 
 type CheckoutFlow = 'ga' | 'seated';
@@ -9,22 +10,23 @@ type CheckoutStepIndicatorProps = {
   className?: string;
 };
 
-const GA_STEPS = [
-  { key: 1, label: 'Tickets' },
-  { key: 2, label: 'Review' },
-  { key: 3, label: 'Pay' },
+const GA_STEP_KEYS = [
+  { key: 1, labelKey: 'stepTickets' },
+  { key: 2, labelKey: 'stepReview' },
+  { key: 3, labelKey: 'stepPay' },
 ] as const;
 
-const SEATED_STEPS = [
-  { key: 2, label: 'Review' },
-  { key: 3, label: 'Pay' },
+const SEATED_STEP_KEYS = [
+  { key: 2, labelKey: 'stepReview' },
+  { key: 3, labelKey: 'stepPay' },
 ] as const;
 
 export function CheckoutStepIndicator({ flow, step, className }: CheckoutStepIndicatorProps) {
-  const steps = flow === 'seated' ? SEATED_STEPS : GA_STEPS;
+  const { t } = useTranslation('checkout');
+  const steps = flow === 'seated' ? SEATED_STEP_KEYS : GA_STEP_KEYS;
 
   return (
-    <nav aria-label="Checkout progress" className={cn('mt-8', className)}>
+    <nav aria-label={t('progressAria')} className={cn('mt-8', className)}>
       <ol className="flex flex-wrap items-center gap-2">
         {steps.map((item, index) => {
           const isComplete = step > item.key;
@@ -59,7 +61,7 @@ export function CheckoutStepIndicator({ flow, step, className }: CheckoutStepInd
                 >
                   {displayIndex}
                 </span>
-                {item.label}
+                {t(item.labelKey)}
               </span>
             </li>
           );

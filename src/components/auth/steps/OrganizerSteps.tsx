@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { OrganizerOnboardingDraft } from '@/types/domain';
 import { DraftProfileImageAvatarInput } from '@/components/auth/DraftProfileImageAvatarInput';
 import { TALENT_BIO_MAX_CHARS, TALENT_BIO_MIN_CHARS } from '@/lib/onboardingValidation';
@@ -19,6 +20,7 @@ interface OrganizerStepsProps {
 }
 
 export function OrganizerSteps({ step, draft, socialInput, setSocialInput, onChange }: OrganizerStepsProps) {
+  const { t } = useTranslation('authPages');
   const [saudiRegionId, setSaudiRegionId] = useState('');
   const organizerCities = useMemo(() => getCitiesForRegion(saudiRegionId), [saudiRegionId]);
   const locationParts = draft.location.split(' · ');
@@ -35,29 +37,29 @@ export function OrganizerSteps({ step, draft, socialInput, setSocialInput, onCha
   if (step === 0) {
     return (
       <div className="space-y-4">
-        <Field label="Display name *">
+        <Field label={t('onboarding.organizer.displayName')}>
           <TextInput
             value={draft.displayName}
             onChange={(e) => onChange({ displayName: e.target.value })}
-            placeholder="Your organizer name"
+            placeholder={t('onboarding.organizer.displayNamePlaceholder')}
           />
         </Field>
         <DraftProfileImageAvatarInput
           value={draft.profileImage}
           onChange={(url) => onChange({ profileImage: url })}
-          displayName={draft.displayName.trim() || 'Organizer'}
+          displayName={draft.displayName.trim() || t('onboarding.organizer.defaultDisplayName')}
         />
         <Field
-          label="Bio *"
+          label={t('onboarding.organizer.bioLabel')}
           right={<CharCounter valueLength={bioLen} min={TALENT_BIO_MIN_CHARS} max={TALENT_BIO_MAX_CHARS} />}
-          helperText="Tell attendees what you organize and what they should expect."
+          helperText={t('onboarding.organizer.bioHelper')}
         >
           <TextArea
             rows={5}
             maxLength={TALENT_BIO_MAX_CHARS}
             value={draft.bio}
             onChange={(e) => onChange({ bio: e.target.value })}
-            placeholder="Describe your events, audience, and experience."
+            placeholder={t('onboarding.organizer.bioPlaceholder')}
           />
         </Field>
       </div>
@@ -66,24 +68,24 @@ export function OrganizerSteps({ step, draft, socialInput, setSocialInput, onCha
   if (step === 1) {
     return (
       <div className="space-y-4">
-        <InlineNotice variant="info" title="Contacts">
-          <p className="text-[12px]">These are used for verification and organizer communications (demo).</p>
+        <InlineNotice variant="info" title={t('onboarding.organizer.contactsTitle')}>
+          <p className="text-[12px]">{t('onboarding.organizer.contactsBody')}</p>
         </InlineNotice>
-        <Field label="Organizer email *">
+        <Field label={t('onboarding.organizer.email')}>
           <TextInput
             type="email"
             value={draft.email}
             onChange={(e) => onChange({ email: e.target.value })}
-            placeholder="you@company.com"
+            placeholder={t('onboarding.organizer.emailPlaceholder')}
           />
         </Field>
-        <Field label="Contact phone (optional)">
+        <Field label={t('onboarding.organizer.contactPhone')}>
           <SaudiPhoneInput
             value={draft.contactPhone}
             onChange={(next) => onChange({ contactPhone: next })}
           />
         </Field>
-        <Field label="Saudi region *">
+        <Field label={t('onboarding.shared.saudiRegion')}>
           <Select
             value={saudiRegionId}
             onChange={(e) => {
@@ -92,7 +94,7 @@ export function OrganizerSteps({ step, draft, socialInput, setSocialInput, onCha
               onChange({ location: '' });
             }}
           >
-            <option value="">Select region</option>
+            <option value="">{t('onboarding.shared.selectRegion')}</option>
             {SAUDI_REGIONS.map((region) => (
               <option key={region.id} value={region.id}>
                 {region.name}
@@ -100,7 +102,7 @@ export function OrganizerSteps({ step, draft, socialInput, setSocialInput, onCha
             ))}
           </Select>
         </Field>
-        <Field label="City *">
+        <Field label={t('onboarding.shared.city')}>
           <Select
             value={locationCity}
             onChange={(e) => {
@@ -110,7 +112,9 @@ export function OrganizerSteps({ step, draft, socialInput, setSocialInput, onCha
             }}
             disabled={!saudiRegionId}
           >
-            <option value="">{saudiRegionId ? 'Select city' : 'Choose a region first'}</option>
+            <option value="">
+              {saudiRegionId ? t('onboarding.shared.selectCity') : t('onboarding.shared.chooseRegionFirst')}
+            </option>
             {organizerCities.map((city) => (
               <option key={city.id} value={city.name}>
                 {city.name}
@@ -118,11 +122,11 @@ export function OrganizerSteps({ step, draft, socialInput, setSocialInput, onCha
             ))}
           </Select>
         </Field>
-        <Field label="Document (optional)" helperText="Upload an optional supporting document (demo).">
+        <Field label={t('onboarding.organizer.documentOptional')} helperText={t('onboarding.organizer.documentHelper')}>
           <div className="space-y-2">
             <UploadTileInput
-              title="Upload optional document"
-              subtitle="pdf, image, or scan"
+              title={t('onboarding.organizer.uploadOptionalDocument')}
+              subtitle={t('onboarding.vendor.uploadSubtitle')}
               accept="image/*,.pdf,application/pdf"
               onPick={(file) => onChange({ optionalDocument: `document:${file.name}` })}
             />
@@ -134,7 +138,7 @@ export function OrganizerSteps({ step, draft, socialInput, setSocialInput, onCha
                   className="font-semibold text-coral"
                   onClick={() => onChange({ optionalDocument: '' })}
                 >
-                  Remove
+                  {t('onboarding.buttons.remove')}
                 </button>
               </div>
             ) : null}
@@ -152,12 +156,12 @@ export function OrganizerSteps({ step, draft, socialInput, setSocialInput, onCha
             checked={draft.isCompany}
             onChange={(e) => onChange({ isCompany: e.target.checked })}
           />
-          This registration is for a company organizer
+          {t('onboarding.organizer.companyRegistration')}
         </label>
         {draft.isCompany ? (
           <>
             <label className="block">
-              <span className="text-[12px] font-semibold text-ink-60">Company name *</span>
+              <span className="text-[12px] font-semibold text-ink-60">{t('onboarding.organizer.companyName')}</span>
               <input
                 value={draft.companyName ?? ''}
                 onChange={(e) => onChange({ companyName: e.target.value })}
@@ -165,7 +169,7 @@ export function OrganizerSteps({ step, draft, socialInput, setSocialInput, onCha
               />
             </label>
             <label className="block">
-              <span className="text-[12px] font-semibold text-ink-60">Company information *</span>
+              <span className="text-[12px] font-semibold text-ink-60">{t('onboarding.organizer.companyInfo')}</span>
               <textarea
                 rows={3}
                 value={draft.companyInfo ?? ''}
@@ -176,7 +180,7 @@ export function OrganizerSteps({ step, draft, socialInput, setSocialInput, onCha
           </>
         ) : null}
         <label className="block">
-          <span className="text-[12px] font-semibold text-ink-60">Owner name *</span>
+          <span className="text-[12px] font-semibold text-ink-60">{t('onboarding.organizer.ownerName')}</span>
           <input
             value={draft.ownerName}
             onChange={(e) => onChange({ ownerName: e.target.value })}
@@ -184,7 +188,7 @@ export function OrganizerSteps({ step, draft, socialInput, setSocialInput, onCha
           />
         </label>
         <label className="block">
-          <span className="text-[12px] font-semibold text-ink-60">Owner info *</span>
+          <span className="text-[12px] font-semibold text-ink-60">{t('onboarding.organizer.ownerInfo')}</span>
           <textarea
             rows={3}
             value={draft.ownerInfo}
@@ -197,13 +201,13 @@ export function OrganizerSteps({ step, draft, socialInput, setSocialInput, onCha
   }
   return (
     <div className="space-y-3">
-      <p className="text-[12px] font-semibold text-ink-60">Social media (optional)</p>
+      <p className="text-[12px] font-semibold text-ink-60">{t('onboarding.organizer.socialTitle')}</p>
       <div className="flex gap-2">
         <input
           value={socialInput}
           onChange={(e) => setSocialInput(e.target.value)}
           className="w-full rounded-xl border border-ink-10 px-4 py-2.5 text-[14px]"
-          placeholder="https://instagram.com/..."
+          placeholder={t('onboarding.organizer.socialPlaceholder')}
         />
         <button
           type="button"
@@ -217,7 +221,7 @@ export function OrganizerSteps({ step, draft, socialInput, setSocialInput, onCha
           }}
           className="rounded-xl border border-ink-10 px-3 text-[12px] font-semibold hover:bg-ink-5"
         >
-          Add
+          {t('onboarding.buttons.add')}
         </button>
       </div>
       <ul className="space-y-1">
@@ -229,7 +233,7 @@ export function OrganizerSteps({ step, draft, socialInput, setSocialInput, onCha
               onClick={() => onChange({ socialLinks: draft.socialLinks.filter((x) => x !== item) })}
               className="font-semibold text-coral"
             >
-              Remove
+              {t('onboarding.buttons.remove')}
             </button>
           </li>
         ))}

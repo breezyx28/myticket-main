@@ -12,7 +12,7 @@ import {
   usePromoteSupportChatMutation,
   useStartSupportChatMutation,
 } from '@/api/endpoints';
-import { createSupportCaseSchema, supportMessageSchema, SUPPORT_CATEGORIES } from '@/schemas/support';
+import { createSupportCaseSchema, createSupportMessageSchema, SUPPORT_CATEGORIES } from '@/schemas/support';
 import { createComplaintSchema } from '@/schemas/complaint';
 import { supportChatMessageToBubble } from '@/lib/supportMappers';
 import type { SupportCategory } from '@/api/types/support';
@@ -84,10 +84,7 @@ export function SupportPage() {
     <div className="bg-white pb-20 pt-10">
       <div className="mx-auto max-w-[720px] px-6 lg:px-8">
         <h1 className="text-[32px] font-extrabold text-ink">{t('support:title')}</h1>
-        <p className="mt-2 text-[15px] text-ink-60">
-          Live chat and tracked requests both reach our support team. Sign in to keep a single
-          thread across reloads.
-        </p>
+        <p className="mt-2 text-[15px] text-ink-60">{t('lead')}</p>
 
         <div className="mt-8 inline-flex rounded-full border border-ink-10 bg-ink-5/50 p-1">
           <button
@@ -119,7 +116,12 @@ export function SupportPage() {
 }
 
 function ChatTab() {
-  const { t } = useTranslation('support');
+  const { t } = useTranslation(['support', 'common']);
+  const { t: tValidation, i18n } = useTranslation('validation');
+  const supportMessageSchema = useMemo(
+    () => createSupportMessageSchema(tValidation),
+    [tValidation, i18n.language],
+  );
   const { user } = useAuth();
   const listEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -226,31 +228,31 @@ function ChatTab() {
 
   return (
     <div className="mt-8 rounded-2xl border border-ink-10 bg-ink-5/40 p-6">
-      <h2 className="text-lg font-extrabold text-ink">Chat thread</h2>
+      <h2 className="text-lg font-extrabold text-ink">{t('chat.threadTitle')}</h2>
       {!user ? (
         <p className="mt-4 text-[14px] text-ink-60">
           <Link to="/login" className="font-semibold text-coral hover:underline">
-            Sign in
+            {t('common:signIn')}
           </Link>{' '}
-          to chat with our support team.
+          {t('chat.signInSuffix')}
         </p>
       ) : (
         <>
-          <p className="mt-2 text-[14px] text-ink-60">Signed in as {user.email}</p>
+          <p className="mt-2 text-[14px] text-ink-60">
+            {t('chat.signedInAs', { email: user.email })}
+          </p>
 
           {sessionPromoted && promotedCaseId && (
             <div className="mt-4 rounded-xl border border-mint/40 bg-mint/15 px-4 py-3 text-[13px] font-semibold text-ink">
-              This chat was escalated to support case #{promotedCaseId}. The team will follow up there.
+              {t('chat.escalatedNotice', { id: promotedCaseId })}
             </div>
           )}
 
           <div className="mt-4 max-h-[320px] space-y-3 overflow-y-auto rounded-xl border border-ink-10 bg-white p-4">
             {sessionFetching && messages.length === 0 ? (
-              <p className="text-[13px] text-ink-40">Loading chat history…</p>
+              <p className="text-[13px] text-ink-40">{t('chat.loadingHistory')}</p>
             ) : messages.length === 0 ? (
-              <p className="text-[13px] text-ink-40">
-                Send a message to start a new chat session.
-              </p>
+              <p className="text-[13px] text-ink-40">{t('chat.emptyPrompt')}</p>
             ) : (
               messages.map((m) => (
                 <div
@@ -301,8 +303,8 @@ function ChatTab() {
 
           {sessionId && !sessionPromoted && (
             <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-ink-10 bg-white px-4 py-3 text-[12px] text-ink-60">
-              <span className="font-semibold text-ink">Need formal tracking?</span>
-              <span>Convert this chat into a tracked support case so you can re-open it later.</span>
+              <span className="font-semibold text-ink">{t('chat.trackingQuestion')}</span>
+              <span>{t('chat.trackingBody')}</span>
               <Button
                 type="button"
                 variant="outline"
@@ -328,17 +330,18 @@ interface RequestTabProps {
 }
 
 function RequestTab({ user }: RequestTabProps) {
+  const { t } = useTranslation(['support', 'common']);
   const [mode, setMode] = useState<'case' | 'complaint'>('case');
 
   if (!user) {
     return (
       <div className="mt-8 rounded-2xl border border-ink-10 bg-ink-5/40 p-6">
-        <h2 className="text-lg font-extrabold text-ink">Open a request</h2>
+        <h2 className="text-lg font-extrabold text-ink">{t('request.title')}</h2>
         <p className="mt-2 text-[14px] text-ink-60">
           <Link to="/login" className="font-semibold text-coral hover:underline">
-            Sign in
+            {t('common:signIn')}
           </Link>{' '}
-          to file a support case or formal complaint.
+          {t('request.signInSuffix')}
         </p>
       </div>
     );
@@ -355,7 +358,7 @@ function RequestTab({ user }: RequestTabProps) {
             mode === 'case' ? 'bg-ink text-white' : 'text-ink-60'
           )}
         >
-          Support case
+          {t('request.supportCaseTab')}
         </button>
         <button
           type="button"
@@ -365,7 +368,7 @@ function RequestTab({ user }: RequestTabProps) {
             mode === 'complaint' ? 'bg-ink text-white' : 'text-ink-60'
           )}
         >
-          Formal complaint
+          {t('request.complaintTab')}
         </button>
       </div>
 
@@ -376,6 +379,11 @@ function RequestTab({ user }: RequestTabProps) {
 
 function SupportCaseForm() {
   const { t } = useTranslation('support');
+  const { t: tValidation, i18n } = useTranslation('validation');
+  const supportCaseSchema = useMemo(
+    () => createSupportCaseSchema(tValidation),
+    [tValidation, i18n.language],
+  );
   const [category, setCategory] = useState<SupportCategory>('ticket');
   const [subject, setSubject] = useState('');
   const [orderRef, setOrderRef] = useState('');
@@ -397,7 +405,7 @@ function SupportCaseForm() {
     };
 
     try {
-      await createSupportCaseSchema.validate(payload, { abortEarly: false });
+      await supportCaseSchema.validate(payload, { abortEarly: false });
     } catch (err) {
       setError(err instanceof Error ? err.message : t('case.formReview'));
       return;
@@ -418,14 +426,14 @@ function SupportCaseForm() {
     return (
       <div className="mt-6 rounded-2xl border border-mint/40 bg-mint/15 p-5">
         <p className="text-[14px] font-semibold text-ink">
-          Support case #{createdId} received. We&apos;ll respond by email and on this page.
+          {t('case.success', { id: createdId })}
         </p>
         <button
           type="button"
           onClick={() => setCreatedId(null)}
           className="mt-3 text-[13px] font-semibold text-coral hover:underline"
         >
-          Open another case
+          {t('case.openAnother')}
         </button>
       </div>
     );
@@ -433,13 +441,11 @@ function SupportCaseForm() {
 
   return (
     <form onSubmit={onSubmit} className="mt-6 space-y-4">
-      <h2 className="text-lg font-extrabold text-ink">Support case</h2>
-      <p className="text-[13px] text-ink-60">
-        Routed to the support queue. Use this for booking, technical, or account issues.
-      </p>
+      <h2 className="text-lg font-extrabold text-ink">{t('case.title')}</h2>
+      <p className="text-[13px] text-ink-60">{t('case.lead')}</p>
 
       <label className="block">
-        <span className="text-[12px] font-semibold text-ink-60">Category</span>
+        <span className="text-[12px] font-semibold text-ink-60">{t('case.categoryLabel')}</span>
         <select
           value={category}
           onChange={(e) => setCategory(e.target.value as SupportCategory)}
@@ -454,7 +460,7 @@ function SupportCaseForm() {
       </label>
 
       <label className="block">
-        <span className="text-[12px] font-semibold text-ink-60">Subject</span>
+        <span className="text-[12px] font-semibold text-ink-60">{t('case.subjectLabel')}</span>
         <input
           required
           value={subject}
@@ -465,17 +471,17 @@ function SupportCaseForm() {
       </label>
 
       <label className="block">
-        <span className="text-[12px] font-semibold text-ink-60">Order / ticket ref (optional)</span>
+        <span className="text-[12px] font-semibold text-ink-60">{t('case.orderRefLabel')}</span>
         <input
           value={orderRef}
           onChange={(e) => setOrderRef(e.target.value)}
           className="mt-1.5 w-full rounded-xl border border-ink-10 px-4 py-3 font-mono text-[13px] outline-none focus:border-coral"
-          placeholder="ORD-…"
+          placeholder={t('case.orderRefPlaceholder')}
         />
       </label>
 
       <label className="block">
-        <span className="text-[12px] font-semibold text-ink-60">Message</span>
+        <span className="text-[12px] font-semibold text-ink-60">{t('case.messageLabel')}</span>
         <textarea
           required
           value={message}
@@ -501,6 +507,11 @@ function SupportCaseForm() {
 
 function ComplaintForm() {
   const { t } = useTranslation('support');
+  const { t: tValidation, i18n } = useTranslation('validation');
+  const complaintSchema = useMemo(
+    () => createComplaintSchema(tValidation),
+    [tValidation, i18n.language],
+  );
   const {
     data: categoriesResponse,
     isLoading: categoriesLoading,
@@ -560,7 +571,7 @@ function ComplaintForm() {
     };
 
     try {
-      await createComplaintSchema.validate(payload, { abortEarly: false });
+      await complaintSchema.validate(payload, { abortEarly: false });
     } catch (err) {
       setError(err instanceof Error ? err.message : t('complaint.formReview'));
       return;
@@ -582,14 +593,14 @@ function ComplaintForm() {
     return (
       <div className="mt-6 rounded-2xl border border-mint/40 bg-mint/15 p-5">
         <p className="text-[14px] font-semibold text-ink">
-          Complaint #{createdId} received. Our review team will follow up by email.
+          {t('complaint.success', { id: createdId })}
         </p>
         <button
           type="button"
           onClick={() => setCreatedId(null)}
           className="mt-3 text-[13px] font-semibold text-coral hover:underline"
         >
-          File another complaint
+          {t('complaint.openAnother')}
         </button>
       </div>
     );
@@ -597,21 +608,19 @@ function ComplaintForm() {
 
   return (
     <form onSubmit={onSubmit} className="mt-6 space-y-4">
-      <h2 className="text-lg font-extrabold text-ink">Formal complaint</h2>
-      <p className="text-[13px] text-ink-60">
-        Use this for organizer, venue, safety, or staff issues that need a written record.
-      </p>
+      <h2 className="text-lg font-extrabold text-ink">{t('complaint.title')}</h2>
+      <p className="text-[13px] text-ink-60">{t('complaint.lead')}</p>
 
       {categoriesLoading ? (
-        <p className="text-[13px] text-ink-40">Loading complaint categories…</p>
+        <p className="text-[13px] text-ink-40">{t('complaint.loadingCategories')}</p>
       ) : categoriesError ? (
         <p className="rounded-xl border border-coral/30 bg-coral/10 px-3 py-2 text-[12px] font-semibold text-coral">
-          Could not load complaint categories. Please retry shortly.
+          {t('complaint.categoriesError')}
         </p>
       ) : (
         <>
           <label className="block">
-            <span className="text-[12px] font-semibold text-ink-60">Category</span>
+            <span className="text-[12px] font-semibold text-ink-60">{t('complaint.categoryLabel')}</span>
             <select
               value={parentId}
               onChange={(e) => setParentId(e.target.value)}
@@ -627,13 +636,13 @@ function ComplaintForm() {
 
           {subcategories.length > 0 && (
             <label className="block">
-              <span className="text-[12px] font-semibold text-ink-60">Subcategory</span>
+              <span className="text-[12px] font-semibold text-ink-60">{t('complaint.subcategoryLabel')}</span>
               <select
                 value={subId}
                 onChange={(e) => setSubId(e.target.value)}
                 className="mt-1.5 w-full rounded-xl border border-ink-10 bg-white px-4 py-3 text-[14px] outline-none focus:border-coral"
               >
-                <option value="">Pick a subcategory</option>
+                <option value="">{t('complaint.subcategoryPlaceholder')}</option>
                 {subcategories.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.label}
@@ -646,7 +655,7 @@ function ComplaintForm() {
       )}
 
       <label className="block">
-        <span className="text-[12px] font-semibold text-ink-60">Subject</span>
+        <span className="text-[12px] font-semibold text-ink-60">{t('complaint.subjectLabel')}</span>
         <input
           required
           value={subject}
@@ -657,7 +666,7 @@ function ComplaintForm() {
       </label>
 
       <label className="block">
-        <span className="text-[12px] font-semibold text-ink-60">Description</span>
+        <span className="text-[12px] font-semibold text-ink-60">{t('complaint.descriptionLabel')}</span>
         <textarea
           required
           value={body}
@@ -670,21 +679,21 @@ function ComplaintForm() {
 
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block">
-          <span className="text-[12px] font-semibold text-ink-60">Related order id (optional)</span>
+          <span className="text-[12px] font-semibold text-ink-60">{t('complaint.relatedOrderLabel')}</span>
           <input
             value={orderId}
             onChange={(e) => setOrderId(e.target.value)}
             className="mt-1.5 w-full rounded-xl border border-ink-10 px-4 py-3 font-mono text-[13px] outline-none focus:border-coral"
-            placeholder="ORD-…"
+            placeholder={t('complaint.orderPlaceholder')}
           />
         </label>
         <label className="block">
-          <span className="text-[12px] font-semibold text-ink-60">Related event id (optional)</span>
+          <span className="text-[12px] font-semibold text-ink-60">{t('complaint.relatedEventLabel')}</span>
           <input
             value={eventId}
             onChange={(e) => setEventId(e.target.value)}
             className="mt-1.5 w-full rounded-xl border border-ink-10 px-4 py-3 font-mono text-[13px] outline-none focus:border-coral"
-            placeholder="EVT-…"
+            placeholder={t('complaint.eventPlaceholder')}
           />
         </label>
       </div>

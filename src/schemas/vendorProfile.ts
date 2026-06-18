@@ -1,39 +1,54 @@
 import * as yup from 'yup';
+import type { ValidationTFunction } from '@/schemas/types';
 
-const phone = yup
-  .string()
-  .trim()
-  .matches(/^\+?[0-9 ()-]{6,20}$/i, 'Enter a valid phone number.');
+function phoneField(t: ValidationTFunction) {
+  return yup
+    .string()
+    .trim()
+    .matches(/^\+?[0-9 ()-]{6,20}$/i, t('common.phoneInvalid'));
+}
 
-export const vendorOnboardingSchema = yup
-  .object({
-    profile_name: yup.string().trim().min(2).max(120).required('Business name is required.'),
-    contact_email: yup.string().trim().email().required('Contact email is required.'),
-    contact_phone: phone.required('Contact phone is required.'),
-    bio: yup.string().trim().min(20).max(2000).required('Bio is required.'),
-    service_categories: yup
-      .array(yup.string().trim().required())
-      .min(1, 'Select at least one service category.'),
-    verification_documents: yup
-      .array(yup.string().trim().required())
-      .min(1, 'Upload at least one verification document.'),
-    gallery: yup.array(yup.string().trim().required()).default([]),
-    city: yup.string().trim().required('City is required.'),
-    coverage_area: yup.string().trim().required('Coverage area is required.'),
-  })
-  .strict();
+export function createVendorOnboardingSchema(t: ValidationTFunction) {
+  return yup
+    .object({
+      profile_name: yup.string().trim().min(2).max(120).required(t('vendor.businessNameRequired')),
+      contact_email: yup
+        .string()
+        .trim()
+        .email(t('common.emailInvalid'))
+        .required(t('vendor.contactEmailRequired')),
+      contact_phone: phoneField(t).required(t('vendor.contactPhoneRequired')),
+      bio: yup.string().trim().min(20).max(2000).required(t('vendor.bioRequired')),
+      service_categories: yup
+        .array(yup.string().trim().required())
+        .min(1, t('vendor.serviceCategoriesMin')),
+      verification_documents: yup
+        .array(yup.string().trim().required())
+        .min(1, t('vendor.verificationDocumentsMin')),
+      gallery: yup.array(yup.string().trim().required()).default([]),
+      city: yup.string().trim().required(t('vendor.cityRequired')),
+      coverage_area: yup.string().trim().required(t('vendor.coverageAreaRequired')),
+    })
+    .strict();
+}
 
-export type VendorOnboardingSchema = yup.InferType<typeof vendorOnboardingSchema>;
+export type VendorOnboardingSchema = yup.InferType<ReturnType<typeof createVendorOnboardingSchema>>;
 
-export const createVendorApplicationSchema = yup
-  .object({
-    business_name: yup.string().trim().min(2).max(120).required('Business name is required.'),
-    contact_email: yup.string().trim().email().required('Contact email is required.'),
-    contact_phone: phone.required('Contact phone is required.'),
-    service_categories: yup
-      .array(yup.string().trim().required())
-      .min(1, 'Select at least one service category.'),
-  })
-  .strict();
+export function createVendorApplicationSchema(t: ValidationTFunction) {
+  return yup
+    .object({
+      business_name: yup.string().trim().min(2).max(120).required(t('vendor.businessNameRequired')),
+      contact_email: yup
+        .string()
+        .trim()
+        .email(t('common.emailInvalid'))
+        .required(t('vendor.contactEmailRequired')),
+      contact_phone: phoneField(t).required(t('vendor.contactPhoneRequired')),
+      service_categories: yup
+        .array(yup.string().trim().required())
+        .min(1, t('vendor.serviceCategoriesMin')),
+    })
+    .strict();
+}
 
-export type CreateVendorApplicationSchema = yup.InferType<typeof createVendorApplicationSchema>;
+export type CreateVendorApplicationSchema = yup.InferType<ReturnType<typeof createVendorApplicationSchema>>;

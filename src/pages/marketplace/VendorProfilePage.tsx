@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Star } from '@phosphor-icons/react';
 import {
@@ -12,6 +13,13 @@ import { createEngagementSchema } from '@/schemas/engagement';
 import { ContactEngagementDialog } from '@/components/marketplace/ContactEngagementDialog';
 
 export function VendorProfilePage() {
+  const { t: tValidation, i18n } = useTranslation('validation');
+  const engagementSchema = useMemo(
+    () => createEngagementSchema(tValidation),
+    [tValidation, i18n.language],
+  );
+  const { t } = useTranslation(['marketplace', 'nav']);
+  const vp = (key: string, opts?: Record<string, unknown>) => t(`vendorProfile.${key}`, opts);
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -46,7 +54,7 @@ export function VendorProfilePage() {
   }
 
   if (vendorLoading) {
-    return <div className="px-6 py-24 text-center text-ink-40">Loading…</div>;
+    return <div className="px-6 py-24 text-center text-ink-40">{vp('loading')}</div>;
   }
 
   if (vendorError || !vendor) {
@@ -57,7 +65,7 @@ export function VendorProfilePage() {
     <div className="bg-white pb-20 pt-10">
       <div className="mx-auto max-w-[960px] px-6 lg:px-8">
         <Link to="/marketplace" className="text-[13px] font-semibold text-coral hover:underline">
-          ← Marketplace
+          ← {t('nav:marketplace')}
         </Link>
 
         <div className="mt-8 flex flex-col gap-8 md:flex-row md:items-start">
@@ -84,24 +92,24 @@ export function VendorProfilePage() {
                   setContactOpen(true);
                 }}
               >
-                Contact vendor
+                {vp('contactVendor')}
               </button>
             )}
           </div>
         </div>
 
         <section className="mt-12 rounded-2xl border border-ink-10 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-extrabold text-ink">Verification &amp; coverage</h2>
+          <h2 className="text-lg font-extrabold text-ink">{vp('verificationTitle')}</h2>
           <ul className="mt-3 list-inside list-disc space-y-1 text-[14px] text-ink-60">
-            <li>Commercial registration verified (mock)</li>
-            <li>Service area: {vendor.city} and surrounding regions (demo)</li>
-            <li>Insurance certificate on file for large events (simulated)</li>
+            <li>{vp('verifyRegistration')}</li>
+            <li>{vp('serviceArea', { city: vendor.city })}</li>
+            <li>{vp('verifyInsurance')}</li>
           </ul>
         </section>
 
         {vendor.gallery.length > 0 && (
           <div className="mt-12">
-            <h2 className="text-lg font-extrabold text-ink">Gallery</h2>
+            <h2 className="text-lg font-extrabold text-ink">{vp('gallery')}</h2>
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
               {vendor.gallery.map((src) => (
                 <img key={src} src={src} alt="" className="aspect-video rounded-xl object-cover" />
@@ -111,14 +119,14 @@ export function VendorProfilePage() {
         )}
 
         <section className="mt-12 rounded-2xl border border-ink-10 bg-ink-5/40 p-6">
-          <h2 className="text-lg font-extrabold text-ink">Ratings</h2>
+          <h2 className="text-lg font-extrabold text-ink">{vp('ratings')}</h2>
           <p className="mt-2 flex flex-wrap items-center gap-2 text-[15px] text-ink">
             <Star size={22} className="text-amber" weight="fill" />
             <span className="font-bold">{displayRating.toFixed(1)}</span>
             <span className="text-[13px] font-medium text-ink-60">
               {ratingsCount > 0
-                ? `from ${ratingsCount} ${ratingsCount === 1 ? 'rating' : 'ratings'}`
-                : 'No public ratings yet'}
+                ? t('vendorProfile.fromRatings', { count: ratingsCount })
+                : vp('noPublicRatings')}
             </span>
           </p>
           {recentRatings.length > 0 && (
@@ -126,7 +134,7 @@ export function VendorProfilePage() {
               {recentRatings.map((r) => (
                 <li key={String(r.id)} className="rounded-xl bg-white/80 p-3 text-[13px] text-ink-60">
                   <p className="font-semibold text-ink">
-                    {r.user_name?.trim() ? r.user_name : 'Anonymous'}{' '}
+                    {r.user_name?.trim() ? r.user_name : vp('anonymous')}{' '}
                     <span className="font-normal text-ink-40">· ★ {r.stars}</span>
                   </p>
                   {r.comment?.trim() ? (
@@ -136,15 +144,13 @@ export function VendorProfilePage() {
               ))}
             </ul>
           )}
-          <p className="mt-4 text-[13px] text-ink-60">
-            Mutual ratings with organizers appear after a completed booking (full product).
-          </p>
+          <p className="mt-4 text-[13px] text-ink-60">{vp('mutualRatingsNote')}</p>
           <button
             type="button"
             disabled
             className="mt-4 w-full rounded-full border border-dashed border-ink-20 bg-white px-5 py-3 text-[13px] font-semibold text-ink-40 sm:w-auto"
           >
-            Mutual ratings after completed work
+            {vp('mutualRatingsCta')}
           </button>
         </section>
       </div>
@@ -163,14 +169,14 @@ export function VendorProfilePage() {
         onSubmit={async ({ topic, initial_message }) => {
           setContactError(null);
           try {
-            await createEngagementSchema.validate({
+            await engagementSchema.validate({
               target_type: 'vendor',
               target_id: vendor.id,
               topic,
               initial_message: initial_message || undefined,
             });
           } catch (err) {
-            setContactError(err instanceof Error ? err.message : 'Please review the form.');
+            setContactError(err instanceof Error ? err.message : vp('formReview'));
             return;
           }
           try {
@@ -187,7 +193,7 @@ export function VendorProfilePage() {
               err && typeof err === 'object' && 'data' in err && err.data
                 && typeof (err as { data: { message?: unknown } }).data.message === 'string'
                 ? ((err as { data: { message: string } }).data.message)
-                : 'Could not start engagement.';
+                : vp('startEngagementError');
             setContactError(message);
           }
         }}

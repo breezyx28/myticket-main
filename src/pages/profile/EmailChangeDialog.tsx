@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
-import { changeEmailSchema, type ChangeEmailSchema } from '@/schemas/auth';
+import { createChangeEmailSchema, type ChangeEmailSchema } from '@/schemas/auth';
 import { AuthApiError } from '@/lib/authErrors';
 
 type EmailChangeDialogProps = {
@@ -20,6 +21,12 @@ export function EmailChangeDialog({
   onSuccess,
   onError,
 }: EmailChangeDialogProps) {
+  const { t } = useTranslation(['profile', 'common']);
+  const { t: tValidation, i18n } = useTranslation('validation');
+  const changeEmailSchema = useMemo(
+    () => createChangeEmailSchema(tValidation),
+    [tValidation, i18n.language],
+  );
   const {
     register,
     handleSubmit,
@@ -39,10 +46,8 @@ export function EmailChangeDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6" role="dialog">
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-card-lg">
-        <h3 className="text-lg font-extrabold text-ink">Change email</h3>
-        <p className="mt-2 text-[14px] text-ink-60">
-          We&apos;ll send a verification link to your new address. Your sign-in email stays the same until you confirm.
-        </p>
+        <h3 className="text-lg font-extrabold text-ink">{t('profile:emailChange.title')}</h3>
+        <p className="mt-2 text-[14px] text-ink-60">{t('profile:emailChange.lead')}</p>
         <form
           className="mt-4 space-y-4"
           onSubmit={handleSubmit(async (values) => {
@@ -54,12 +59,12 @@ export function EmailChangeDialog({
               onSuccess(message);
               onClose();
             } catch (e) {
-              onError(e instanceof AuthApiError ? e.message : 'Could not start email change.');
+              onError(e instanceof AuthApiError ? e.message : t('profile:emailChange.error'));
             }
           })}
         >
           <label className="block">
-            <span className="text-[12px] font-semibold text-ink-60">New email</span>
+            <span className="text-[12px] font-semibold text-ink-60">{t('profile:emailChange.newEmail')}</span>
             <input
               type="email"
               autoComplete="email"
@@ -71,7 +76,7 @@ export function EmailChangeDialog({
             )}
           </label>
           <label className="block">
-            <span className="text-[12px] font-semibold text-ink-60">Current password</span>
+            <span className="text-[12px] font-semibold text-ink-60">{t('profile:emailChange.currentPassword')}</span>
             <input
               type="password"
               autoComplete="current-password"
@@ -84,10 +89,10 @@ export function EmailChangeDialog({
           </label>
           <div className="flex gap-2 pt-2">
             <Button type="button" variant="outline" size="md" className="flex-1" onClick={onClose}>
-              Cancel
+              {t('common:cancel')}
             </Button>
             <Button type="submit" variant="dark" size="md" className="flex-1" disabled={isSubmitting}>
-              {isSubmitting ? 'Sending…' : 'Send verification'}
+              {isSubmitting ? t('profile:emailChange.sending') : t('profile:emailChange.sendVerification')}
             </Button>
           </div>
         </form>

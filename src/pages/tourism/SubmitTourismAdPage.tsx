@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { Trash, UploadSimple, X } from '@phosphor-icons/react';
 import type { Id } from '@/api/types/common';
@@ -28,15 +29,20 @@ import {
   normalizeOpeningHours,
   SAUDI_DEFAULT_LAT,
   SAUDI_DEFAULT_LNG,
-  tourismAdContactStepSchema,
-  tourismAdGalleryStepSchema,
-  tourismAdHoursStepSchema,
-  tourismAdLocationStepSchema,
+  createTourismAdContactStepSchema,
+  createTourismAdGalleryStepSchema,
+  createTourismAdHoursStepSchema,
+  createTourismAdLocationStepSchema,
   type TourismAdFormValues,
 } from '@/schemas/tourismAd';
 
 const DRAFT_ID_KEY = 'myticket_tourism_ad_draft_id';
-const STEPS = ['Location', 'Hours & services', 'Contact', 'Gallery & review'] as const;
+const STEP_KEYS = [
+  'submit.steps.location',
+  'submit.steps.hoursAndServices',
+  'submit.steps.contact',
+  'submit.steps.galleryAndReview',
+] as const;
 
 function readStoredDraftId(): Id | null {
   try {
@@ -101,7 +107,26 @@ function formToPayload(values: TourismAdFormValues) {
 }
 
 export function SubmitTourismAdPage() {
+  const { t } = useTranslation(['tourism', 'common']);
+  const { t: tValidation, i18n } = useTranslation('validation');
+  const tourismAdLocationStepSchema = useMemo(
+    () => createTourismAdLocationStepSchema(tValidation),
+    [tValidation, i18n.language],
+  );
+  const tourismAdHoursStepSchema = useMemo(
+    () => createTourismAdHoursStepSchema(tValidation),
+    [tValidation, i18n.language],
+  );
+  const tourismAdContactStepSchema = useMemo(
+    () => createTourismAdContactStepSchema(tValidation),
+    [tValidation, i18n.language],
+  );
+  const tourismAdGalleryStepSchema = useMemo(
+    () => createTourismAdGalleryStepSchema(tValidation),
+    [tValidation, i18n.language],
+  );
   const navigate = useNavigate();
+  const steps = useMemo(() => STEP_KEYS.map((key) => t(key)), [t]);
   const [step, setStep] = useState(0);
   const [draftId, setDraftId] = useState<Id | null>(() => readStoredDraftId());
   const [form, setForm] = useState<TourismAdFormValues>(EMPTY_TOURISM_AD_FORM);
@@ -144,7 +169,7 @@ export function SubmitTourismAdPage() {
           loadedAd.location_name?.trim() !== 'Untitled location',
       );
       if (loadedAd.status !== 'draft') {
-        setStep(STEPS.length - 1);
+        setStep(steps.length - 1);
       }
       setInitialized(true);
       return;
@@ -172,7 +197,7 @@ export function SubmitTourismAdPage() {
           writeStoredDraftId(created.id);
           setForm(detailToForm(created));
         } catch (e) {
-          setError(toAuthApiError(e, 'Could not start your ad draft.').message);
+          setError(toAuthApiError(e, t('submit.draftStartFailed')).message);
         } finally {
           setInitialized(true);
         }
@@ -205,7 +230,7 @@ export function SubmitTourismAdPage() {
       await updateAd({ id: draftId, body: formToPayload(form) }).unwrap();
       return true;
     } catch (e) {
-      const err = toAuthApiError(e, 'Could not save draft.');
+      const err = toAuthApiError(e, t('submit.saveFailed'));
       setError(err.message);
       const next: Record<string, string> = {};
       for (const [key, msgs] of Object.entries(err.fieldErrors)) {
@@ -214,14 +239,15 @@ export function SubmitTourismAdPage() {
       setFieldErrors(next);
       return false;
     }
-  }, [draftId, form, isEditable, updateAd]);
+  }, [draftId, form, isEditable, updateAd, t]);
 
   async function validateStep(idx: number): Promise<boolean> {
     setError(null);
     setFieldErrors({});
     if (idx === 0 && !locationPicked) {
-      setFieldErrors({ location: 'Pick a location on the map or choose a search result.' });
-      setError('Pick a location on the map or choose a search result.');
+      const msg = t('submit.pickLocation');
+      setFieldErrors({ location: msg });
+      setError(msg);
       return false;
     }
     try {
@@ -238,9 +264,9 @@ export function SubmitTourismAdPage() {
           if (item.path && !next[item.path]) next[item.path] = item.message;
         }
         setFieldErrors(next);
-        setError(inner[0]?.message ?? 'Please correct the highlighted fields.');
+        setError(inner[0]?.message ?? t('submit.correctFields'));
       } else {
-        setError('Please complete this step before continuing.');
+        setError(t('submit.completeStep'));
       }
       return false;
     }
@@ -252,7 +278,7 @@ export function SubmitTourismAdPage() {
     if (!valid) return;
     const saved = await saveDraft();
     if (!saved) return;
-    setStep((s) => Math.min(STEPS.length - 1, s + 1));
+    setStep((s) => Math.min(steps.length - 1, s + 1));
   }
 
   async function onSubmitForReview() {
@@ -266,7 +292,7 @@ export function SubmitTourismAdPage() {
       await submitAd(draftId).unwrap();
       writeStoredDraftId(null);
     } catch (e) {
-      setError(toAuthApiError(e, 'Could not submit for review.').message);
+      setError(toAuthApiError(e, t('submit.submitFailed')).message);
     }
   }
 
@@ -276,7 +302,7 @@ export function SubmitTourismAdPage() {
     try {
       await withdrawAd(draftId).unwrap();
     } catch (e) {
-      setError(toAuthApiError(e, 'Could not withdraw ad.').message);
+      setError(toAuthApiError(e, t('submit.withdrawFailed')).message);
     }
   }
 
@@ -294,7 +320,7 @@ export function SubmitTourismAdPage() {
         body: { gallery_urls: nextUrls },
       }).unwrap();
     } catch (err) {
-      setError(toAuthApiError(err, 'Upload failed.').message);
+      setError(toAuthApiError(err, t('submit.uploadFailed')).message);
     }
   }
 
@@ -322,23 +348,24 @@ export function SubmitTourismAdPage() {
     () => (
       <div className="space-y-2 rounded-xl border border-ink-10 bg-ink-5/30 p-4 text-[13px] text-ink-70">
         <p>
-          <strong className="text-ink">Location:</strong> {form.location_name || '—'}
+          <strong className="text-ink">{t('submit.summaryLocation')}</strong> {form.location_name || '—'}
         </p>
         <p>
-          <strong className="text-ink">Services:</strong>{' '}
+          <strong className="text-ink">{t('submit.summaryServices')}</strong>{' '}
           {form.services.length ? form.services.join(', ') : '—'}
         </p>
         <p>
-          <strong className="text-ink">Gallery:</strong> {form.gallery_urls.length} image(s)
+          <strong className="text-ink">{t('submit.summaryGallery')}</strong>{' '}
+          {t('submit.summaryImageCount', { count: form.gallery_urls.length })}
         </p>
       </div>
     ),
-    [form],
+    [form, t],
   );
 
   if (!initialized || (draftId && loadingAd && !loadedAd)) {
     return (
-      <div className="px-6 py-24 text-center text-[13px] text-ink-40">Loading…</div>
+      <div className="px-6 py-24 text-center text-[13px] text-ink-40">{t('submit.loading')}</div>
     );
   }
 
@@ -346,20 +373,18 @@ export function SubmitTourismAdPage() {
     <div className="bg-white pb-20 pt-10">
       <div className="mx-auto max-w-[760px] px-6 lg:px-8">
         <Link to="/" className="text-[13px] font-semibold text-coral hover:underline">
-          ← Back to home
+          {t('submit.backHome')}
         </Link>
 
         <FormSectionCard
-          eyebrow="Tourism"
-          title="Submit your tourism ad"
-          description="Complete all steps, then submit for admin review. You can save a draft and return later."
+          eyebrow={t('submit.eyebrow')}
+          title={t('submit.title')}
+          description={t('submit.description')}
           className="mt-6 overflow-hidden"
         >
           {isPending ? (
-            <InlineNotice variant="info" title="Pending review">
-              <p className="text-[13px] text-ink-70">
-                Your ad is awaiting admin approval. You can withdraw it if you need to make changes.
-              </p>
+            <InlineNotice variant="info" title={t('submit.pendingTitle')}>
+              <p className="text-[13px] text-ink-70">{t('submit.pendingBody')}</p>
               <Button
                 type="button"
                 variant="outline"
@@ -368,25 +393,22 @@ export function SubmitTourismAdPage() {
                 loading={withdrawing}
                 onClick={() => void onWithdraw()}
               >
-                Withdraw submission
+                {t('submit.withdraw')}
               </Button>
             </InlineNotice>
           ) : null}
 
           {isRejected ? (
-            <InlineNotice variant="warning" title="Rejected">
+            <InlineNotice variant="warning" title={t('submit.rejectedTitle')}>
               <p className="text-[13px] text-ink-70">
-                {loadedAd?.rejection_reason ??
-                  'This ad was rejected and cannot be edited or resubmitted.'}
+                {loadedAd?.rejection_reason ?? t('submit.rejectedFallback')}
               </p>
             </InlineNotice>
           ) : null}
 
           {isPublished ? (
-            <InlineNotice variant="success" title="Published">
-              <p className="text-[13px] text-ink-70">
-                Your ad is live on the homepage carousel.
-              </p>
+            <InlineNotice variant="success" title={t('submit.publishedTitle')}>
+              <p className="text-[13px] text-ink-70">{t('submit.publishedBody')}</p>
               <Button
                 type="button"
                 variant="dark"
@@ -394,7 +416,7 @@ export function SubmitTourismAdPage() {
                 className="mt-3"
                 onClick={() => navigate(`/tourism-ads/${draftId}`)}
               >
-                View public ad
+                {t('submit.viewPublicAd')}
               </Button>
             </InlineNotice>
           ) : null}
@@ -411,15 +433,15 @@ export function SubmitTourismAdPage() {
           {isEditable ? (
             <>
               <OnboardingHeader
-                title={STEPS[step] ?? 'Review'}
-                description="Fields are saved to your draft as you continue."
-                steps={[...STEPS]}
+                title={steps[step] ?? t('submit.steps.review')}
+                description={t('submit.draftSavedHint')}
+                steps={[...steps]}
                 activeIdx={step}
               />
 
               {step === 0 ? (
                 <div className="space-y-4">
-                  <Field label="Pin your destination *" errorText={fieldErrors.location}>
+                  <Field label={t('submit.pinDestination')} errorText={fieldErrors.location}>
                     <LocationMapPicker
                       latitude={form.latitude}
                       longitude={form.longitude}
@@ -437,16 +459,16 @@ export function SubmitTourismAdPage() {
                       }}
                     />
                   </Field>
-                  <Field label="Location name *" errorText={fieldErrors.location_name}>
+                  <Field label={t('submit.locationName')} errorText={fieldErrors.location_name}>
                     <TextInput
                       value={form.location_name}
                       onChange={(e) => patchForm({ location_name: e.target.value })}
-                      placeholder="e.g. Red Sea Coral Bay"
+                      placeholder={t('submit.locationNamePlaceholder')}
                     />
                   </Field>
                   <Field
-                    label="Description *"
-                    helperText="50–5000 characters."
+                    label={t('submit.descriptionLabel')}
+                    helperText={t('submit.descriptionHelper')}
                     errorText={fieldErrors.description}
                   >
                     <TextArea
@@ -460,18 +482,21 @@ export function SubmitTourismAdPage() {
 
               {step === 1 ? (
                 <div className="space-y-4">
-                  <Field label="Opening hours *" helperText="Mark days as closed when you are not open. At least one open day is required.">
+                  <Field
+                    label={t('submit.openingHoursLabel')}
+                    helperText={t('submit.openingHoursHelper')}
+                  >
                     <OpeningHoursEditor
                       value={form.opening_hours}
                       fieldErrors={fieldErrors}
                       onChange={(opening_hours) => patchForm({ opening_hours })}
                     />
                   </Field>
-                  <Field label="Services *" errorText={fieldErrors.services}>
+                  <Field label={t('submit.servicesLabel')} errorText={fieldErrors.services}>
                     <div className="flex gap-2">
                       <TextInput
                         value={serviceInput}
-                        placeholder="e.g. guided tours"
+                        placeholder={t('submit.servicesPlaceholder')}
                         onChange={(e) => setServiceInput(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
@@ -481,7 +506,7 @@ export function SubmitTourismAdPage() {
                         }}
                       />
                       <Button type="button" variant="outline" size="md" onClick={addService}>
-                        Add
+                        {t('submit.add')}
                       </Button>
                     </div>
                     <div className="mt-2 flex flex-wrap gap-2">
@@ -498,7 +523,7 @@ export function SubmitTourismAdPage() {
                                 services: form.services.filter((x) => x !== s),
                               })
                             }
-                            aria-label={`Remove ${s}`}
+                            aria-label={t('submit.removeService', { service: s })}
                           >
                             <X size={12} />
                           </button>
@@ -511,7 +536,7 @@ export function SubmitTourismAdPage() {
 
               {step === 2 ? (
                 <div className="space-y-4">
-                  <Field label="Phone" errorText={fieldErrors['contact.phone']}>
+                  <Field label={t('submit.phone')} errorText={fieldErrors['contact.phone']}>
                     <SaudiPhoneInput
                       value={form.contact.phone ?? ''}
                       onChange={(phone) =>
@@ -519,7 +544,7 @@ export function SubmitTourismAdPage() {
                       }
                     />
                   </Field>
-                  <Field label="Email" errorText={fieldErrors['contact.email']}>
+                  <Field label={t('submit.email')} errorText={fieldErrors['contact.email']}>
                     <TextInput
                       type="email"
                       value={form.contact.email ?? ''}
@@ -528,7 +553,7 @@ export function SubmitTourismAdPage() {
                       }
                     />
                   </Field>
-                  <Field label="Website">
+                  <Field label={t('submit.website')}>
                     <TextInput
                       type="url"
                       value={form.contact.website ?? ''}
@@ -537,7 +562,7 @@ export function SubmitTourismAdPage() {
                       }
                     />
                   </Field>
-                  <Field label="WhatsApp">
+                  <Field label={t('submit.whatsapp')}>
                     <SaudiPhoneInput
                       value={form.contact.whatsapp ?? ''}
                       onChange={(whatsapp) =>
@@ -545,20 +570,20 @@ export function SubmitTourismAdPage() {
                       }
                     />
                   </Field>
-                  <Field label="Social / media links (optional)">
+                  <Field label={t('submit.mediaLinks')}>
                     <div className="flex flex-col gap-2 sm:flex-row">
                       <TextInput
                         value={mediaPlatform}
-                        placeholder="Platform"
+                        placeholder={t('submit.platformPlaceholder')}
                         onChange={(e) => setMediaPlatform(e.target.value)}
                       />
                       <TextInput
                         value={mediaUrl}
-                        placeholder="https://…"
+                        placeholder={t('submit.urlPlaceholder')}
                         onChange={(e) => setMediaUrl(e.target.value)}
                       />
                       <Button type="button" variant="outline" size="md" onClick={addMediaLink}>
-                        Add link
+                        {t('submit.addLink')}
                       </Button>
                     </div>
                     <ul className="mt-2 space-y-1 text-[13px]">
@@ -587,7 +612,7 @@ export function SubmitTourismAdPage() {
 
               {step === 3 ? (
                 <div className="space-y-4">
-                  <Field label="Gallery images *" errorText={fieldErrors.gallery_urls}>
+                  <Field label={t('submit.galleryLabel')} errorText={fieldErrors.gallery_urls}>
                     <input
                       ref={fileRef}
                       type="file"
@@ -603,7 +628,7 @@ export function SubmitTourismAdPage() {
                       onClick={() => fileRef.current?.click()}
                     >
                       <UploadSimple size={18} className="mr-1.5" />
-                      Upload image
+                      {t('submit.uploadImage')}
                     </Button>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {form.gallery_urls.map((url) => (
@@ -643,9 +668,9 @@ export function SubmitTourismAdPage() {
                     setStep((s) => Math.max(0, s - 1));
                   }}
                 >
-                  {step === 0 ? 'Cancel' : 'Back'}
+                  {step === 0 ? t('common:cancel') : t('submit.back')}
                 </Button>
-                {step < STEPS.length - 1 ? (
+                {step < steps.length - 1 ? (
                   <Button
                     type="button"
                     variant="dark"
@@ -654,7 +679,7 @@ export function SubmitTourismAdPage() {
                     loading={saving}
                     onClick={() => void onNext()}
                   >
-                    Next
+                    {t('submit.next')}
                   </Button>
                 ) : (
                   <Button
@@ -665,7 +690,7 @@ export function SubmitTourismAdPage() {
                     loading={submitting || saving}
                     onClick={() => void onSubmitForReview()}
                   >
-                    Submit for review
+                    {t('submit.submitForReview')}
                   </Button>
                 )}
               </div>

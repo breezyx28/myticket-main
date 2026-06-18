@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { unsplash } from '@/lib/utils';
 
 const photos = {
@@ -61,6 +62,8 @@ function GreenCircle({ className }: { className?: string }) {
 }
 
 export function PhotoCluster() {
+  const { t } = useTranslation('landing');
+
   return (
     <div className="relative w-[420px] h-[460px] flex-shrink-0">
 
@@ -73,7 +76,7 @@ export function PhotoCluster() {
       <CircleOutline className="absolute top-[0px] left-[195px] z-10" />
 
       <div className="absolute top-[20px] left-[210px] bg-ink text-white rounded-[20px] px-5 py-3.5 z-20 shadow-blob">
-        <span className="text-[10px] font-medium opacity-60 block leading-tight">Live<br />Events</span>
+        <span className="text-[10px] font-medium opacity-60 block leading-tight">{t('stats.liveEvents')}</span>
         <span className="font-black text-[28px] leading-none font-mono mt-1 block">8,240+</span>
       </div>
 
@@ -94,7 +97,7 @@ export function PhotoCluster() {
       <GreenCircle className="absolute bottom-[90px] left-[50px] z-0" />
 
       <div className="absolute bottom-[55px] left-[85px] bg-white rounded-[20px] px-5 py-3.5 z-20 shadow-card-md border border-ink-10">
-        <span className="text-[10px] font-medium text-ink-40 block leading-tight">Tickets<br />Sold</span>
+        <span className="text-[10px] font-medium text-ink-40 block leading-tight">{t('stats.ticketsSold')}</span>
         <span className="font-black text-[28px] leading-none font-mono mt-1 block text-ink">2.1M</span>
       </div>
 
