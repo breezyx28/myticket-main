@@ -5,15 +5,13 @@ import type {
   VendorOnboardingDraft,
 } from '@/types/domain';
 
-export type RegisterRoleDraft = 'guest' | 'talent' | 'organizer' | 'vendor';
-export type RegisterStageDraft = 'basic' | 'role-selection' | 'onboarding';
+export type RegisterRoleDraft = 'talent' | 'organizer' | 'vendor';
 
 const REGISTER_DRAFT_KEY = 'myticket_register_draft_v1';
-const EVENTS_FILTER_DRAFT_KEY = 'myticket_events_filters_v1';
 const LOGIN_DRAFT_KEY = 'myticket_login_draft_v1';
 
 export interface RegisterPageDraft {
-  stage: RegisterStageDraft;
+  stage: 'basic' | 'onboarding';
   role: RegisterRoleDraft;
   wizardStep: number;
   basic: BaseRegistrationFields;
@@ -21,6 +19,8 @@ export interface RegisterPageDraft {
   vendorDraft: VendorOnboardingDraft;
   organizerDraft: OrganizerOnboardingDraft;
 }
+
+const EVENTS_FILTER_DRAFT_KEY = 'myticket_events_filters_v1';
 
 export interface EventsFilterDraft {
   keyword: string;

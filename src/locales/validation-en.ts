@@ -29,6 +29,7 @@ export const validationEn = {
     codeRequired: 'Code is required.',
     currentPasswordRequired: 'Enter your current password.',
     newEmailRequired: 'New email is required.',
+    roleRequired: 'Select a role to continue.',
   },
   profile: {
     fullNameRequired: 'Full name is required.',

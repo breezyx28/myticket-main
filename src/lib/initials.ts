@@ -13,5 +13,5 @@ export function initialsFromName(name: string): string {
 export function isProfileImageUrl(value: string | undefined): boolean {
   if (!value?.trim()) return false;
   const v = value.trim();
-  return v.startsWith('http://') || v.startsWith('https://') || v.startsWith('data:image/');
+  return v.startsWith('http://') || v.startsWith('https://') || v.startsWith('data:image/') || v.startsWith('blob:');
 }

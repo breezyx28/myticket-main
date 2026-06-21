@@ -89,6 +89,8 @@ export const arExt = {
       email: 'البريد الإلكتروني',
       emailPlaceholder: 'you@example.com',
       password: 'كلمة المرور',
+      showPassword: 'إظهار كلمة المرور',
+      hidePassword: 'إخفاء كلمة المرور',
       forgotPassword: 'نسيت كلمة المرور؟',
       submit: 'تسجيل الدخول',
       otpLabel: 'رمز التحقق',

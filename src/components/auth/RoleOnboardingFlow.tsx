@@ -288,8 +288,8 @@ export function RoleOnboardingFlow({ role }: RoleOnboardingFlowProps) {
     return false;
   }, [apiSaudiRegions, organizerDraft, role, talentDraft, vendorDraft, wizardStep]);
 
-  async function submitRoleApplication(e: React.FormEvent) {
-    e.preventDefault();
+  async function submitRoleApplication() {
+    if (wizardStep !== steps.length - 1) return;
     if (!isCurrentRoleStepValid || !user) return;
 
     setLoading(true);
@@ -479,7 +479,7 @@ export function RoleOnboardingFlow({ role }: RoleOnboardingFlowProps) {
         steps={steps}
         activeIdx={wizardStep}
       />
-      <form onSubmit={submitRoleApplication} className="space-y-4">
+      <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
         {role === 'talent' && (
           <TalentSteps
             step={wizardStep}
@@ -537,12 +537,13 @@ export function RoleOnboardingFlow({ role }: RoleOnboardingFlowProps) {
             </Button>
           ) : (
             <Button
-              type="submit"
+              type="button"
               variant="dark"
               size="md"
               className="w-full sm:flex-1"
               loading={loading}
               disabled={!isCurrentRoleStepValid}
+              onClick={() => void submitRoleApplication()}
             >
               {t('onboarding.buttons.submitApplication', { role: roleLabel })}
             </Button>

@@ -8,7 +8,7 @@ import { buildOrganizerPortalUrl, getOrganizerPortalBaseUrl, isOrganizerUser } f
 export function OrganizerPortalRedirectPage() {
   const { t } = useTranslation(['profile', 'nav']);
   const { user } = useAuth();
-  const organizerUrl = buildOrganizerPortalUrl(user);
+  const organizerUrl = buildOrganizerPortalUrl('/', user);
 
   useEffect(() => {
     if (!isOrganizerUser(user)) return;

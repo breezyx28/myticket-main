@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Trans, useTranslation } from "react-i18next";
+import { useTranslation } from "react-i18next";
 import {
   Link,
   Navigate,
@@ -7,7 +7,7 @@ import {
   useNavigate,
   useSearchParams,
 } from "react-router-dom";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import {
   Buildings,
@@ -17,20 +17,20 @@ import {
 } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
-import { useAuth } from "@/contexts/AuthContext";
+import { OnboardingHeader } from "@/components/auth/OnboardingHeader";
 import { SharedBasicStep } from "@/components/auth/steps/SharedBasicStep";
 import { TalentSteps } from "@/components/auth/steps/TalentSteps";
 import { VendorSteps } from "@/components/auth/steps/VendorSteps";
 import { OrganizerSteps } from "@/components/auth/steps/OrganizerSteps";
-import { OnboardingHeader } from "@/components/auth/OnboardingHeader";
 import { FormSectionCard } from "@/components/ui/form/FormSectionCard";
 import { InlineNotice } from "@/components/ui/form/InlineNotice";
-import type {
-  BaseRegistrationFields,
-  OrganizerOnboardingDraft,
-  TalentOnboardingDraft,
-  VendorOnboardingDraft,
-} from "@/types/domain";
+import { useGetSaudiRegionsQuery } from "@/api/endpoints";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUploadProfileImageFile } from "@/hooks/useUploadProfileImageFile";
+import type { BaseRegistrationFields, OnboardingRole } from "@/types/domain";
+import { getSafeRedirectPath } from "@/lib/navigation";
+import { authErrorMessage } from "@/lib/authErrors";
+import { getRolePortalLoginUrlForRole } from "@/lib/rolePortalRedirect";
 import {
   isOrganizerDraftReady,
   isTalentDraftReady,
@@ -40,50 +40,31 @@ import {
   VENDOR_BIO_MIN_CHARS,
 } from "@/lib/onboardingValidation";
 import { isValidSaudiCityFlexible } from "@/lib/saudiLocations";
-import { getSafeRedirectPath } from "@/lib/navigation";
-import { authErrorMessage, toAuthApiError } from "@/lib/authErrors";
 import {
   createBasicRegistrationSchema,
-  type BasicRegistrationSchema,
+  type BasicRegistrationFormValues,
+  type RegisterFormRole,
 } from "@/schemas/auth";
+import {
+  portalSubmitErrorMessage,
+  submitRegisterPortalProfile,
+} from "@/services/portalProfileSubmit";
 import { cn } from "@/lib/utils";
-import { getToken } from "@/api/authToken";
 import {
   clearRegisterDraft,
   readRegisterDraft,
   writeRegisterDraft,
 } from "@/lib/formDraftStorage";
-import {
-  useAddTalentMediaMutation,
-  useAddVendorDocumentMutation,
-  useAddVendorGalleryItemMutation,
-  useAddOrganizerSocialLinkMutation,
-  useCreateOrganizerApplicationMutation,
-  useCreateTalentApplicationMutation,
-  useCreateVendorApplicationMutation,
-  useGetMyRoleApplicationsQuery,
-  useGetSaudiRegionsQuery,
-  useResubmitOrganizerApplicationMutation,
-  useResubmitTalentApplicationMutation,
-  useResubmitVendorApplicationMutation,
-  useSubmitOrganizerApplicationMutation,
-  useSubmitTalentApplicationMutation,
-  useSubmitVendorApplicationMutation,
-  useUpdateOrganizerApplicationMutation,
-  useUpdateTalentApplicationMutation,
-  useUpdateVendorApplicationMutation,
-} from "@/api/endpoints";
-import {
-  runOrganizerRoleApplicationPipeline,
-  runTalentRoleApplicationPipeline,
-  runVendorRoleApplicationPipeline,
-} from "@/services/roleApplicationSubmit";
+import type {
+  OrganizerOnboardingDraft,
+  TalentOnboardingDraft,
+  VendorOnboardingDraft,
+} from "@/types/domain";
 
-type RegisterRole = "guest" | "talent" | "organizer" | "vendor";
-type RegisterStage = "basic" | "role-selection" | "onboarding" | "complete";
+type RegisterStage = "basic" | "onboarding";
 
 interface RoleCard {
-  id: RegisterRole;
+  id: RegisterFormRole;
   icon: Icon;
   surface: string;
   iconTone: string;
@@ -93,8 +74,8 @@ const ROLE_CARDS: RoleCard[] = [
   {
     id: "guest",
     icon: User,
-    surface: "bg-lemon/30 border-lemon/50",
-    iconTone: "bg-lemon text-ink",
+    surface: "bg-ink-5 border-ink-15",
+    iconTone: "bg-ink-20 text-ink",
   },
   {
     id: "talent",
@@ -175,30 +156,64 @@ export function RegisterPage() {
     () => createBasicRegistrationSchema(tValidation),
     [tValidation, i18n.language],
   );
-  const { signUp, signInWithOAuth, user } = useAuth();
+  const { signUp, user } = useAuth();
+  const { upload: uploadProfileImage } = useUploadProfileImageFile();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+  const intendedRole = useMemo(() => {
+    const r = searchParams.get("role");
+    if (r === "talent" || r === "vendor" || r === "organizer") return r;
+    return null;
+  }, [searchParams]);
   const redirectAfterAuth =
     getSafeRedirectPath(
       (location.state as { from?: { pathname: string } } | null)?.from
         ?.pathname,
     ) ?? null;
-  const [stage, setStage] = useState<RegisterStage>("role-selection");
-  const [role, setRole] = useState<RegisterRole>("guest");
+
+  const [stage, setStage] = useState<RegisterStage>("basic");
+  const [role, setRole] = useState<OnboardingRole>(intendedRole ?? "talent");
   const [wizardStep, setWizardStep] = useState(0);
+  const [registrationPassword, setRegistrationPassword] = useState("");
+  const [verificationNotice, setVerificationNotice] = useState<string | null>(
+    null,
+  );
+  const [refreshResumeNote, setRefreshResumeNote] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [draftHydrated, setDraftHydrated] = useState(false);
-  const [loadedRegisterDraft, setLoadedRegisterDraft] = useState(false);
-  const basicForm = useForm<BasicRegistrationSchema>({
-    resolver: yupResolver(basicRegistrationSchema),
+
+  const [talentDraft, setTalentDraft] =
+    useState<TalentOnboardingDraft>(EMPTY_TALENT_DRAFT);
+  const [vendorDraft, setVendorDraft] =
+    useState<VendorOnboardingDraft>(EMPTY_VENDOR_DRAFT);
+  const [organizerDraft, setOrganizerDraft] =
+    useState<OrganizerOnboardingDraft>(EMPTY_ORGANIZER_DRAFT);
+  const [talentMediaInput, setTalentMediaInput] = useState("");
+  const [vendorTempInput, setVendorTempInput] = useState("");
+  const [organizerSocialInput, setOrganizerSocialInput] = useState("");
+  const [pendingOrganizerProfileImageFile, setPendingOrganizerProfileImageFile] =
+    useState<File | null>(null);
+
+  const { data: saudiRegionsRes } = useGetSaudiRegionsQuery();
+  const apiSaudiRegions = saudiRegionsRes?.data;
+
+  const basicForm = useForm<BasicRegistrationFormValues>({
+    resolver: yupResolver(
+      basicRegistrationSchema,
+    ) as Resolver<BasicRegistrationFormValues>,
     mode: "onTouched",
     defaultValues: {
       ...EMPTY_BASIC,
+      role: intendedRole ?? "",
     },
   });
   const basicValues = basicForm.watch();
+  const selectedFormRole = basicValues.role ?? "";
+  const roleFieldError = basicForm.formState.errors.role?.message as
+    | string
+    | undefined;
   const basic: BaseRegistrationFields = {
     fullName: basicValues.fullName ?? "",
     email: basicValues.email ?? "",
@@ -207,6 +222,7 @@ export function RegisterPage() {
     contactPhone: basicValues.contactPhone ?? "",
     agreeTerms: Boolean(basicValues.agreeTerms),
   };
+
   const setBasicField = (patch: Partial<BaseRegistrationFields>) => {
     if ("fullName" in patch)
       basicForm.setValue("fullName", patch.fullName ?? "", {
@@ -240,83 +256,101 @@ export function RegisterPage() {
         shouldTouch: true,
       });
   };
-  const [talentDraft, setTalentDraft] =
-    useState<TalentOnboardingDraft>(EMPTY_TALENT_DRAFT);
-  const [vendorDraft, setVendorDraft] =
-    useState<VendorOnboardingDraft>(EMPTY_VENDOR_DRAFT);
-  const [organizerDraft, setOrganizerDraft] =
-    useState<OrganizerOnboardingDraft>(EMPTY_ORGANIZER_DRAFT);
-  const [talentMediaInput, setTalentMediaInput] = useState("");
-  const [vendorTempInput, setVendorTempInput] = useState("");
-  const [organizerSocialInput, setOrganizerSocialInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [registeredEmail, setRegisteredEmail] = useState("");
-  const [completionMessage, setCompletionMessage] = useState("");
-  const [applicationSubmitted, setApplicationSubmitted] = useState(false);
 
-  const { data: saudiRegionsRes } = useGetSaudiRegionsQuery();
-  const apiSaudiRegions = saudiRegionsRes?.data;
-  const { data: myRoleApps } = useGetMyRoleApplicationsQuery(undefined, {
-    skip: !user,
-  });
+  const steps = useMemo(() => {
+    return t(`register.steps.${role}`, { returnObjects: true }) as string[];
+  }, [role, t]);
 
-  const [createTalentApplication] = useCreateTalentApplicationMutation();
-  const [updateTalentApplication] = useUpdateTalentApplicationMutation();
-  const [addTalentMedia] = useAddTalentMediaMutation();
-  const [submitTalentApplication] = useSubmitTalentApplicationMutation();
-  const [resubmitTalentApplication] = useResubmitTalentApplicationMutation();
+  const onboardingTitle = useMemo(() => {
+    if (role === "talent") return t("register.titles.talent");
+    if (role === "vendor") return t("register.titles.vendor");
+    return t("register.titles.organizer");
+  }, [role, t]);
 
-  const [createVendorApplication] = useCreateVendorApplicationMutation();
-  const [updateVendorApplication] = useUpdateVendorApplicationMutation();
-  const [addVendorDocument] = useAddVendorDocumentMutation();
-  const [addVendorGalleryItem] = useAddVendorGalleryItemMutation();
-  const [submitVendorApplication] = useSubmitVendorApplicationMutation();
-  const [resubmitVendorApplication] = useResubmitVendorApplicationMutation();
-
-  const [createOrganizerApplication] = useCreateOrganizerApplicationMutation();
-  const [updateOrganizerApplication] = useUpdateOrganizerApplicationMutation();
-  const [addOrganizerSocialLink] = useAddOrganizerSocialLinkMutation();
-  const [submitOrganizerApplication] = useSubmitOrganizerApplicationMutation();
-  const [resubmitOrganizerApplication] =
-    useResubmitOrganizerApplicationMutation();
+  function prefillRoleDrafts(values: BaseRegistrationFields) {
+    setTalentDraft((prev) => ({
+      ...prev,
+      fullName: values.fullName,
+      contactEmail: values.email,
+      contactPhone: values.contactPhone,
+    }));
+    setVendorDraft((prev) => ({
+      ...prev,
+      profileName: values.fullName,
+      contactEmail: values.email,
+      contactPhone: values.contactPhone,
+    }));
+    setOrganizerDraft((prev) => ({
+      ...prev,
+      displayName: values.fullName,
+      email: values.email,
+      contactPhone: values.contactPhone,
+      ownerName: values.fullName,
+    }));
+  }
 
   function clearRegisterForm() {
     clearRegisterDraft();
-    setStage("role-selection");
-    setRole("guest");
+    setStage("basic");
+    setRole(intendedRole ?? "talent");
     setWizardStep(0);
+    setRegistrationPassword("");
+    setVerificationNotice(null);
+    setRefreshResumeNote(false);
     setError(null);
-    setSuccess(null);
-    setRegisteredEmail("");
-    setCompletionMessage("");
-    setApplicationSubmitted(false);
     setTalentDraft(EMPTY_TALENT_DRAFT);
     setVendorDraft(EMPTY_VENDOR_DRAFT);
     setOrganizerDraft(EMPTY_ORGANIZER_DRAFT);
-    basicForm.reset(EMPTY_BASIC);
+    setPendingOrganizerProfileImageFile(null);
+    basicForm.reset({ ...EMPTY_BASIC, role: intendedRole ?? "" });
   }
 
   useEffect(() => {
     const stored = readRegisterDraft();
-    if (stored) {
-      setLoadedRegisterDraft(true);
-      setStage(stored.stage);
-      setRole(stored.role);
-      setWizardStep(stored.wizardStep);
-      setTalentDraft(stored.talentDraft);
-      setVendorDraft(stored.vendorDraft);
-      setOrganizerDraft(stored.organizerDraft);
-      basicForm.reset(stored.basic);
+    const storedRole =
+      stored?.role === "talent" ||
+      stored?.role === "vendor" ||
+      stored?.role === "organizer"
+        ? stored.role
+        : null;
+
+    if (stored?.basic) {
+      basicForm.reset({
+        fullName: stored.basic.fullName,
+        email: stored.basic.email,
+        contactPhone: stored.basic.contactPhone,
+        password: "",
+        passwordConfirmation: "",
+        agreeTerms: stored.basic.agreeTerms,
+        role: storedRole ?? intendedRole ?? "",
+      });
     }
+
+    if (stored) {
+      if (storedRole) setRole(storedRole);
+      setWizardStep(stored.wizardStep ?? 0);
+      if (stored.talentDraft) setTalentDraft(stored.talentDraft);
+      if (stored.vendorDraft) setVendorDraft(stored.vendorDraft);
+      if (stored.organizerDraft) setOrganizerDraft(stored.organizerDraft);
+      if (stored.stage === "onboarding") {
+        setRefreshResumeNote(true);
+      }
+    }
+
     setDraftHydrated(true);
-  }, [basicForm]);
+  }, [basicForm, intendedRole]);
 
   useEffect(() => {
     if (!draftHydrated) return;
-    if (stage === "complete") return;
+    const pickedRole =
+      selectedFormRole === "talent" ||
+      selectedFormRole === "vendor" ||
+      selectedFormRole === "organizer"
+        ? selectedFormRole
+        : role;
     writeRegisterDraft({
       stage,
-      role,
+      role: pickedRole,
       wizardStep,
       basic,
       talentDraft,
@@ -328,6 +362,7 @@ export function RegisterPage() {
     draftHydrated,
     organizerDraft,
     role,
+    selectedFormRole,
     stage,
     talentDraft,
     vendorDraft,
@@ -336,7 +371,6 @@ export function RegisterPage() {
 
   useEffect(() => {
     if (!user) return;
-    if (loadedRegisterDraft) return;
     basicForm.reset({
       fullName: user.name,
       email: user.email,
@@ -344,26 +378,9 @@ export function RegisterPage() {
       password: "",
       passwordConfirmation: "",
       agreeTerms: true,
+      role: intendedRole ?? "",
     });
-  }, [user, basicForm, loadedRegisterDraft]);
-
-  const steps = useMemo(() => {
-    if (role === "guest") return [];
-    const key = role as "talent" | "vendor" | "organizer";
-    return t(`register.steps.${key}`, { returnObjects: true }) as string[];
-  }, [role, t]);
-
-  const onboardingTitle = useMemo(() => {
-    if (role === "talent") return t("register.titles.talent");
-    if (role === "vendor") return t("register.titles.vendor");
-    if (role === "organizer") return t("register.titles.organizer");
-    return t("register.titles.default");
-  }, [role, t]);
-
-  const roleLabel =
-    role === "guest"
-      ? t("register.roles.guest.label")
-      : t(`register.roles.${role}.label`);
+  }, [user, basicForm, intendedRole]);
 
   const isCurrentRoleStepValid = useMemo(() => {
     if (role === "talent") {
@@ -428,36 +445,55 @@ export function RegisterPage() {
       return isOrganizerDraftReady(organizerDraft);
     }
     return false;
-  }, [
-    organizerDraft,
-    role,
-    talentDraft,
-    vendorDraft,
-    wizardStep,
-    apiSaudiRegions,
-  ]);
+  }, [apiSaudiRegions, organizerDraft, role, talentDraft, vendorDraft, wizardStep]);
 
-  const continueAsGuest = basicForm.handleSubmit(async (values) => {
+  const handleBasicSubmit = basicForm.handleSubmit(async (values) => {
     setError(null);
-    setSuccess(null);
     setLoading(true);
     try {
-      const result = await signUp(
-        values.fullName,
-        values.email,
-        values.password,
-        values.contactPhone,
-        Boolean(values.agreeTerms),
-      );
-      clearRegisterDraft();
-      setRegisteredEmail(values.email);
-      setApplicationSubmitted(false);
-      setCompletionMessage(
-        result.status === "verification_required"
-          ? result.message
-          : t("register.verificationReminder"),
-      );
-      setStage("complete");
+      const pickedRole = values.role;
+      if (pickedRole === "guest") {
+        if (!user) {
+          await signUp(
+            values.fullName,
+            values.email,
+            values.password,
+            values.contactPhone,
+            Boolean(values.agreeTerms),
+          );
+        }
+        clearRegisterDraft();
+        navigate(redirectAfterAuth ?? "/");
+        return;
+      }
+
+      const nextRole = pickedRole as OnboardingRole;
+      if (!user) {
+        const signUpResult = await signUp(
+          values.fullName,
+          values.email,
+          values.password,
+          values.contactPhone,
+          Boolean(values.agreeTerms),
+          nextRole,
+        );
+        setRegistrationPassword(values.password);
+        if (signUpResult.status === "verification_required") {
+          setVerificationNotice(
+            signUpResult.message || t("register.verificationDuringOnboarding"),
+          );
+        } else {
+          setVerificationNotice(null);
+        }
+      } else {
+        setRegistrationPassword(values.password || registrationPassword);
+      }
+
+      prefillRoleDrafts(values);
+      setRole(nextRole);
+      setWizardStep(0);
+      setRefreshResumeNote(false);
+      setStage("onboarding");
     } catch (e) {
       setError(authErrorMessage(e, t("register.errors.signUpFailed")));
     } finally {
@@ -465,254 +501,48 @@ export function RegisterPage() {
     }
   });
 
-  async function continueWithGoogle() {
-    setError(null);
-    setSuccess(null);
-    setLoading(true);
-    try {
-      await signInWithOAuth("google");
-      // Navigation happens via window.location during the OAuth round-trip.
-    } catch (e) {
-      setError(authErrorMessage(e, t("register.errors.googleFailed")));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const handleBasicSubmit = basicForm.handleSubmit(() => {
-    setError(null);
-    setSuccess(null);
-    setStage("role-selection");
-  });
-
-  function selectRole(nextRole: RegisterRole) {
-    setError(null);
-    setSuccess(null);
-    setRole(nextRole);
-    if (nextRole === "guest") return;
-    if (nextRole === "talent") {
-      setTalentDraft((prev) => ({
-        ...prev,
-        fullName: prev.fullName || basic.fullName,
-        contactEmail: prev.contactEmail || basic.email,
-        contactPhone: prev.contactPhone || basic.contactPhone,
-      }));
-    }
-    if (nextRole === "vendor") {
-      setVendorDraft((prev) => ({
-        ...prev,
-        profileName: prev.profileName || basic.fullName,
-        contactEmail: prev.contactEmail || basic.email,
-        contactPhone: prev.contactPhone || basic.contactPhone,
-      }));
-    }
-    if (nextRole === "organizer") {
-      setOrganizerDraft((prev) => ({
-        ...prev,
-        displayName: prev.displayName || basic.fullName,
-        email: prev.email || basic.email,
-        contactPhone: prev.contactPhone || basic.contactPhone,
-        ownerName: prev.ownerName || basic.fullName,
-      }));
-    }
-    setWizardStep(0);
-    setStage("onboarding");
-  }
-
-  async function submitRoleOnboardingFlow(e: React.FormEvent) {
-    e.preventDefault();
+  async function submitPortalProfile() {
+    if (wizardStep !== steps.length - 1) return;
     if (!isCurrentRoleStepValid) return;
-    if (role === "guest") return;
+
+    const email = basic.email.trim();
+    const password = registrationPassword;
+    if (!email || !password) {
+      setError(t("register.refreshResumeNote"));
+      setStage("basic");
+      return;
+    }
+
     setLoading(true);
     setError(null);
-    setSuccess(null);
+
     try {
-      let verificationMessage = t("register.verificationReminder");
-      if (!user) {
-        const signUpResult = await signUp(
-          basic.fullName,
-          basic.email,
-          basic.password,
-          basic.contactPhone,
-          Boolean(basic.agreeTerms),
-        );
-        if (signUpResult.status === "verification_required") {
-          verificationMessage = signUpResult.message;
-        }
-      }
+      const draft =
+        role === "talent"
+          ? talentDraft
+          : role === "vendor"
+            ? vendorDraft
+            : organizerDraft;
 
-      const hasSession = Boolean(user || getToken());
-      const basicPayload = user
-        ? { fullName: user.name, email: user.email, contactPhone: user.phone }
-        : {
-            fullName: basic.fullName,
-            email: basic.email,
-            contactPhone: basic.contactPhone,
-          };
-
-      const talentSummary = myRoleApps?.talent;
-      const vendorSummary = myRoleApps?.vendor;
-      const organizerSummary = myRoleApps?.organizer;
-
-      const talentMutations = {
-        createTalentApplication: (
-          body: Parameters<typeof createTalentApplication>[0],
-        ) => createTalentApplication(body).unwrap(),
-        updateTalentApplication: (
-          args: Parameters<typeof updateTalentApplication>[0],
-        ) => updateTalentApplication(args).unwrap(),
-        addTalentMedia: (args: Parameters<typeof addTalentMedia>[0]) =>
-          addTalentMedia(args).unwrap(),
-        submitTalentApplication: (
-          args: Parameters<typeof submitTalentApplication>[0],
-        ) => submitTalentApplication(args).unwrap(),
-        resubmitTalentApplication: (
-          args: Parameters<typeof resubmitTalentApplication>[0],
-        ) => resubmitTalentApplication(args).unwrap(),
-      };
-
-      const vendorMutations = {
-        createVendorApplication: (
-          body: Parameters<typeof createVendorApplication>[0],
-        ) => createVendorApplication(body).unwrap(),
-        updateVendorApplication: (
-          args: Parameters<typeof updateVendorApplication>[0],
-        ) => updateVendorApplication(args).unwrap(),
-        addVendorDocument: (args: Parameters<typeof addVendorDocument>[0]) =>
-          addVendorDocument(args).unwrap(),
-        addVendorGalleryItem: (
-          args: Parameters<typeof addVendorGalleryItem>[0],
-        ) => addVendorGalleryItem(args).unwrap(),
-        submitVendorApplication: (
-          args: Parameters<typeof submitVendorApplication>[0],
-        ) => submitVendorApplication(args).unwrap(),
-        resubmitVendorApplication: (
-          args: Parameters<typeof resubmitVendorApplication>[0],
-        ) => resubmitVendorApplication(args).unwrap(),
-      };
-
-      const organizerMutations = {
-        createOrganizerApplication: (
-          body: Parameters<typeof createOrganizerApplication>[0],
-        ) => createOrganizerApplication(body).unwrap(),
-        updateOrganizerApplication: (
-          args: Parameters<typeof updateOrganizerApplication>[0],
-        ) => updateOrganizerApplication(args).unwrap(),
-        addOrganizerSocialLink: (
-          args: Parameters<typeof addOrganizerSocialLink>[0],
-        ) => addOrganizerSocialLink(args).unwrap(),
-        submitOrganizerApplication: (
-          args: Parameters<typeof submitOrganizerApplication>[0],
-        ) => submitOrganizerApplication(args).unwrap(),
-        resubmitOrganizerApplication: (
-          args: Parameters<typeof resubmitOrganizerApplication>[0],
-        ) => resubmitOrganizerApplication(args).unwrap(),
-      };
-
-      let submittedApplication = false;
-      if (hasSession && role === "talent") {
-        await runTalentRoleApplicationPipeline(
-          {
-            draft: {
-              ...talentDraft,
-              fullName: talentDraft.fullName.trim() || basicPayload.fullName,
-              contactEmail:
-                talentDraft.contactEmail.trim() || basicPayload.email,
-              contactPhone:
-                talentDraft.contactPhone.trim() || basicPayload.contactPhone,
-            },
-            basic: basicPayload,
-            finalize: "submit",
-            existingApplicationId: talentSummary?.id,
-            existingApiStatus:
-              talentSummary?.status != null
-                ? String(talentSummary.status)
-                : null,
-            existingMediaUrls: [],
-          },
-          talentMutations,
-        );
-        submittedApplication = true;
-      }
-      if (hasSession && role === "vendor") {
-        await runVendorRoleApplicationPipeline(
-          {
-            draft: {
-              ...vendorDraft,
-              profileName:
-                vendorDraft.profileName.trim() || basicPayload.fullName,
-              contactEmail:
-                vendorDraft.contactEmail.trim() || basicPayload.email,
-              contactPhone:
-                vendorDraft.contactPhone.trim() || basicPayload.contactPhone,
-            },
-            basic: basicPayload,
-            finalize: "submit",
-            existingApplicationId: vendorSummary?.id,
-            existingApiStatus:
-              vendorSummary?.status != null
-                ? String(vendorSummary.status)
-                : null,
-            existingDocumentUrls: [],
-            existingGalleryUrls: [],
-          },
-          vendorMutations,
-        );
-        submittedApplication = true;
-      }
-      if (hasSession && role === "organizer") {
-        await runOrganizerRoleApplicationPipeline(
-          {
-            draft: {
-              ...organizerDraft,
-              displayName:
-                organizerDraft.displayName.trim() || basicPayload.fullName,
-              email: organizerDraft.email.trim() || basicPayload.email,
-              contactPhone:
-                organizerDraft.contactPhone.trim() || basicPayload.contactPhone,
-              ownerName:
-                organizerDraft.ownerName.trim() || basicPayload.fullName,
-            },
-            basic: basicPayload,
-            finalize: "submit",
-            existingApplicationId: organizerSummary?.id,
-            existingApiStatus:
-              organizerSummary?.status != null
-                ? String(organizerSummary.status)
-                : null,
-            existingSocialUrls: [],
-          },
-          organizerMutations,
-        );
-        submittedApplication = true;
-      }
+      await submitRegisterPortalProfile({
+        role,
+        email,
+        password,
+        draft,
+        uploadProfileImage: user ? uploadProfileImage : undefined,
+        pendingProfileImageFile:
+          role === "organizer" ? pendingOrganizerProfileImageFile : null,
+      });
 
       clearRegisterDraft();
-      setRegisteredEmail(basicPayload.email);
-      setApplicationSubmitted(submittedApplication);
-      setCompletionMessage(verificationMessage);
-      setStage("complete");
+      window.location.assign(getRolePortalLoginUrlForRole(role, email));
     } catch (err) {
-      const authErr = toAuthApiError(err, t("register.errors.submitApplicationFailed"));
-      const emailErr = authErr.fieldErrors.email?.[0];
-      const phoneErr = authErr.fieldErrors.phone?.[0];
-      const fullNameErr =
-        authErr.fieldErrors.full_name?.[0] ?? authErr.fieldErrors.name?.[0];
-      if (emailErr)
-        basicForm.setError("email", { type: "server", message: emailErr });
-      if (phoneErr)
-        basicForm.setError("contactPhone", {
-          type: "server",
-          message: phoneErr,
-        });
-      if (fullNameErr)
-        basicForm.setError("fullName", {
-          type: "server",
-          message: fullNameErr,
-        });
-      setError(authErr.message);
-      setStage("basic");
-      setWizardStep(0);
+      setError(
+        portalSubmitErrorMessage(
+          err,
+          t("register.errors.submitProfileFailed"),
+        ),
+      );
     } finally {
       setLoading(false);
     }
@@ -741,20 +571,17 @@ export function RegisterPage() {
               {t("register.basic.signIn")}
             </Link>
           </p>
+          {refreshResumeNote ? (
+            <InlineNotice variant="info" title={t("register.refreshResumeNote")} className="mt-4">
+              <span className="sr-only">{t("register.refreshResumeNote")}</span>
+            </InlineNotice>
+          ) : null}
           {error && (
             <div
               role="alert"
               className="mt-4 rounded-xl border border-coral/40 bg-coral/10 px-4 py-3 text-[13px] font-medium text-coral"
             >
               {error}
-            </div>
-          )}
-          {success && (
-            <div
-              role="status"
-              className="mt-4 rounded-xl border border-mint/50 bg-mint/20 px-4 py-3 text-[13px] font-medium text-ink"
-            >
-              {success}
             </div>
           )}
           <form
@@ -767,6 +594,60 @@ export function RegisterPage() {
               onChange={setBasicField}
               errors={basicForm.formState.errors}
             />
+            <div>
+              <p className="text-[13px] font-semibold text-ink">
+                {t("register.roleSelection.title")}
+              </p>
+              <p className="mt-1 text-[12px] text-ink-60">
+                {t("register.roleSelection.description")}
+              </p>
+              {roleFieldError ? (
+                <p className="mt-2 text-[12px] font-semibold text-coral">
+                  {roleFieldError}
+                </p>
+              ) : null}
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {ROLE_CARDS.map((card) => {
+                  const Icon = card.icon;
+                  const isSelected = selectedFormRole === card.id;
+                  return (
+                    <button
+                      key={card.id}
+                      type="button"
+                      onClick={() =>
+                        basicForm.setValue("role", card.id, {
+                          shouldValidate: true,
+                          shouldTouch: true,
+                        })
+                      }
+                      aria-pressed={isSelected}
+                      className={cn(
+                        "min-h-[148px] rounded-2xl border p-4 text-left transition-all duration-150 hover:-translate-y-0.5 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ink",
+                        card.surface,
+                        isSelected && "ring-2 ring-coral ring-offset-2",
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-[15px] font-extrabold leading-tight text-ink">
+                          {t(`register.roles.${card.id}.label`)}
+                        </p>
+                        <span
+                          className={cn(
+                            "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+                            card.iconTone,
+                          )}
+                        >
+                          <Icon size={20} weight="fill" />
+                        </span>
+                      </div>
+                      <p className="mt-2 text-[12px] leading-relaxed text-ink-70">
+                        {t(`register.roles.${card.id}.helper`)}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <InlineNotice variant="info" title={t("register.basic.terms")}>
               <p className="text-[12px] text-ink-60">
                 {t("register.basic.termsBody")}{" "}
@@ -786,27 +667,9 @@ export function RegisterPage() {
               className="w-full"
               disabled={loading || basicForm.formState.isSubmitting}
             >
-              {t("register.basic.continue")}
-            </Button>
-            <div className="relative py-2">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-ink-10" />
-              </div>
-              <div className="relative flex justify-center">
-                <span className="bg-white px-3 text-[12px] font-medium text-ink-40">
-                  {t("register.basic.or")}
-                </span>
-              </div>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              className="w-full border-ink-20"
-              onClick={continueWithGoogle}
-              disabled={loading}
-            >
-              {t("register.basic.continueGoogle")}
+              {selectedFormRole === "guest"
+                ? t("register.roleSelection.continueAsGuest")
+                : t("register.basic.createAccount")}
             </Button>
             <Button
               type="button"
@@ -821,115 +684,33 @@ export function RegisterPage() {
         </FormSectionCard>
       )}
 
-      {stage === "role-selection" && (
-        <FormSectionCard
-          eyebrow={t("register.roleSelection.eyebrow")}
-          title={t("register.roleSelection.title")}
-          description={t("register.roleSelection.description")}
-        >
-          {error && (
-            <div
-              role="alert"
-              className="mb-4 rounded-xl border border-coral/40 bg-coral/10 px-4 py-3 text-[13px] font-medium text-coral"
-            >
-              {error}
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {ROLE_CARDS.map((card) => {
-              const Icon = card.icon;
-              return (
-                <button
-                  key={card.id}
-                  type="button"
-                  onClick={() => selectRole(card.id)}
-                  className={cn(
-                    "min-h-[178px] rounded-2xl border p-4 text-left transition-all duration-150 hover:-translate-y-0.5 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ink",
-                    card.surface,
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[16px] font-extrabold leading-tight text-ink">
-                        {t(`register.roles.${card.id}.label`)}
-                      </p>
-                      <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-50">
-                        {t(`register.roles.${card.id}.helper`)}
-                      </p>
-                    </div>
-                    <span
-                      className={cn(
-                        "inline-flex h-10 w-10 items-center justify-center rounded-xl",
-                        card.iconTone,
-                      )}
-                    >
-                      <Icon size={22} weight="fill" />
-                    </span>
-                  </div>
-                  <div className="mt-4">
-                    <p className="text-[13px] leading-relaxed text-ink-70">
-                      {t(`register.roles.${card.id}.responsibility`)}
-                    </p>
-                    <p className="mt-3 text-[12px] font-bold text-coral">
-                      {t("register.selectRole")}
-                    </p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="mt-6 flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              className="flex-1"
-              onClick={() => setStage("basic")}
-            >
-              {t("register.roleSelection.back")}
-            </Button>
-            <Button
-              type="button"
-              variant="dark"
-              size="md"
-              className="flex-1"
-              loading={loading}
-              onClick={continueAsGuest}
-            >
-              {t("register.roleSelection.continueAsGuest")}
-            </Button>
-          </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="md"
-            className="mt-2 w-full"
-            onClick={clearRegisterForm}
-          >
-            {t("register.basic.clearForm")}
-          </Button>
-        </FormSectionCard>
-      )}
-
-      {stage === "onboarding" && role !== "guest" && (
+      {stage === "onboarding" && (
         <FormSectionCard
           eyebrow={t("register.wizard.eyebrow")}
           title={onboardingTitle}
           description={t("register.wizard.description")}
           className="overflow-hidden p-6"
         >
+          {verificationNotice ? (
+            <InlineNotice variant="info" title={t("register.verificationDuringOnboarding")}>
+              <p className="text-[13px] leading-relaxed text-ink-70">
+                {verificationNotice}
+              </p>
+            </InlineNotice>
+          ) : null}
           {error && (
             <div
               role="alert"
-              className="mb-4 rounded-xl border border-coral/40 bg-coral/10 px-4 py-3 text-[13px] font-medium text-coral"
+              className={cn(
+                "rounded-xl border border-coral/40 bg-coral/10 px-4 py-3 text-[13px] font-medium text-coral",
+                verificationNotice ? "mt-4" : "mb-4",
+              )}
             >
               {error}
             </div>
           )}
           <OnboardingHeader
-            title={steps[wizardStep] ?? t("onboarding.defaultStepTitle")}
+            title={steps[wizardStep] ?? t("register.titles.default")}
             description={
               role === "organizer"
                 ? t("register.wizard.organizerStepDesc")
@@ -938,7 +719,10 @@ export function RegisterPage() {
             steps={steps}
             activeIdx={wizardStep}
           />
-          <form onSubmit={submitRoleOnboardingFlow} className="space-y-4">
+          <form
+            onSubmit={(e) => e.preventDefault()}
+            className="space-y-4"
+          >
             {role === "talent" && (
               <TalentSteps
                 step={wizardStep}
@@ -970,6 +754,8 @@ export function RegisterPage() {
                 onChange={(patch) =>
                   setOrganizerDraft((prev) => ({ ...prev, ...patch }))
                 }
+                deferProfileImageUpload={!user}
+                onProfileImageFileChange={setPendingOrganizerProfileImageFile}
               />
             )}
 
@@ -981,7 +767,7 @@ export function RegisterPage() {
                 className="w-full sm:flex-1"
                 onClick={() => {
                   if (wizardStep === 0) {
-                    setStage("role-selection");
+                    setStage("basic");
                     return;
                   }
                   setWizardStep((s) => Math.max(0, s - 1));
@@ -1004,14 +790,15 @@ export function RegisterPage() {
                 </Button>
               ) : (
                 <Button
-                  type="submit"
+                  type="button"
                   variant="dark"
                   size="md"
                   className="w-full sm:flex-1"
                   loading={loading}
                   disabled={!isCurrentRoleStepValid}
+                  onClick={() => void submitPortalProfile()}
                 >
-                  {t("register.wizard.submitApplication", { role: roleLabel })}
+                  {t("register.wizard.submitProfile")}
                 </Button>
               )}
             </div>
@@ -1025,67 +812,6 @@ export function RegisterPage() {
               {t("register.wizard.clearForm")}
             </Button>
           </form>
-        </FormSectionCard>
-      )}
-
-      {stage === "complete" && (
-        <FormSectionCard
-          eyebrow={t("register.complete.eyebrow")}
-          title={t("register.complete.title")}
-          description={t("register.complete.description")}
-        >
-          <InlineNotice variant="info" title={t("register.complete.verifyEmail")}>
-            <p className="text-[13px] leading-relaxed text-ink-70">
-              {completionMessage || t("register.verificationReminder")}
-              {registeredEmail ? (
-                <>
-                  {" "}
-                  {t("register.complete.verifyEmailSentTo")}{" "}
-                  <strong className="text-ink">{registeredEmail}</strong>.
-                </>
-              ) : null}
-            </p>
-          </InlineNotice>
-          {applicationSubmitted && role !== "guest" && (
-            <p className="mt-4 text-[13px] leading-relaxed text-ink-70">
-              <Trans
-                i18nKey="register.complete.applicationSubmitted"
-                ns="authPages"
-                values={{ role: roleLabel }}
-                components={{ strong: <strong className="text-ink" /> }}
-              />
-            </p>
-          )}
-          {!applicationSubmitted && role !== "guest" && (
-            <p className="mt-4 text-[13px] leading-relaxed text-ink-70">
-              <Trans
-                i18nKey="register.complete.finishAfterVerify"
-                ns="authPages"
-                values={{ role: roleLabel }}
-                components={{ strong: <strong className="text-ink" /> }}
-              />
-            </p>
-          )}
-          <div className="mt-6 flex flex-col gap-2 sm:flex-row">
-            <Button
-              type="button"
-              variant="dark"
-              size="md"
-              className="w-full sm:flex-1"
-              onClick={() => navigate("/login", { replace: true })}
-            >
-              {t("register.complete.goToSignIn")}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              className="w-full sm:flex-1"
-              onClick={() => navigate(redirectAfterAuth ?? "/")}
-            >
-              {t("register.complete.backToHome")}
-            </Button>
-          </div>
         </FormSectionCard>
       )}
     </div>

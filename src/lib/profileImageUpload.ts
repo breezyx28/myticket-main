@@ -12,6 +12,15 @@ export function isAllowedProfileImageFile(file: File): boolean {
   return /\.(jpe?g|png|gif|webp)$/i.test(file.name);
 }
 
+export function assertProfileImageFile(file: File): void {
+  if (!isAllowedProfileImageFile(file)) {
+    throw new Error('Choose a JPEG, PNG, GIF, or WebP image.');
+  }
+  if (file.size > PROFILE_IMAGE_MAX_BYTES) {
+    throw new Error('Please choose an image under 4 MB.');
+  }
+}
+
 export function profileImageUrlFromUpload(response: UploadProfileImageResponse): string {
   return response.profile_image_url?.trim() || response.avatar_url?.trim() || '';
 }

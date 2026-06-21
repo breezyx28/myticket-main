@@ -10,7 +10,10 @@ import { Field } from "@/components/ui/form/Field";
 import { InlineNotice } from "@/components/ui/form/InlineNotice";
 import { Select, TextArea, TextInput } from "@/components/ui/form/inputs";
 import { UploadTileInput } from "@/components/ui/form/UploadTileInput";
-import { getCitiesForRegion, SAUDI_REGIONS } from "@/lib/saudiLocations";
+import { getCitiesForRegionFlexible, getRegionsFlexible, findRegionIdByCityName, canonicalPlaceName, resolveCitySelectValue } from "@/lib/saudiLocations";
+import { pickLocalizedName } from "@/lib/localized";
+import type { AppLanguage } from "@/lib/language";
+import { useGetSaudiRegionsQuery } from "@/api/endpoints";
 
 interface VendorStepsProps {
   step: number;
@@ -27,23 +30,23 @@ export function VendorSteps({
   setTempInput,
   onChange,
 }: VendorStepsProps) {
-  const { t } = useTranslation("authPages");
+  const { t, i18n } = useTranslation("authPages");
+  const language = (i18n.language === "ar" ? "ar" : "en") as AppLanguage;
   const [docInput, setDocInput] = useState("");
   const [saudiRegionId, setSaudiRegionId] = useState("");
+  const { data: regionsRes } = useGetSaudiRegionsQuery();
+  const apiRegions = regionsRes?.data;
+  const regions = getRegionsFlexible(apiRegions);
   const vendorCities = useMemo(
-    () => getCitiesForRegion(saudiRegionId),
-    [saudiRegionId],
+    () => getCitiesForRegionFlexible(saudiRegionId, apiRegions),
+    [apiRegions, saudiRegionId],
   );
+  const citySelectValue = resolveCitySelectValue(draft.city, vendorCities);
   const bioLen = draft.bio.trim().length;
 
   useEffect(() => {
-    const match = SAUDI_REGIONS.find((region) =>
-      getCitiesForRegion(region.id).some(
-        (city) => city.name.toLowerCase() === draft.city.trim().toLowerCase(),
-      ),
-    );
-    setSaudiRegionId(match?.id ?? "");
-  }, [draft.city]);
+    setSaudiRegionId(findRegionIdByCityName(draft.city, apiRegions));
+  }, [apiRegions, draft.city]);
 
   if (step === 0) {
     return (
@@ -273,16 +276,16 @@ export function VendorSteps({
           }}
         >
           <option value="">{t("onboarding.shared.selectRegion")}</option>
-          {SAUDI_REGIONS.map((region) => (
+          {regions.map((region) => (
             <option key={region.id} value={region.id}>
-              {region.name}
+              {pickLocalizedName(region, language)}
             </option>
           ))}
         </Select>
       </Field>
       <Field label={t("onboarding.shared.city")}>
         <Select
-          value={draft.city}
+          value={citySelectValue}
           onChange={(e) => onChange({ city: e.target.value })}
           disabled={!saudiRegionId}
         >
@@ -292,8 +295,8 @@ export function VendorSteps({
               : t("onboarding.shared.chooseRegionFirst")}
           </option>
           {vendorCities.map((city) => (
-            <option key={city.id} value={city.name}>
-              {city.name}
+            <option key={city.id} value={canonicalPlaceName(city)}>
+              {pickLocalizedName(city, language)}
             </option>
           ))}
         </Select>

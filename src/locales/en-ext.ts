@@ -90,6 +90,8 @@ export const enExt = {
       email: 'Email',
       emailPlaceholder: 'you@example.com',
       password: 'Password',
+      showPassword: 'Show password',
+      hidePassword: 'Hide password',
       forgotPassword: 'Forgot password?',
       submit: 'Sign in',
       otpLabel: 'Verification code',

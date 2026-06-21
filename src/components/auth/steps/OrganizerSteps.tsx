@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { AppLanguage } from '@/lib/language';
 import type { OrganizerOnboardingDraft } from '@/types/domain';
 import { DraftProfileImageAvatarInput } from '@/components/auth/DraftProfileImageAvatarInput';
 import { TALENT_BIO_MAX_CHARS, TALENT_BIO_MIN_CHARS } from '@/lib/onboardingValidation';
@@ -9,7 +10,15 @@ import { InlineNotice } from '@/components/ui/form/InlineNotice';
 import { SaudiPhoneInput } from '@/components/ui/form/SaudiPhoneInput';
 import { UploadTileInput } from '@/components/ui/form/UploadTileInput';
 import { Select, TextArea, TextInput } from '@/components/ui/form/inputs';
-import { getCitiesForRegion, SAUDI_REGIONS } from '@/lib/saudiLocations';
+import {
+  canonicalPlaceName,
+  findRegionIdByCityName,
+  getCitiesForRegionFlexible,
+  getRegionsFlexible,
+  resolveCitySelectValue,
+} from '@/lib/saudiLocations';
+import { pickLocalizedName } from '@/lib/localized';
+import { useGetSaudiRegionsQuery } from '@/api/endpoints';
 
 interface OrganizerStepsProps {
   step: number;
@@ -17,22 +26,48 @@ interface OrganizerStepsProps {
   socialInput: string;
   setSocialInput: (value: string) => void;
   onChange: (patch: Partial<OrganizerOnboardingDraft>) => void;
+  deferProfileImageUpload?: boolean;
+  onProfileImageFileChange?: (file: File | null) => void;
 }
 
-export function OrganizerSteps({ step, draft, socialInput, setSocialInput, onChange }: OrganizerStepsProps) {
-  const { t } = useTranslation('authPages');
+export function OrganizerSteps({
+  step,
+  draft,
+  socialInput,
+  setSocialInput,
+  onChange,
+  deferProfileImageUpload,
+  onProfileImageFileChange,
+}: OrganizerStepsProps) {
+  const { t, i18n } = useTranslation('authPages');
+  const language = (i18n.language === 'ar' ? 'ar' : 'en') as AppLanguage;
   const [saudiRegionId, setSaudiRegionId] = useState('');
-  const organizerCities = useMemo(() => getCitiesForRegion(saudiRegionId), [saudiRegionId]);
+  const { data: regionsRes } = useGetSaudiRegionsQuery();
+  const apiRegions = regionsRes?.data;
+  const regions = getRegionsFlexible(apiRegions);
+  const organizerCities = useMemo(
+    () => getCitiesForRegionFlexible(saudiRegionId, apiRegions),
+    [apiRegions, saudiRegionId],
+  );
   const locationParts = draft.location.split(' · ');
   const locationCity = locationParts[locationParts.length - 1]?.trim() ?? draft.location.trim();
   const bioLen = draft.bio.trim().length;
 
   useEffect(() => {
-    const match = SAUDI_REGIONS.find((region) =>
-      getCitiesForRegion(region.id).some((city) => city.name.toLowerCase() === locationCity.toLowerCase())
-    );
-    setSaudiRegionId(match?.id ?? '');
-  }, [locationCity]);
+    const matchId = findRegionIdByCityName(locationCity, apiRegions);
+    setSaudiRegionId(matchId);
+  }, [apiRegions, locationCity]);
+
+  const citySelectValue = resolveCitySelectValue(locationCity, organizerCities);
+
+  function addSocialLink() {
+    const value = socialInput.trim();
+    if (!value) return;
+    if (!draft.socialLinks.includes(value)) {
+      onChange({ socialLinks: [...draft.socialLinks, value] });
+    }
+    setSocialInput('');
+  }
 
   if (step === 0) {
     return (
@@ -48,6 +83,8 @@ export function OrganizerSteps({ step, draft, socialInput, setSocialInput, onCha
           value={draft.profileImage}
           onChange={(url) => onChange({ profileImage: url })}
           displayName={draft.displayName.trim() || t('onboarding.organizer.defaultDisplayName')}
+          deferUpload={deferProfileImageUpload}
+          onFileChange={onProfileImageFileChange}
         />
         <Field
           label={t('onboarding.organizer.bioLabel')}
@@ -95,18 +132,19 @@ export function OrganizerSteps({ step, draft, socialInput, setSocialInput, onCha
             }}
           >
             <option value="">{t('onboarding.shared.selectRegion')}</option>
-            {SAUDI_REGIONS.map((region) => (
+            {regions.map((region) => (
               <option key={region.id} value={region.id}>
-                {region.name}
+                {pickLocalizedName(region, language)}
               </option>
             ))}
           </Select>
         </Field>
         <Field label={t('onboarding.shared.city')}>
           <Select
-            value={locationCity}
+            value={citySelectValue}
             onChange={(e) => {
-              const regionName = SAUDI_REGIONS.find((region) => region.id === saudiRegionId)?.name ?? '';
+              const region = regions.find((item) => item.id === saudiRegionId);
+              const regionName = region ? canonicalPlaceName(region) : '';
               const cityName = e.target.value;
               onChange({ location: regionName ? `${regionName} · ${cityName}` : cityName });
             }}
@@ -116,8 +154,8 @@ export function OrganizerSteps({ step, draft, socialInput, setSocialInput, onCha
               {saudiRegionId ? t('onboarding.shared.selectCity') : t('onboarding.shared.chooseRegionFirst')}
             </option>
             {organizerCities.map((city) => (
-              <option key={city.id} value={city.name}>
-                {city.name}
+              <option key={city.id} value={canonicalPlaceName(city)}>
+                {pickLocalizedName(city, language)}
               </option>
             ))}
           </Select>
@@ -206,19 +244,18 @@ export function OrganizerSteps({ step, draft, socialInput, setSocialInput, onCha
         <input
           value={socialInput}
           onChange={(e) => setSocialInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              addSocialLink();
+            }
+          }}
           className="w-full rounded-xl border border-ink-10 px-4 py-2.5 text-[14px]"
           placeholder={t('onboarding.organizer.socialPlaceholder')}
         />
         <button
           type="button"
-          onClick={() => {
-            const value = socialInput.trim();
-            if (!value) return;
-            if (!draft.socialLinks.includes(value)) {
-              onChange({ socialLinks: [...draft.socialLinks, value] });
-            }
-            setSocialInput('');
-          }}
+          onClick={addSocialLink}
           className="rounded-xl border border-ink-10 px-3 text-[12px] font-semibold hover:bg-ink-5"
         >
           {t('onboarding.buttons.add')}

@@ -57,7 +57,7 @@ import {
   TwoFactorRequiredError,
   toAuthApiError,
 } from "@/lib/authErrors";
-import type { UserRole } from "@/types/domain";
+import type { OnboardingRole, UserRole } from "@/types/domain";
 
 export type SignUpResult =
   | { status: "session_established" }
@@ -122,23 +122,24 @@ function mockPrefsPatchToApi(
 type AuthContextValue = {
   user: MockUser | null;
   isHydrating: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
-  signInWithOtp: (otp: string, challengeToken: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<MockUser>;
+  signInWithOtp: (otp: string, challengeToken: string) => Promise<MockUser>;
   signInGoogle: () => Promise<void>;
   signInWithOAuth: (provider: string) => Promise<void>;
   completeOAuthCallback: (
     provider: string,
     code: string,
     state: string | null,
-  ) => Promise<void>;
+  ) => Promise<MockUser>;
   requestPasswordReset: (email: string) => Promise<void>;
   confirmPasswordReset: (token: string, password: string) => Promise<void>;
   signUp: (
     name: string,
     email: string,
     password: string,
-    phone?: string,
-    agreeTerms?: boolean,
+    phone: string | undefined,
+    agreeTerms: boolean | undefined,
+    role?: OnboardingRole,
   ) => Promise<SignUpResult>;
   updateProfileName: (name: string) => void;
   /** Persists profile fields via `PATCH /me`. Email changes use `requestEmailChange` instead. */
@@ -256,6 +257,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             userSnapshot: me,
           });
         }
+        return next;
       } catch (error) {
         // Drop optimistic session mirror; token stays until the user signs out or retries.
         setUser(null);
@@ -318,7 +320,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const parsed = parseAuthResponse(response);
         if (parsed.kind === "two_factor") throw parsed.error;
         if (parsed.kind === "verification_required") throw parsed.error;
-        await persistCredentialsAndHydrate(
+        return await persistCredentialsAndHydrate(
           parsed.token,
           parsed.refresh_token,
           parsed.user,
@@ -343,7 +345,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const parsed = parseAuthResponse(response);
         if (parsed.kind === "two_factor") throw parsed.error;
         if (parsed.kind === "verification_required") throw parsed.error;
-        await persistCredentialsAndHydrate(
+        return await persistCredentialsAndHydrate(
           parsed.token,
           parsed.refresh_token,
           parsed.user,
@@ -400,7 +402,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const parsed = parseAuthResponse(response);
         if (parsed.kind === "two_factor") throw parsed.error;
         if (parsed.kind === "verification_required") throw parsed.error;
-        await persistCredentialsAndHydrate(
+        return await persistCredentialsAndHydrate(
           parsed.token,
           parsed.refresh_token,
           parsed.user,
@@ -442,8 +444,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       name: string,
       email: string,
       password: string,
-      phone?: string,
-      agreeTerms?: boolean,
+      phone: string | undefined,
+      agreeTerms: boolean | undefined,
+      role?: OnboardingRole,
     ) => {
       try {
         const trimmed =
@@ -456,6 +459,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           full_name: trimmed,
           email,
           password,
+          ...(role ? { role } : {}),
           ...(phone ? { phone } : {}),
           ...(agreeTerms ? { agree_terms: true } : {}),
         }).unwrap();

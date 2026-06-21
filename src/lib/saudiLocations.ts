@@ -1,123 +1,167 @@
-/** Saudi administrative regions and major cities (English labels for UI). */
+/** Saudi administrative regions and major cities — API-first with static fallback. */
 
 import type { SaudiRegionRef } from '@/api/types/reference';
 
-export interface SaudiRegion {
+export interface SaudiPlace {
   id: string;
   name: string;
+  name_en?: string;
+  name_ar?: string;
 }
 
-export interface SaudiCity {
-  id: string;
-  name: string;
-}
+export type SaudiRegion = SaudiPlace;
+export type SaudiCity = SaudiPlace;
 
 export const SAUDI_REGIONS: SaudiRegion[] = [
-  { id: 'riyadh', name: 'Riyadh Region' },
-  { id: 'makkah', name: 'Makkah Region' },
-  { id: 'eastern', name: 'Eastern Province' },
-  { id: 'madinah', name: 'Madinah Region' },
-  { id: 'qassim', name: 'Al-Qassim Region' },
-  { id: 'asir', name: 'Asir Region' },
-  { id: 'tabuk', name: 'Tabuk Region' },
-  { id: 'hail', name: 'Hail Region' },
-  { id: 'northern', name: 'Northern Borders Region' },
-  { id: 'jazan', name: 'Jazan Region' },
-  { id: 'najran', name: 'Najran Region' },
-  { id: 'al_bahah', name: 'Al Bahah Region' },
-  { id: 'al_jawf', name: 'Al Jawf Region' },
+  { id: 'riyadh', name: 'Riyadh Region', name_en: 'Riyadh Region' },
+  { id: 'makkah', name: 'Makkah Region', name_en: 'Makkah Region' },
+  { id: 'eastern', name: 'Eastern Province', name_en: 'Eastern Province' },
+  { id: 'madinah', name: 'Madinah Region', name_en: 'Madinah Region' },
+  { id: 'qassim', name: 'Al-Qassim Region', name_en: 'Al-Qassim Region' },
+  { id: 'asir', name: 'Asir Region', name_en: 'Asir Region' },
+  { id: 'tabuk', name: 'Tabuk Region', name_en: 'Tabuk Region' },
+  { id: 'hail', name: 'Hail Region', name_en: 'Hail Region' },
+  { id: 'northern', name: 'Northern Borders Region', name_en: 'Northern Borders Region' },
+  { id: 'jazan', name: 'Jazan Region', name_en: 'Jazan Region' },
+  { id: 'najran', name: 'Najran Region', name_en: 'Najran Region' },
+  { id: 'al_bahah', name: 'Al Bahah Region', name_en: 'Al Bahah Region' },
+  { id: 'al_jawf', name: 'Al Jawf Region', name_en: 'Al Jawf Region' },
 ];
+
+function mapApiCity(c: SaudiRegionRef['cities'][number]): SaudiCity {
+  return {
+    id: String(c.id),
+    name: c.name,
+    name_en: c.name_en ?? c.name,
+    name_ar: c.name_ar ?? undefined,
+  };
+}
+
+function mapApiRegion(r: SaudiRegionRef): SaudiRegion {
+  return {
+    id: String(r.id),
+    name: r.name,
+    name_en: r.name_en ?? r.name,
+    name_ar: r.name_ar ?? undefined,
+  };
+}
+
+/** Stable value for selects / API payloads (prefer English canonical). */
+export function canonicalPlaceName(
+  item: Pick<SaudiPlace, 'name' | 'name_en' | 'name_ar'>,
+): string {
+  return item.name_en?.trim() || item.name?.trim() || item.name_ar?.trim() || '';
+}
+
+export function placeMatchesName(
+  item: Pick<SaudiPlace, 'name' | 'name_en' | 'name_ar'>,
+  value: string,
+): boolean {
+  const v = value.trim().toLowerCase();
+  if (!v) return false;
+  return [item.name, item.name_en, item.name_ar].some(
+    (n) => n?.trim().toLowerCase() === v,
+  );
+}
+
+/** Match stored city string to a canonical option value. */
+export function resolveCitySelectValue(city: string, cities: SaudiCity[]): string {
+  const trimmed = city.trim();
+  if (!trimmed) return '';
+  const match = cities.find((c) => placeMatchesName(c, trimmed));
+  return match ? canonicalPlaceName(match) : trimmed;
+}
 
 export const SAUDI_CITIES_BY_REGION: Record<string, SaudiCity[]> = {
   riyadh: [
-    { id: 'riyadh_city', name: 'Riyadh' },
-    { id: 'diriyah', name: 'Diriyah' },
-    { id: 'kharj', name: 'Al Kharj' },
-    { id: 'dawadmi', name: 'Dawadmi' },
-    { id: 'majmaah', name: 'Al Majma\'ah' },
-    { id: 'zulfi', name: 'Al Zulfi' },
-    { id: 'shagra', name: 'Shaqra' },
-    { id: 'afif', name: 'Afif' },
+    { id: 'riyadh_city', name: 'Riyadh', name_en: 'Riyadh' },
+    { id: 'diriyah', name: 'Diriyah', name_en: 'Diriyah' },
+    { id: 'kharj', name: 'Al Kharj', name_en: 'Al Kharj' },
+    { id: 'dawadmi', name: 'Dawadmi', name_en: 'Dawadmi' },
+    { id: 'majmaah', name: "Al Majma'ah", name_en: "Al Majma'ah" },
+    { id: 'zulfi', name: 'Al Zulfi', name_en: 'Al Zulfi' },
+    { id: 'shagra', name: 'Shaqra', name_en: 'Shaqra' },
+    { id: 'afif', name: 'Afif', name_en: 'Afif' },
   ],
   makkah: [
-    { id: 'jeddah', name: 'Jeddah' },
-    { id: 'makkah_city', name: 'Makkah' },
-    { id: 'taif', name: 'Taif' },
-    { id: 'rabigh', name: 'Rabigh' },
-    { id: 'thuwal', name: 'Thuwal' },
-    { id: 'khulays', name: 'Al Khulays' },
-    { id: 'laith', name: 'Al Lith' },
-    { id: 'jumum', name: 'Al Jumum' },
+    { id: 'jeddah', name: 'Jeddah', name_en: 'Jeddah' },
+    { id: 'makkah_city', name: 'Makkah', name_en: 'Makkah' },
+    { id: 'taif', name: 'Taif', name_en: 'Taif' },
+    { id: 'rabigh', name: 'Rabigh', name_en: 'Rabigh' },
+    { id: 'thuwal', name: 'Thuwal', name_en: 'Thuwal' },
+    { id: 'khulays', name: 'Al Khulays', name_en: 'Al Khulays' },
+    { id: 'laith', name: 'Al Lith', name_en: 'Al Lith' },
+    { id: 'jumum', name: 'Al Jumum', name_en: 'Al Jumum' },
   ],
   eastern: [
-    { id: 'dammam', name: 'Dammam' },
-    { id: 'khobar', name: 'Al Khobar' },
-    { id: 'dhahran', name: 'Dhahran' },
-    { id: 'jubail', name: 'Jubail' },
-    { id: 'qatif', name: 'Qatif' },
-    { id: 'hofuf', name: 'Al Hofuf' },
-    { id: 'mubarraz', name: 'Al Mubarraz' },
-    { id: 'hafr', name: 'Hafr Al Batin' },
-    { id: 'ras_tanura', name: 'Ras Tanura' },
+    { id: 'dammam', name: 'Dammam', name_en: 'Dammam' },
+    { id: 'khobar', name: 'Al Khobar', name_en: 'Al Khobar' },
+    { id: 'dhahran', name: 'Dhahran', name_en: 'Dhahran' },
+    { id: 'jubail', name: 'Jubail', name_en: 'Jubail' },
+    { id: 'qatif', name: 'Qatif', name_en: 'Qatif' },
+    { id: 'hofuf', name: 'Al Hofuf', name_en: 'Al Hofuf' },
+    { id: 'mubarraz', name: 'Al Mubarraz', name_en: 'Al Mubarraz' },
+    { id: 'hafr', name: 'Hafr Al Batin', name_en: 'Hafr Al Batin' },
+    { id: 'ras_tanura', name: 'Ras Tanura', name_en: 'Ras Tanura' },
   ],
   madinah: [
-    { id: 'madinah_city', name: 'Madinah' },
-    { id: 'yanbu', name: 'Yanbu' },
-    { id: 'ula', name: 'Al Ula' },
-    { id: 'mahd', name: 'Mahd Al Thahab' },
-    { id: 'badr', name: 'Badr' },
-    { id: 'khaybar', name: 'Khaybar' },
+    { id: 'madinah_city', name: 'Madinah', name_en: 'Madinah' },
+    { id: 'yanbu', name: 'Yanbu', name_en: 'Yanbu' },
+    { id: 'ula', name: 'Al Ula', name_en: 'Al Ula' },
+    { id: 'mahd', name: 'Mahd Al Thahab', name_en: 'Mahd Al Thahab' },
+    { id: 'badr', name: 'Badr', name_en: 'Badr' },
+    { id: 'khaybar', name: 'Khaybar', name_en: 'Khaybar' },
   ],
   qassim: [
-    { id: 'buraidah', name: 'Buraidah' },
-    { id: 'unaizah', name: 'Unaizah' },
-    { id: 'ras', name: 'Ar Rass' },
-    { id: 'midhnab', name: 'Al Midhnab' },
-    { id: 'badaya', name: 'Al Badaya' },
+    { id: 'buraidah', name: 'Buraidah', name_en: 'Buraidah' },
+    { id: 'unaizah', name: 'Unaizah', name_en: 'Unaizah' },
+    { id: 'ras', name: 'Ar Rass', name_en: 'Ar Rass' },
+    { id: 'midhnab', name: 'Al Midhnab', name_en: 'Al Midhnab' },
+    { id: 'badaya', name: 'Al Badaya', name_en: 'Al Badaya' },
   ],
   asir: [
-    { id: 'abha', name: 'Abha' },
-    { id: 'khamis', name: 'Khamis Mushait' },
-    { id: 'namsan', name: 'An Namas' },
-    { id: 'sabt', name: 'Sabt Al Alaya' },
-    { id: 'bihah', name: 'Bisha' },
+    { id: 'abha', name: 'Abha', name_en: 'Abha' },
+    { id: 'khamis', name: 'Khamis Mushait', name_en: 'Khamis Mushait' },
+    { id: 'namsan', name: 'An Namas', name_en: 'An Namas' },
+    { id: 'sabt', name: 'Sabt Al Alaya', name_en: 'Sabt Al Alaya' },
+    { id: 'bihah', name: 'Bisha', name_en: 'Bisha' },
   ],
   tabuk: [
-    { id: 'tabuk_city', name: 'Tabuk' },
-    { id: 'duba', name: 'Duba' },
-    { id: 'umluj', name: 'Umluj' },
-    { id: 'haql', name: 'Haql' },
+    { id: 'tabuk_city', name: 'Tabuk', name_en: 'Tabuk' },
+    { id: 'duba', name: 'Duba', name_en: 'Duba' },
+    { id: 'umluj', name: 'Umluj', name_en: 'Umluj' },
+    { id: 'haql', name: 'Haql', name_en: 'Haql' },
   ],
   hail: [
-    { id: 'hail_city', name: 'Hail' },
-    { id: 'baga', name: 'Baqa\'a' },
-    { id: 'ghazalah', name: 'Al Ghazalah' },
+    { id: 'hail_city', name: 'Hail', name_en: 'Hail' },
+    { id: 'baga', name: "Baqa'a", name_en: "Baqa'a" },
+    { id: 'ghazalah', name: 'Al Ghazalah', name_en: 'Al Ghazalah' },
   ],
   northern: [
-    { id: 'arar', name: 'Arar' },
-    { id: 'turaif', name: 'Turaif' },
-    { id: 'rafha', name: 'Rafha' },
+    { id: 'arar', name: 'Arar', name_en: 'Arar' },
+    { id: 'turaif', name: 'Turaif', name_en: 'Turaif' },
+    { id: 'rafha', name: 'Rafha', name_en: 'Rafha' },
   ],
   jazan: [
-    { id: 'jazan_city', name: 'Jazan' },
-    { id: 'sabya', name: 'Sabya' },
-    { id: 'farasan', name: 'Farasan' },
-    { id: 'ahad', name: 'Ahad Al Masarihah' },
+    { id: 'jazan_city', name: 'Jazan', name_en: 'Jazan' },
+    { id: 'sabya', name: 'Sabya', name_en: 'Sabya' },
+    { id: 'farasan', name: 'Farasan', name_en: 'Farasan' },
+    { id: 'ahad', name: 'Ahad Al Masarihah', name_en: 'Ahad Al Masarihah' },
   ],
   najran: [
-    { id: 'najran_city', name: 'Najran' },
-    { id: 'sharurah', name: 'Sharurah' },
-    { id: 'hubuna', name: 'Hubuna' },
+    { id: 'najran_city', name: 'Najran', name_en: 'Najran' },
+    { id: 'sharurah', name: 'Sharurah', name_en: 'Sharurah' },
+    { id: 'hubuna', name: 'Hubuna', name_en: 'Hubuna' },
   ],
   al_bahah: [
-    { id: 'bahah_city', name: 'Al Bahah' },
-    { id: 'baljurashi', name: 'Baljurashi' },
-    { id: 'mandaq', name: 'Al Mandaq' },
+    { id: 'bahah_city', name: 'Al Bahah', name_en: 'Al Bahah' },
+    { id: 'baljurashi', name: 'Baljurashi', name_en: 'Baljurashi' },
+    { id: 'mandaq', name: 'Al Mandaq', name_en: 'Al Mandaq' },
   ],
   al_jawf: [
-    { id: 'sakaka', name: 'Sakaka' },
-    { id: 'qurayyat_j', name: 'Qurayyat' },
-    { id: 'dawmat', name: 'Dawmat Al Jandal' },
+    { id: 'sakaka', name: 'Sakaka', name_en: 'Sakaka' },
+    { id: 'qurayyat_j', name: 'Qurayyat', name_en: 'Qurayyat' },
+    { id: 'dawmat', name: 'Dawmat Al Jandal', name_en: 'Dawmat Al Jandal' },
   ],
 };
 
@@ -127,7 +171,7 @@ export function getCitiesForRegion(regionId: string): SaudiCity[] {
 
 export function isValidSaudiCity(regionId: string, cityName: string): boolean {
   const cities = getCitiesForRegion(regionId);
-  return cities.some((c) => c.name === cityName);
+  return cities.some((c) => placeMatchesName(c, cityName));
 }
 
 /** Prefer API `GET /reference/saudi-regions` when loaded; fall back to static lists. */
@@ -141,7 +185,7 @@ export function isValidSaudiCityFlexible(
   if (apiRegions && apiRegions.length > 0) {
     const region = apiRegions.find((r) => String(r.id) === String(regionId));
     if (!region) return false;
-    return region.cities.some((c) => c.name === trimmed);
+    return region.cities.some((c) => placeMatchesName(mapApiCity(c), trimmed));
   }
   return isValidSaudiCity(regionId, trimmed);
 }
@@ -154,7 +198,7 @@ export function getCitiesForRegionFlexible(
   if (apiRegions && apiRegions.length > 0 && regionId) {
     const region = apiRegions.find((r) => String(r.id) === String(regionId));
     if (region?.cities?.length) {
-      return region.cities.map((c) => ({ id: String(c.id), name: c.name }));
+      return region.cities.map(mapApiCity);
     }
   }
   return getCitiesForRegion(regionId);
@@ -163,7 +207,35 @@ export function getCitiesForRegionFlexible(
 /** Region options: API order when present, else static `SAUDI_REGIONS`. */
 export function getRegionsFlexible(apiRegions?: SaudiRegionRef[] | null): SaudiRegion[] {
   if (apiRegions && apiRegions.length > 0) {
-    return apiRegions.map((r) => ({ id: String(r.id), name: r.name }));
+    return apiRegions.map(mapApiRegion);
   }
   return SAUDI_REGIONS;
+}
+
+/** Find region id from stored name in any locale. */
+export function findRegionIdByName(
+  name: string,
+  apiRegions?: SaudiRegionRef[] | null,
+): string {
+  const trimmed = name.trim();
+  if (!trimmed) return '';
+  const regions = getRegionsFlexible(apiRegions);
+  return regions.find((r) => placeMatchesName(r, trimmed))?.id ?? '';
+}
+
+/** Find region id that contains a city name in any locale. */
+export function findRegionIdByCityName(
+  cityName: string,
+  apiRegions?: SaudiRegionRef[] | null,
+): string {
+  const trimmed = cityName.trim();
+  if (!trimmed) return '';
+  const regions = getRegionsFlexible(apiRegions);
+  for (const region of regions) {
+    const cities = getCitiesForRegionFlexible(region.id, apiRegions);
+    if (cities.some((c) => placeMatchesName(c, trimmed))) {
+      return region.id;
+    }
+  }
+  return '';
 }

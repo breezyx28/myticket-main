@@ -10,12 +10,12 @@ export function getOrganizerPortalBaseUrl() {
   return (import.meta.env.VITE_ORGANIZER_DASHBOARD_URL as string | undefined)?.trim() || DEFAULT_ORGANIZER_PORTAL_URL;
 }
 
-export function buildOrganizerPortalUrl(user: MockUser | null | undefined) {
+export function buildOrganizerPortalUrl(path = '/', user?: MockUser | null | undefined) {
   let url: URL;
   try {
-    url = new URL(getOrganizerPortalBaseUrl());
+    url = new URL(path, getOrganizerPortalBaseUrl());
   } catch {
-    url = new URL(DEFAULT_ORGANIZER_PORTAL_URL);
+    url = new URL(path, DEFAULT_ORGANIZER_PORTAL_URL);
   }
   url.searchParams.set('source', 'main-website');
   if (user?.email) {

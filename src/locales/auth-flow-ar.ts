@@ -8,6 +8,8 @@ export const authFlowAr = {
         signUpFailed: 'فشل إنشاء الحساب.',
         googleFailed: 'تعذر بدء تسجيل الدخول عبر Google.',
         submitApplicationFailed: 'تعذر إرسال الطلب.',
+        submitProfileFailed: 'تعذر حفظ ملفك. تحقق من بريدك إذا كان التحقق لا يزال معلقاً.',
+        sessionRequired: 'سجّل الدخول لمتابعة إعداد ملفك.',
       },
       roles: {
         guest: {
@@ -35,13 +37,14 @@ export const authFlowAr = {
       basic: {
         eyebrow: 'إنشاء حساب',
         title: 'ابدأ ببياناتك',
-        description: 'أنشئ حساب MyTicket، ثم اختر كيف ستستخدم المنصة.',
+        description: 'أنشئ حساب MyTicket واختر كيف ستستخدم المنصة.',
         alreadyHaveAccount: 'لديك حساب بالفعل؟',
         signIn: 'تسجيل الدخول',
         terms: 'الشروط',
         termsBody: 'بالتسجيل فإنك توافق على',
         termsLink: 'شروط الخدمة',
         continue: 'متابعة',
+        createAccount: 'إنشاء حساب',
         or: 'أو',
         continueGoogle: 'المتابعة مع Google',
         clearForm: 'مسح النموذج',
@@ -65,16 +68,22 @@ export const authFlowAr = {
         eyebrow: 'التسجيل',
         title: 'اختر دورك',
         description:
-          'اختر دورًا واحدًا لمتابعة خطوات التسجيل في هذه الصفحة. يُنشأ حسابك فقط بعد الإكمال والإرسال. يمكنك أيضًا تخطي التسجيل والمتابعة كضيف.',
+          'أكمل ملفك هنا على MyTicket، ثم سجّل الدخول على لوحة تحكم دورك.',
         back: 'رجوع',
+        continue: 'متابعة',
         continueAsGuest: 'المتابعة كضيف',
       },
+      verificationDuringOnboarding:
+        'أرسلنا رابط تحقق إلى بريدك. يمكنك إكمال ملفك الآن؛ تحقق من عنوانك قبل تسجيل الدخول على لوحة التحكم.',
+      refreshResumeNote:
+        'انتهت جلستك. أنشئ حسابك مرة أخرى لمتابعة إعداد ملفك.',
       wizard: {
         eyebrow: 'التسجيل',
         description: 'أكمل الخطوات أدناه. يمكنك الرجوع في أي وقت.',
-        organizerStepDesc: 'أنشئ ملف المنظم العام (عرض تجريبي).',
+        organizerStepDesc: 'أنشئ ملف المنظم العام.',
         back: 'رجوع',
         next: 'التالي',
+        submitProfile: 'حفظ الملف والذهاب للوحة التحكم',
         submitApplication: 'إرسال طلب {{role}}',
         clearForm: 'مسح النموذج',
       },
@@ -99,6 +108,9 @@ export const authFlowAr = {
           'تم إرسال طلب <strong>{{role}}</strong> وهو قيد المراجعة.',
         finishAfterVerify:
           'بعد التحقق من بريدك وتسجيل الدخول، يمكنك إكمال إرسال طلب <strong>{{role}}</strong> من حسابك.',
+        finishOnPortal:
+          'بعد التحقق من بريدك، سجّل الدخول على لوحة <strong>{{role}}</strong> لإكمال ملفك.',
+        goToPortal: 'إكمال ملف {{role}}',
         goToSignIn: 'الذهاب لتسجيل الدخول',
         backToHome: 'العودة للرئيسية',
       },

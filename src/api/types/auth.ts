@@ -1,6 +1,8 @@
 import type { Id, Iso8601 } from "@/api/types/common";
 import type { UserMe } from "@/api/types/user";
 
+import type { OnboardingRole } from '@/types/domain';
+
 export type OAuthProvider = string;
 
 export interface RegisterRequest {
@@ -10,6 +12,7 @@ export interface RegisterRequest {
   full_name: string;
   display_name?: string;
   agree_terms?: boolean;
+  role?: OnboardingRole;
 }
 
 export interface LoginRequest {

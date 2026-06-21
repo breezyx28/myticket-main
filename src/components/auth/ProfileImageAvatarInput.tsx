@@ -12,6 +12,8 @@ interface ProfileImageAvatarInputProps {
   disabled?: boolean;
   className?: string;
   hintText?: string;
+  /** When false, local preview stays visible after select (deferred upload). */
+  retainPreviewAfterSelect?: boolean;
   /** Upload handler — e.g. `POST /me/profile-image` on /profile or onboarding. */
   onFileSelected: (file: File) => Promise<void>;
   onRemove?: () => Promise<void>;
@@ -23,6 +25,7 @@ export function ProfileImageAvatarInput({
   disabled = false,
   className,
   hintText,
+  retainPreviewAfterSelect = false,
   onFileSelected,
   onRemove,
 }: ProfileImageAvatarInputProps) {
@@ -68,7 +71,7 @@ export function ProfileImageAvatarInput({
 
       try {
         await onFileSelected(file);
-        clearPreview();
+        if (!retainPreviewAfterSelect) clearPreview();
       } catch (err) {
         clearPreview();
         setUploadError(toAuthApiError(err, t('onboarding.errors.uploadPhotoFailed')).message);
@@ -76,7 +79,7 @@ export function ProfileImageAvatarInput({
         setUploading(false);
       }
     },
-    [clearPreview, onFileSelected, t],
+    [clearPreview, onFileSelected, retainPreviewAfterSelect, t],
   );
 
   const handleRemove = useCallback(async () => {

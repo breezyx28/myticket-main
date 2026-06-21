@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import { authErrorMessage } from '@/lib/authErrors';
 import { getSafeRedirectPath } from '@/lib/navigation';
+import { getRolePortalLoginUrl, shouldRedirectToRolePortal } from '@/lib/rolePortalRedirect';
 import { FormSectionCard } from '@/components/ui/form/FormSectionCard';
 import { InlineNotice } from '@/components/ui/form/InlineNotice';
 
@@ -37,7 +38,12 @@ export function OAuthCallbackPage() {
     ranRef.current = true;
 
     completeOAuthCallback(provider, code, state)
-      .then(() => {
+      .then((signedInUser) => {
+        if (shouldRedirectToRolePortal(signedInUser.role)) {
+          sessionStorage.removeItem(OAUTH_REDIRECT_KEY);
+          window.location.assign(getRolePortalLoginUrl(signedInUser));
+          return;
+        }
         const stored = sessionStorage.getItem(OAUTH_REDIRECT_KEY);
         sessionStorage.removeItem(OAUTH_REDIRECT_KEY);
         const safe = getSafeRedirectPath(stored) ?? '/';

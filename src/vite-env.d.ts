@@ -3,6 +3,9 @@
 interface ImportMetaEnv {
   readonly VITE_API_BASE_URL?: string;
   readonly VITE_API_PREFIX?: string;
+  readonly VITE_ORGANIZER_API_PREFIX?: string;
+  readonly VITE_TALENT_API_PREFIX?: string;
+  readonly VITE_VENDOR_API_PREFIX?: string;
   readonly VITE_ORGANIZER_DASHBOARD_URL?: string;
   readonly VITE_TALENT_DASHBOARD_URL?: string;
   readonly VITE_VENDOR_DASHBOARD_URL?: string;

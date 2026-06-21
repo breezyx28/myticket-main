@@ -6,6 +6,7 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import { getSafeRedirectPath } from '@/lib/navigation';
+import { getRolePortalLoginUrl, shouldRedirectToRolePortal } from '@/lib/rolePortalRedirect';
 import {
   authErrorMessage,
   isEmailVerificationRequiredError,
@@ -13,6 +14,7 @@ import {
 } from '@/lib/authErrors';
 import { FormSectionCard } from '@/components/ui/form/FormSectionCard';
 import { Field } from '@/components/ui/form/Field';
+import { PasswordInput } from '@/components/ui/form/PasswordInput';
 import { TextInput } from '@/components/ui/form/inputs';
 import { createLoginSchema } from '@/schemas/auth';
 
@@ -46,15 +48,20 @@ export function LoginPage() {
   const onSubmit = handleSubmit(async (values) => {
     setError(null);
     try {
+      let signedInUser;
       if (challengeToken) {
         const otp = (values.otp ?? '').trim();
         if (!/^\d{6}$/.test(otp)) {
           setFieldError('otp', { type: 'manual', message: t('login.otpInvalid') });
           return;
         }
-        await signInWithOtp(otp, challengeToken);
+        signedInUser = await signInWithOtp(otp, challengeToken);
       } else {
-        await signIn((values.email ?? '').trim(), values.password);
+        signedInUser = await signIn((values.email ?? '').trim(), values.password);
+      }
+      if (shouldRedirectToRolePortal(signedInUser.role)) {
+        window.location.assign(getRolePortalLoginUrl(signedInUser));
+        return;
       }
       navigate(from, { replace: true });
     } catch (e) {
@@ -129,12 +136,13 @@ export function LoginPage() {
               />
             </Field>
             <Field label={t('login.password')} htmlFor="login-password" errorText={errors.password?.message}>
-              <TextInput
+              <PasswordInput
                 id="login-password"
-                type="password"
                 autoComplete="current-password"
                 placeholder="••••••••"
                 aria-invalid={Boolean(errors.password)}
+                showLabel={t('login.showPassword')}
+                hideLabel={t('login.hidePassword')}
                 {...register('password')}
               />
             </Field>

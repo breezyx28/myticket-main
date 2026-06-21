@@ -375,7 +375,7 @@ export function EventsPage() {
                       <option value="all">{t('allCities')}</option>
                       {cities.map((c) => (
                         <option key={c.slug} value={c.slug}>
-                          {c.name}
+                          {pickLocalizedName(c, language) || c.name}
                         </option>
                       ))}
                     </select>

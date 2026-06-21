@@ -21,8 +21,10 @@ export interface EventCategoryListResponse {
 
 /** `GET /events/cities`. */
 export interface EventCityRef {
+  id?: Id;
   slug: string;
   name: string;
+  name_en?: string | null;
   name_ar?: string | null;
   region_id?: Id | null;
   events_count?: number;
@@ -37,13 +39,16 @@ export interface EventCityListResponse {
 export interface SaudiCityRef {
   id: Id;
   name: string;
+  name_en?: string | null;
   name_ar?: string | null;
   [key: string]: unknown;
 }
 
 export interface SaudiRegionRef {
   id: Id;
+  code?: string;
   name: string;
+  name_en?: string | null;
   name_ar?: string | null;
   cities: SaudiCityRef[];
   [key: string]: unknown;

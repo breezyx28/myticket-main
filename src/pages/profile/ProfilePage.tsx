@@ -10,11 +10,14 @@ import { AccountProfileAvatar } from '@/components/profile/AccountProfileAvatar'
 import { DraftProfileImageAvatarInput } from '@/components/auth/DraftProfileImageAvatarInput';
 import { TALENT_BIO_MAX_CHARS, TALENT_BIO_MIN_CHARS } from '@/lib/onboardingValidation';
 import {
+  canonicalPlaceName,
+  findRegionIdByName,
   getCitiesForRegionFlexible,
   getRegionsFlexible,
   isValidSaudiCityFlexible,
-  SAUDI_REGIONS,
+  resolveCitySelectValue,
 } from '@/lib/saudiLocations';
+import { pickLocalizedName, type AppLanguage } from '@/i18n';
 import { apiStatusToOnboardingStatus, apiTalentDetailToDraft } from '@/lib/roleApplicationMappers';
 import { runTalentRoleApplicationPipeline } from '@/services/roleApplicationSubmit';
 import { isOrganizerUser } from '@/lib/organizerPortal';
@@ -132,6 +135,7 @@ type DeleteAccountFormValues = {
 export function ProfilePage() {
   const { t } = useTranslation(['profile', 'common']);
   const { t: tValidation, i18n } = useTranslation('validation');
+  const language = (i18n.language === 'ar' ? 'ar' : 'en') as AppLanguage;
   const updateProfileSchema = useMemo(
     () => createUpdateProfileSchema(tValidation),
     [tValidation, i18n.language],
@@ -301,6 +305,7 @@ export function ProfilePage() {
     () => getCitiesForRegionFlexible(draft.saudiRegionId, apiSaudiRegions),
     [draft.saudiRegionId, apiSaudiRegions],
   );
+  const talentCitySelectValue = resolveCitySelectValue(draft.city, talentCities);
 
   useEffect(() => {
     if (!user) return;
@@ -309,7 +314,9 @@ export function ProfilePage() {
 
   useEffect(() => {
     if (!user) return;
-    const mappedRegion = SAUDI_REGIONS.find((r) => r.id === user.region || r.name === user.region)?.id ?? '';
+    const mappedRegion =
+      findRegionIdByName(user.region ?? '', apiSaudiRegions) ||
+      (user.region && /^\d+$/.test(String(user.region)) ? String(user.region) : '');
     const normalizedPhone = user.phone.startsWith(SAUDI_COUNTRY_CODE)
       ? user.phone
       : `${SAUDI_COUNTRY_CODE}${user.phone.replace(/^\+/, '').trim()}`;
@@ -321,7 +328,7 @@ export function ProfilePage() {
       city: user.city,
       region: mappedRegion,
     });
-  }, [user, profileForm]);
+  }, [user, profileForm, apiSaudiRegions]);
 
   useEffect(() => {
     if (!prefsFromApi) return;
@@ -831,7 +838,7 @@ export function ProfilePage() {
                       <option value="">{t('info.selectRegion')}</option>
                       {talentRegionOptions.map((r) => (
                         <option key={r.id} value={r.id}>
-                          {r.name}
+                          {pickLocalizedName(r, language)}
                         </option>
                       ))}
                     </select>
@@ -850,7 +857,7 @@ export function ProfilePage() {
                     <select
                       ref={field.ref}
                       name={field.name}
-                      value={field.value ?? ''}
+                      value={resolveCitySelectValue(field.value ?? '', accountCities)}
                       onBlur={field.onBlur}
                       onChange={field.onChange}
                       disabled={!profileRegion}
@@ -860,8 +867,8 @@ export function ProfilePage() {
                         {profileRegion ? t('info.selectCity') : t('info.chooseRegionFirst')}
                       </option>
                       {accountCities.map((c) => (
-                        <option key={c.id} value={c.name}>
-                          {c.name}
+                        <option key={c.id} value={canonicalPlaceName(c)}>
+                          {pickLocalizedName(c, language)}
                         </option>
                       ))}
                     </select>
@@ -1262,7 +1269,7 @@ export function ProfilePage() {
                     <option value="">{t('info.selectRegion')}</option>
                     {talentRegionOptions.map((r) => (
                       <option key={r.id} value={r.id}>
-                        {r.name}
+                        {pickLocalizedName(r, language)}
                       </option>
                     ))}
                   </select>
@@ -1270,7 +1277,7 @@ export function ProfilePage() {
                 <label className="block">
                   <span className="text-[12px] font-semibold text-ink-60">{t('talentOnboarding.city')}</span>
                   <select
-                    value={draft.city}
+                    value={talentCitySelectValue}
                     disabled={talentFormLocked || !draft.saudiRegionId}
                     onChange={(e) => setDraft((prev) => ({ ...prev, city: e.target.value }))}
                     className="mt-1.5 w-full rounded-xl border border-ink-10 bg-white px-4 py-3 text-[14px] disabled:cursor-not-allowed disabled:bg-ink-5 disabled:text-ink-40"
@@ -1279,8 +1286,8 @@ export function ProfilePage() {
                       {draft.saudiRegionId ? t('info.selectCity') : t('info.chooseRegionFirst')}
                     </option>
                     {talentCities.map((c) => (
-                      <option key={c.id} value={c.name}>
-                        {c.name}
+                      <option key={c.id} value={canonicalPlaceName(c)}>
+                        {pickLocalizedName(c, language)}
                       </option>
                     ))}
                   </select>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import type { AppLanguage } from "@/lib/language";
 import type { TalentOnboardingDraft } from "@/types/domain";
 import { DraftProfileImageAvatarInput } from "@/components/auth/DraftProfileImageAvatarInput";
 import {
@@ -12,9 +13,12 @@ import { InlineNotice } from "@/components/ui/form/InlineNotice";
 import { Select, TextArea, TextInput } from "@/components/ui/form/inputs";
 import { UploadTileInput } from "@/components/ui/form/UploadTileInput";
 import {
+  canonicalPlaceName,
   getCitiesForRegionFlexible,
   getRegionsFlexible,
+  resolveCitySelectValue,
 } from "@/lib/saudiLocations";
+import { pickLocalizedName } from "@/lib/localized";
 import { useGetSaudiRegionsQuery } from "@/api/endpoints";
 
 interface TalentStepsProps {
@@ -23,6 +27,8 @@ interface TalentStepsProps {
   mediaInput: string;
   setMediaInput: (value: string) => void;
   onChange: (patch: Partial<TalentOnboardingDraft>) => void;
+  deferProfileImageUpload?: boolean;
+  onProfileImageFileChange?: (file: File | null) => void;
 }
 
 function appendMedia(
@@ -41,13 +47,17 @@ export function TalentSteps({
   mediaInput,
   setMediaInput,
   onChange,
+  deferProfileImageUpload,
+  onProfileImageFileChange,
 }: TalentStepsProps) {
-  const { t } = useTranslation("authPages");
+  const { t, i18n } = useTranslation("authPages");
+  const language = (i18n.language === "ar" ? "ar" : "en") as AppLanguage;
   const bioLen = draft.bio.trim().length;
   const { data: regionsRes } = useGetSaudiRegionsQuery();
   const apiRegions = regionsRes?.data;
   const regions = getRegionsFlexible(apiRegions);
   const cities = getCitiesForRegionFlexible(draft.saudiRegionId, apiRegions);
+  const citySelectValue = resolveCitySelectValue(draft.city, cities);
 
   if (step === 0) {
     return (
@@ -56,6 +66,8 @@ export function TalentSteps({
           value={draft.profileImage}
           onChange={(url) => onChange({ profileImage: url })}
           displayName={draft.fullName.trim() || t("onboarding.talent.defaultDisplayName")}
+          deferUpload={deferProfileImageUpload}
+          onFileChange={onProfileImageFileChange}
         />
 
         <Field
@@ -92,6 +104,13 @@ export function TalentSteps({
           <TextInput
             value={mediaInput}
             onChange={(e) => setMediaInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                appendMedia(draft, mediaInput, onChange);
+                setMediaInput('');
+              }
+            }}
             className="min-w-0 flex-1 !py-2.5"
             placeholder={t("onboarding.talent.urlPlaceholder")}
           />
@@ -320,7 +339,7 @@ export function TalentSteps({
           <option value="">{t("onboarding.shared.selectRegion")}</option>
           {regions.map((r) => (
             <option key={r.id} value={r.id}>
-              {r.name}
+              {pickLocalizedName(r, language)}
             </option>
           ))}
         </Select>
@@ -328,7 +347,7 @@ export function TalentSteps({
 
       <Field label={t("onboarding.shared.city")}>
         <Select
-          value={draft.city}
+          value={citySelectValue}
           onChange={(e) => onChange({ city: e.target.value })}
           disabled={!draft.saudiRegionId}
         >
@@ -338,8 +357,8 @@ export function TalentSteps({
               : t("onboarding.shared.chooseRegionFirst")}
           </option>
           {cities.map((c) => (
-            <option key={c.id} value={c.name}>
-              {c.name}
+            <option key={c.id} value={canonicalPlaceName(c)}>
+              {pickLocalizedName(c, language)}
             </option>
           ))}
         </Select>

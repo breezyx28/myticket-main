@@ -1,9 +1,8 @@
 import type { FieldErrors } from "react-hook-form";
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Eye, EyeSlash } from "@phosphor-icons/react";
 import type { BaseRegistrationFields } from "@/types/domain";
 import { Field } from "@/components/ui/form/Field";
+import { PasswordInput } from "@/components/ui/form/PasswordInput";
 import { SaudiPhoneInput } from "@/components/ui/form/SaudiPhoneInput";
 import { TextInput } from "@/components/ui/form/inputs";
 
@@ -38,8 +37,6 @@ export function SharedBasicStep({
     | string
     | undefined;
   const termsError = errors?.agreeTerms?.message as string | undefined;
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
 
   return (
     <div className="space-y-4">
@@ -86,60 +83,34 @@ export function SharedBasicStep({
         helperText={passwordError ? undefined : t("register.fields.passwordHelper")}
         errorText={passwordError}
       >
-        <div className="relative">
-          <TextInput
-            id="register-password"
-            type={showPassword ? "text" : "password"}
-            autoComplete="new-password"
-            minLength={8}
-            value={value.password}
-            onChange={(e) => onChange({ password: e.target.value })}
-            placeholder={t("register.fields.passwordPlaceholder")}
-            aria-invalid={Boolean(passwordError)}
-          />
-          <button
-            type="button"
-            onClick={() => setShowPassword((s) => !s)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 rounded"
-            aria-label={showPassword ? t("register.fields.hidePassword") : t("register.fields.showPassword")}
-          >
-            {showPassword ? (
-              <EyeSlash size={18} weight="bold" />
-            ) : (
-              <Eye size={18} weight="bold" />
-            )}
-          </button>
-        </div>
+        <PasswordInput
+          id="register-password"
+          autoComplete="new-password"
+          minLength={8}
+          value={value.password}
+          onChange={(e) => onChange({ password: e.target.value })}
+          placeholder={t("register.fields.passwordPlaceholder")}
+          aria-invalid={Boolean(passwordError)}
+          showLabel={t("register.fields.showPassword")}
+          hideLabel={t("register.fields.hidePassword")}
+        />
       </Field>
       <Field
         label={t("register.fields.confirmPassword")}
         htmlFor="register-password-confirm"
         errorText={confirmError}
       >
-        <div className="relative">
-          <TextInput
-            id="register-password-confirm"
-            type={showConfirm ? "text" : "password"}
-            autoComplete="new-password"
-            minLength={8}
-            value={value.passwordConfirmation ?? ""}
-            onChange={(e) => onChange({ passwordConfirmation: e.target.value })}
-            placeholder={t("register.fields.confirmPasswordPlaceholder")}
-            aria-invalid={Boolean(confirmError)}
-          />
-          <button
-            type="button"
-            onClick={() => setShowConfirm((s) => !s)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 rounded"
-            aria-label={showConfirm ? t("register.fields.hidePassword") : t("register.fields.showPassword")}
-          >
-            {showConfirm ? (
-              <EyeSlash size={18} weight="bold" />
-            ) : (
-              <Eye size={18} weight="bold" />
-            )}
-          </button>
-        </div>
+        <PasswordInput
+          id="register-password-confirm"
+          autoComplete="new-password"
+          minLength={8}
+          value={value.passwordConfirmation ?? ""}
+          onChange={(e) => onChange({ passwordConfirmation: e.target.value })}
+          placeholder={t("register.fields.confirmPasswordPlaceholder")}
+          aria-invalid={Boolean(confirmError)}
+          showLabel={t("register.fields.showPassword")}
+          hideLabel={t("register.fields.hidePassword")}
+        />
       </Field>
       {!hideTerms && (
         <div className="space-y-1">

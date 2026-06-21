@@ -29,6 +29,7 @@ export const validationAr = {
     codeRequired: 'الرمز مطلوب.',
     currentPasswordRequired: 'أدخل كلمة المرور الحالية.',
     newEmailRequired: 'البريد الإلكتروني الجديد مطلوب.',
+    roleRequired: 'يرجى اختيار دور للمتابعة.',
   },
   profile: {
     fullNameRequired: 'الاسم الكامل مطلوب.',

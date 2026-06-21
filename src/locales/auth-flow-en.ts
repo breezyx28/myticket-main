@@ -8,6 +8,8 @@ export const authFlowEn = {
         signUpFailed: 'Sign-up failed.',
         googleFailed: 'Could not start Google sign-in.',
         submitApplicationFailed: 'Could not submit application.',
+        submitProfileFailed: 'Could not save your profile. Check your email if verification is still pending.',
+        sessionRequired: 'Sign in to continue your profile setup.',
       },
       roles: {
         guest: {
@@ -35,13 +37,14 @@ export const authFlowEn = {
       basic: {
         eyebrow: 'Create account',
         title: 'Start with your details',
-        description: 'Create your MyTicket account, then choose how you’ll use the platform.',
+        description: 'Create your MyTicket account and choose how you’ll use the platform.',
         alreadyHaveAccount: 'Already have an account?',
         signIn: 'Sign in',
         terms: 'Terms',
         termsBody: 'By registering you agree to the',
         termsLink: 'Terms of Service',
         continue: 'Continue',
+        createAccount: 'Create account',
         or: 'or',
         continueGoogle: 'Continue with Google',
         clearForm: 'Clear form',
@@ -65,16 +68,22 @@ export const authFlowEn = {
         eyebrow: 'Onboarding',
         title: 'Choose your role',
         description:
-          'Pick one role to continue its onboarding steps on this page. Your account is created only after you finish and submit. You can also skip onboarding and continue as Guest.',
+          'Complete your profile here on MyTicket, then sign in on your role dashboard.',
         back: 'Back',
+        continue: 'Continue',
         continueAsGuest: 'Continue as Guest',
       },
+      verificationDuringOnboarding:
+        'We sent a verification link to your email. You can finish your profile now; verify your address before signing in on your dashboard.',
+      refreshResumeNote:
+        'Your session expired. Create your account again to continue your profile setup.',
       wizard: {
         eyebrow: 'Onboarding',
         description: 'Complete the steps below. You can go back at any time.',
-        organizerStepDesc: 'Build your public organizer profile (demo).',
+        organizerStepDesc: 'Build your public organizer profile.',
         back: 'Back',
         next: 'Next',
+        submitProfile: 'Save profile & go to dashboard',
         submitApplication: 'Submit {{role}} application',
         clearForm: 'Clear form',
       },
@@ -99,6 +108,9 @@ export const authFlowEn = {
           'Your <strong>{{role}}</strong> application was submitted and is pending review.',
         finishAfterVerify:
           'After you verify your email and sign in, you can finish submitting your <strong>{{role}}</strong> application from your account.',
+        finishOnPortal:
+          'After you verify your email, sign in on the <strong>{{role}}</strong> dashboard to complete your profile.',
+        goToPortal: 'Complete {{role}} profile',
         goToSignIn: 'Go to sign in',
         backToHome: 'Back to home',
       },
