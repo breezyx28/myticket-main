@@ -25,8 +25,8 @@ import { OrganizerSteps } from "@/components/auth/steps/OrganizerSteps";
 import { FormSectionCard } from "@/components/ui/form/FormSectionCard";
 import { InlineNotice } from "@/components/ui/form/InlineNotice";
 import { useGetSaudiRegionsQuery } from "@/api/endpoints";
+import { getToken } from "@/api/authToken";
 import { useAuth } from "@/contexts/AuthContext";
-import { useUploadProfileImageFile } from "@/hooks/useUploadProfileImageFile";
 import type { BaseRegistrationFields, OnboardingRole } from "@/types/domain";
 import { getSafeRedirectPath } from "@/lib/navigation";
 import { authErrorMessage } from "@/lib/authErrors";
@@ -47,7 +47,7 @@ import {
 } from "@/schemas/auth";
 import {
   portalSubmitErrorMessage,
-  submitRegisterPortalProfile,
+  submitRegisterOnboardingProfile,
 } from "@/services/portalProfileSubmit";
 import { cn } from "@/lib/utils";
 import {
@@ -157,8 +157,7 @@ export function RegisterPage() {
     () => createBasicRegistrationSchema(tValidation),
     [tValidation, i18n.language],
   );
-  const { signUp, user } = useAuth();
-  const { upload: uploadProfileImage } = useUploadProfileImageFile();
+  const { signUp, signOut, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -177,6 +176,7 @@ export function RegisterPage() {
   const [role, setRole] = useState<OnboardingRole>(intendedRole ?? "talent");
   const [wizardStep, setWizardStep] = useState(0);
   const [registrationPassword, setRegistrationPassword] = useState("");
+  const [registrationToken, setRegistrationToken] = useState("");
   const [verificationNotice, setVerificationNotice] = useState<string | null>(
     null,
   );
@@ -296,6 +296,7 @@ export function RegisterPage() {
     setRole(intendedRole ?? "talent");
     setWizardStep(0);
     setRegistrationPassword("");
+    setRegistrationToken("");
     setVerificationNotice(null);
     setRefreshResumeNote(false);
     setError(null);
@@ -483,11 +484,14 @@ export function RegisterPage() {
           setVerificationNotice(
             signUpResult.message || t("register.verificationDuringOnboarding"),
           );
+          setRegistrationToken(signUpResult.token ?? "");
         } else {
           setVerificationNotice(null);
+          setRegistrationToken(signUpResult.token);
         }
       } else {
         setRegistrationPassword(values.password || registrationPassword);
+        setRegistrationToken(getToken() ?? registrationToken);
       }
 
       prefillRoleDrafts(values);
@@ -503,13 +507,14 @@ export function RegisterPage() {
     }
   });
 
-  async function submitPortalProfile() {
+  async function submitOnboardingProfile() {
     if (wizardStep !== steps.length - 1) return;
     if (!isCurrentRoleStepValid) return;
 
     const email = basic.email.trim();
     const password = registrationPassword;
-    if (!email || !password) {
+    const token = registrationToken || getToken();
+    if (!email || (!token && !password)) {
       setError(t("register.refreshResumeNote"));
       setStage("basic");
       return;
@@ -526,16 +531,17 @@ export function RegisterPage() {
             ? vendorDraft
             : organizerDraft;
 
-      await submitRegisterPortalProfile({
+      await submitRegisterOnboardingProfile({
         role,
+        token,
         email,
         password,
         draft,
-        uploadProfileImage: user ? uploadProfileImage : undefined,
         pendingProfileImageFile,
       });
 
-      clearRegisterDraft();
+      clearRegisterForm();
+      signOut();
       window.location.assign(getRolePortalLoginUrlForRole(role, email));
     } catch (err) {
       setError(
@@ -801,7 +807,7 @@ export function RegisterPage() {
                   className="w-full sm:flex-1"
                   loading={loading}
                   disabled={!isCurrentRoleStepValid}
-                  onClick={() => void submitPortalProfile()}
+                  onClick={() => void submitOnboardingProfile()}
                 >
                   {t("register.wizard.submitProfile")}
                 </Button>

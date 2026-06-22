@@ -1,4 +1,5 @@
 import type { PortalProfilePatchBody } from '@/api/endpoints/portalProfile';
+import { vendorCategoryToApi } from '@/lib/vendorServiceCategories';
 import type {
   OnboardingRole,
   OrganizerOnboardingDraft,
@@ -53,7 +54,9 @@ export function vendorDraftToPortalPatch(
   draft: VendorOnboardingDraft,
   profileImageUrl?: string,
 ): PortalProfilePatchBody {
-  const cats = draft.serviceCategories.map((c) => c.trim()).filter(Boolean);
+  const cats = draft.serviceCategories
+    .map((c) => vendorCategoryToApi(c))
+    .filter((c) => c.trim().length > 0);
   const docs = draft.verificationDocuments.map((u) => u.trim()).filter(Boolean);
   const gallery = draft.gallery.map((u) => u.trim()).filter(Boolean);
 

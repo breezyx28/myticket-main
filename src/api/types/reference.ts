@@ -19,6 +19,20 @@ export interface EventCategoryListResponse {
   data: EventCategoryRef[];
 }
 
+/** `GET /reference/vendor-service-categories` — public vendor service taxonomy. */
+export interface VendorServiceCategoryRef {
+  id: Id;
+  slug: string;
+  name: string;
+  name_ar?: string | null;
+  name_en?: string | null;
+  [key: string]: unknown;
+}
+
+export interface VendorServiceCategoryListResponse {
+  data: VendorServiceCategoryRef[];
+}
+
 /** `GET /events/cities`. */
 export interface EventCityRef {
   id?: Id;

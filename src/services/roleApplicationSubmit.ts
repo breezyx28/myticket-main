@@ -11,6 +11,7 @@ import type {
   UpdateVendorApplicationRequest,
 } from '@/api/types/roleApplication';
 import type { OrganizerOnboardingDraft, TalentOnboardingDraft, VendorOnboardingDraft } from '@/types/domain';
+import { vendorCategoryToApi } from '@/lib/vendorServiceCategories';
 
 export type FinalizeMode = 'none' | 'submit';
 
@@ -147,7 +148,9 @@ export async function runVendorRoleApplicationPipeline(
   const business = input.draft.profileName.trim() || input.basic.fullName.trim();
   const email = input.draft.contactEmail.trim() || input.basic.email.trim();
   const phone = input.draft.contactPhone.trim() || input.basic.contactPhone.trim();
-  const cats = input.draft.serviceCategories.filter((c) => c.trim().length > 0);
+  const cats = input.draft.serviceCategories
+    .map((c) => vendorCategoryToApi(c))
+    .filter((c) => c.trim().length > 0);
 
   const priorStatus = String(input.existingApiStatus ?? '').toLowerCase();
   const existingId = input.existingApplicationId ?? null;

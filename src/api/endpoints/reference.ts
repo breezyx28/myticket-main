@@ -7,6 +7,8 @@ import type {
   EventCategoryRef,
   EventCityListResponse,
   SaudiRegionsResponse,
+  VendorServiceCategoryListResponse,
+  VendorServiceCategoryRef,
 } from '@/api/types/reference';
 
 function normalizeEventCategoriesResponse(response: unknown): EventCategoryListResponse {
@@ -19,6 +21,22 @@ function normalizeEventCategoriesResponse(response: unknown): EventCategoryListR
     Array.isArray((response as EventCategoryListResponse).data)
   ) {
     return response as EventCategoryListResponse;
+  }
+  return { data: [] };
+}
+
+function normalizeVendorServiceCategoriesResponse(
+  response: unknown,
+): VendorServiceCategoryListResponse {
+  if (Array.isArray(response)) {
+    return { data: response as VendorServiceCategoryRef[] };
+  }
+  if (
+    response &&
+    typeof response === 'object' &&
+    Array.isArray((response as VendorServiceCategoryListResponse).data)
+  ) {
+    return response as VendorServiceCategoryListResponse;
   }
   return { data: [] };
 }
@@ -48,6 +66,12 @@ export const referenceApi = baseApi.injectEndpoints({
       query: () => ({ url: '/complaints/categories' }),
       providesTags: [{ type: 'ComplaintCategory', id: 'LIST' }],
     }),
+    getVendorServiceCategories: build.query<VendorServiceCategoryListResponse, void>({
+      query: () => ({ url: '/reference/vendor-service-categories' }),
+      transformResponse: (response: unknown) =>
+        normalizeVendorServiceCategoriesResponse(response),
+      providesTags: [{ type: 'Vendor', id: 'SERVICE_CATEGORIES' }],
+    }),
   }),
 });
 
@@ -56,4 +80,5 @@ export const {
   useGetEventCitiesQuery,
   useGetSaudiRegionsQuery,
   useGetComplaintCategoriesQuery,
+  useGetVendorServiceCategoriesQuery,
 } = referenceApi;

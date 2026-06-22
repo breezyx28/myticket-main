@@ -60,8 +60,8 @@ import {
 import type { OnboardingRole, UserRole } from "@/types/domain";
 
 export type SignUpResult =
-  | { status: "session_established" }
-  | { status: "verification_required"; message: string };
+  | { status: "session_established"; token: string }
+  | { status: "verification_required"; message: string; token?: string };
 
 export type MockUser = {
   email: string;
@@ -466,9 +466,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const parsed = parseAuthResponse(response);
         if (parsed.kind === "two_factor") throw parsed.error;
         if (parsed.kind === "verification_required") {
+          const raw = response as Record<string, unknown>;
+          const maybeToken =
+            typeof raw.token === "string" && raw.token.length > 0
+              ? raw.token
+              : undefined;
           return {
             status: "verification_required" as const,
             message: parsed.error.message,
+            ...(maybeToken ? { token: maybeToken } : {}),
           };
         }
         await persistCredentialsAndHydrate(
@@ -477,7 +483,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           parsed.user,
           parsed.expires_at,
         );
-        return { status: "session_established" as const };
+        return { status: "session_established" as const, token: parsed.token };
       } catch (error) {
         if (error instanceof TwoFactorRequiredError) throw error;
         if (error instanceof EmailVerificationRequiredError) {

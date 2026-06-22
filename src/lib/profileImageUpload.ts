@@ -1,4 +1,6 @@
 import type { UploadProfileImageResponse } from '@/api/types/user';
+import { API_BASE_URL } from '@/api/baseApi';
+import { getApiLanguage } from '@/lib/language';
 
 export const PROFILE_IMAGE_MAX_BYTES = 4 * 1024 * 1024;
 
@@ -23,4 +25,41 @@ export function assertProfileImageFile(file: File): void {
 
 export function profileImageUrlFromUpload(response: UploadProfileImageResponse): string {
   return response.profile_image_url?.trim() || response.avatar_url?.trim() || '';
+}
+
+function unwrapUploadResponse(response: unknown): UploadProfileImageResponse {
+  const maybe = response as UploadProfileImageResponse | { data?: UploadProfileImageResponse };
+  if (maybe && typeof maybe === 'object' && 'data' in maybe && maybe.data) {
+    return maybe.data;
+  }
+  return maybe as UploadProfileImageResponse;
+}
+
+/** Upload profile image with an explicit bearer (register-flow onboarding). */
+export async function uploadProfileImageWithToken(file: File, token: string): Promise<string> {
+  assertProfileImageFile(file);
+  const body = new FormData();
+  body.append('image', file);
+  const res = await fetch(`${API_BASE_URL}/me/profile-image`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      'Accept-Language': getApiLanguage(),
+    },
+    body,
+  });
+  if (!res.ok) {
+    let message = res.statusText || 'Could not upload photo.';
+    try {
+      const data = (await res.json()) as { message?: unknown };
+      if (typeof data?.message === 'string' && data.message.trim()) message = data.message;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(message);
+  }
+  const url = profileImageUrlFromUpload(unwrapUploadResponse(await res.json()));
+  if (!url) throw new Error('Upload succeeded but no image URL was returned.');
+  return url;
 }

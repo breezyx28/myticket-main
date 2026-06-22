@@ -14,7 +14,12 @@ import { UploadTileInput } from "@/components/ui/form/UploadTileInput";
 import { getCitiesForRegionFlexible, getRegionsFlexible, findRegionIdByCityName, canonicalPlaceName, resolveCitySelectValue } from "@/lib/saudiLocations";
 import { pickLocalizedName } from "@/lib/localized";
 import type { AppLanguage } from "@/lib/language";
-import { useGetSaudiRegionsQuery } from "@/api/endpoints";
+import { useGetSaudiRegionsQuery, useGetVendorServiceCategoriesQuery } from "@/api/endpoints";
+import {
+  encodeCustomVendorCategory,
+  VENDOR_CATEGORY_CREATE_KEY,
+  vendorCategoryLabel,
+} from "@/lib/vendorServiceCategories";
 
 interface VendorStepsProps {
   step: number;
@@ -29,8 +34,8 @@ interface VendorStepsProps {
 export function VendorSteps({
   step,
   draft,
-  tempInput,
-  setTempInput,
+  tempInput: _tempInput,
+  setTempInput: _setTempInput,
   onChange,
   deferProfileImageUpload,
   onProfileImageFileChange,
@@ -39,7 +44,14 @@ export function VendorSteps({
   const language = (i18n.language === "ar" ? "ar" : "en") as AppLanguage;
   const [docInput, setDocInput] = useState("");
   const [saudiRegionId, setSaudiRegionId] = useState("");
+  const [categoryPick, setCategoryPick] = useState("");
+  const [customNameEn, setCustomNameEn] = useState("");
+  const [customNameAr, setCustomNameAr] = useState("");
+  const [showCustomCategoryForm, setShowCustomCategoryForm] = useState(false);
   const { data: regionsRes } = useGetSaudiRegionsQuery();
+  const { data: serviceCategoriesRes, isLoading: categoriesLoading } =
+    useGetVendorServiceCategoriesQuery();
+  const serviceCategories = serviceCategoriesRes?.data ?? [];
   const apiRegions = regionsRes?.data;
   const regions = getRegionsFlexible(apiRegions);
   const vendorCities = useMemo(
@@ -52,6 +64,34 @@ export function VendorSteps({
   useEffect(() => {
     setSaudiRegionId(findRegionIdByCityName(draft.city, apiRegions));
   }, [apiRegions, draft.city]);
+
+  function addServiceCategory(value: string) {
+    const trimmed = value.trim();
+    if (!trimmed || draft.serviceCategories.includes(trimmed)) return;
+    onChange({ serviceCategories: [...draft.serviceCategories, trimmed] });
+  }
+
+  function handleCategoryPickChange(next: string) {
+    setCategoryPick(next);
+    if (!next) return;
+    if (next === VENDOR_CATEGORY_CREATE_KEY) {
+      setShowCustomCategoryForm(true);
+      setCategoryPick("");
+      return;
+    }
+    addServiceCategory(next);
+    setCategoryPick("");
+  }
+
+  function addCustomCategory() {
+    const nameEn = customNameEn.trim();
+    const nameAr = customNameAr.trim();
+    if (!nameEn || !nameAr) return;
+    addServiceCategory(encodeCustomVendorCategory(nameEn, nameAr));
+    setCustomNameEn("");
+    setCustomNameAr("");
+    setShowCustomCategoryForm(false);
+  }
 
   if (step === 0) {
     return (
@@ -94,58 +134,109 @@ export function VendorSteps({
     );
   }
   if (step === 1) {
+    const availableCategories = serviceCategories.filter(
+      (cat) => !draft.serviceCategories.includes(cat.slug),
+    );
+
     return (
       <div className="space-y-4">
         <InlineNotice variant="info" title={t("onboarding.vendor.categoriesTitle")}>
           <p className="text-[12px]">{t("onboarding.vendor.categoriesBody")}</p>
         </InlineNotice>
-        <div className="flex gap-2">
-          <TextInput
-            value={tempInput}
-            onChange={(e) => setTempInput(e.target.value)}
-            className="!py-2.5"
-            placeholder={t("onboarding.vendor.categoryPlaceholder")}
-          />
-          <button
-            type="button"
-            onClick={() => {
-              const value = tempInput.trim();
-              if (!value) return;
-              if (!draft.serviceCategories.includes(value)) {
-                onChange({
-                  serviceCategories: [...draft.serviceCategories, value],
-                });
-              }
-              setTempInput("");
-            }}
-            className="rounded-xl border border-ink-10 px-3 text-[12px] font-semibold hover:bg-ink-5"
+
+        <Field label={t("onboarding.vendor.selectCategory")}>
+          <Select
+            value={categoryPick}
+            onChange={(e) => handleCategoryPickChange(e.target.value)}
+            disabled={categoriesLoading}
           >
-            {t("onboarding.buttons.add")}
-          </button>
-        </div>
-        <ul className="space-y-1">
-          {draft.serviceCategories.map((item) => (
-            <li
-              key={item}
-              className="flex items-center justify-between rounded-lg border border-ink-10 px-3 py-2 text-[12px] text-ink-60"
-            >
-              <span>{item}</span>
+            <option value="">
+              {categoriesLoading
+                ? t("onboarding.talent.loadingPreview")
+                : t("onboarding.vendor.selectCategory")}
+            </option>
+            {availableCategories.map((cat) => (
+              <option key={cat.id} value={cat.slug}>
+                {pickLocalizedName(cat, language)}
+              </option>
+            ))}
+            <option value={VENDOR_CATEGORY_CREATE_KEY}>
+              {t("onboarding.vendor.createOwnCategory")}
+            </option>
+          </Select>
+        </Field>
+
+        {showCustomCategoryForm ? (
+          <div className="space-y-3 rounded-xl border border-ink-10 bg-ink-5/40 p-4">
+            <Field label={t("onboarding.vendor.categoryNameEn")}>
+              <TextInput
+                value={customNameEn}
+                onChange={(e) => setCustomNameEn(e.target.value)}
+                placeholder={t("onboarding.vendor.categoryNameEnPlaceholder")}
+              />
+            </Field>
+            <Field label={t("onboarding.vendor.categoryNameAr")}>
+              <TextInput
+                value={customNameAr}
+                onChange={(e) => setCustomNameAr(e.target.value)}
+                placeholder={t("onboarding.vendor.categoryNameArPlaceholder")}
+                dir="rtl"
+              />
+            </Field>
+            <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() =>
-                  onChange({
-                    serviceCategories: draft.serviceCategories.filter(
-                      (x) => x !== item,
-                    ),
-                  })
-                }
-                className="font-semibold text-coral"
+                onClick={addCustomCategory}
+                disabled={!customNameEn.trim() || !customNameAr.trim()}
+                className="rounded-xl border border-ink-10 bg-white px-4 py-2.5 text-[12px] font-semibold hover:bg-ink-5 disabled:opacity-50"
               >
-                {t("onboarding.buttons.remove")}
+                {t("onboarding.buttons.add")}
               </button>
-            </li>
-          ))}
-        </ul>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCustomCategoryForm(false);
+                  setCustomNameEn("");
+                  setCustomNameAr("");
+                }}
+                className="rounded-xl px-4 py-2.5 text-[12px] font-semibold text-ink-60 hover:bg-ink-5"
+              >
+                {t("onboarding.buttons.back")}
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {draft.serviceCategories.length > 0 ? (
+          <div>
+            <p className="text-[12px] font-semibold text-ink-60">
+              {t("onboarding.vendor.selectedCategories")}
+            </p>
+            <ul className="mt-2 space-y-1">
+              {draft.serviceCategories.map((item) => (
+                <li
+                  key={item}
+                  className="flex items-center justify-between rounded-lg border border-ink-10 px-3 py-2 text-[12px] text-ink-60"
+                >
+                  <span>{vendorCategoryLabel(item, serviceCategories, language)}</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onChange({
+                        serviceCategories: draft.serviceCategories.filter(
+                          (x) => x !== item,
+                        ),
+                      })
+                    }
+                    className="font-semibold text-coral"
+                  >
+                    {t("onboarding.buttons.remove")}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </div>
     );
   }
