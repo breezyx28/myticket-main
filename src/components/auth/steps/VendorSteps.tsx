@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { VendorOnboardingDraft } from "@/types/domain";
+import { DraftProfileImageAvatarInput } from "@/components/auth/DraftProfileImageAvatarInput";
 import {
   TALENT_BIO_MAX_CHARS,
   VENDOR_BIO_MIN_CHARS,
@@ -21,6 +22,8 @@ interface VendorStepsProps {
   tempInput: string;
   setTempInput: (value: string) => void;
   onChange: (patch: Partial<VendorOnboardingDraft>) => void;
+  deferProfileImageUpload?: boolean;
+  onProfileImageFileChange?: (file: File | null) => void;
 }
 
 export function VendorSteps({
@@ -29,6 +32,8 @@ export function VendorSteps({
   tempInput,
   setTempInput,
   onChange,
+  deferProfileImageUpload,
+  onProfileImageFileChange,
 }: VendorStepsProps) {
   const { t, i18n } = useTranslation("authPages");
   const language = (i18n.language === "ar" ? "ar" : "en") as AppLanguage;
@@ -51,6 +56,13 @@ export function VendorSteps({
   if (step === 0) {
     return (
       <div className="space-y-4">
+        <DraftProfileImageAvatarInput
+          value={draft.profileImage}
+          onChange={(url) => onChange({ profileImage: url })}
+          displayName={draft.profileName.trim() || t("onboarding.vendor.profileNamePlaceholder")}
+          deferUpload={deferProfileImageUpload}
+          onFileChange={onProfileImageFileChange}
+        />
         <Field label={t("onboarding.vendor.profileName")}>
           <TextInput
             value={draft.profileName}

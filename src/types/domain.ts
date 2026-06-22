@@ -43,6 +43,8 @@ export interface VendorOnboardingDraft {
   profileName: string;
   contactEmail: string;
   contactPhone: string;
+  /** Optional profile photo URL or deferred local preview. */
+  profileImage?: string;
   bio: string;
   serviceCategories: string[];
   verificationDocuments: string[];

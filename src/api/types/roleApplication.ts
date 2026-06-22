@@ -150,6 +150,7 @@ export interface RoleApplicationVendorDetail {
   contact_phone?: string | null;
   city?: string | null;
   coverage_area?: string | null;
+  profile_image?: string | null;
   service_categories?: string[];
   verification_documents?: VendorDocumentUpload[];
   gallery?: VendorGalleryUpload[];

@@ -77,6 +77,7 @@ const EMPTY_VENDOR_DRAFT: VendorOnboardingDraft = {
   profileName: '',
   contactEmail: '',
   contactPhone: '',
+  profileImage: '',
   bio: '',
   serviceCategories: [],
   verificationDocuments: [],

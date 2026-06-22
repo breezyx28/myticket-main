@@ -64,6 +64,7 @@ export function apiVendorDetailToDraft(
     profileName: detail?.business_name?.trim() ? detail.business_name : fallback.name,
     contactEmail: detail?.contact_email?.trim() ? detail.contact_email : fallback.email,
     contactPhone: detail?.contact_phone?.trim() ? detail.contact_phone : (fallback.phone ?? ''),
+    profileImage: detail?.profile_image ?? '',
     bio: detail?.bio ?? '',
     serviceCategories: detail?.service_categories ?? [],
     verificationDocuments,

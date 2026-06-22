@@ -177,6 +177,9 @@ export async function runVendorRoleApplicationPipeline(
       city: input.draft.city.trim() || undefined,
       coverage_area: input.draft.coverageArea.trim() || undefined,
       service_categories: cats.length ? cats : undefined,
+      ...(httpLike(input.draft.profileImage)
+        ? { profile_image: httpLike(input.draft.profileImage) }
+        : {}),
     },
   });
 

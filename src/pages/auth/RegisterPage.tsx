@@ -125,6 +125,7 @@ const EMPTY_VENDOR_DRAFT: VendorOnboardingDraft = {
   profileName: "",
   contactEmail: "",
   contactPhone: "",
+  profileImage: "",
   bio: "",
   serviceCategories: [],
   verificationDocuments: [],
@@ -193,7 +194,7 @@ export function RegisterPage() {
   const [talentMediaInput, setTalentMediaInput] = useState("");
   const [vendorTempInput, setVendorTempInput] = useState("");
   const [organizerSocialInput, setOrganizerSocialInput] = useState("");
-  const [pendingOrganizerProfileImageFile, setPendingOrganizerProfileImageFile] =
+  const [pendingProfileImageFile, setPendingProfileImageFile] =
     useState<File | null>(null);
 
   const { data: saudiRegionsRes } = useGetSaudiRegionsQuery();
@@ -301,7 +302,7 @@ export function RegisterPage() {
     setTalentDraft(EMPTY_TALENT_DRAFT);
     setVendorDraft(EMPTY_VENDOR_DRAFT);
     setOrganizerDraft(EMPTY_ORGANIZER_DRAFT);
-    setPendingOrganizerProfileImageFile(null);
+    setPendingProfileImageFile(null);
     basicForm.reset({ ...EMPTY_BASIC, role: intendedRole ?? "" });
   }
 
@@ -492,6 +493,7 @@ export function RegisterPage() {
       prefillRoleDrafts(values);
       setRole(nextRole);
       setWizardStep(0);
+      setPendingProfileImageFile(null);
       setRefreshResumeNote(false);
       setStage("onboarding");
     } catch (e) {
@@ -530,8 +532,7 @@ export function RegisterPage() {
         password,
         draft,
         uploadProfileImage: user ? uploadProfileImage : undefined,
-        pendingProfileImageFile:
-          role === "organizer" ? pendingOrganizerProfileImageFile : null,
+        pendingProfileImageFile,
       });
 
       clearRegisterDraft();
@@ -732,6 +733,8 @@ export function RegisterPage() {
                 onChange={(patch) =>
                   setTalentDraft((prev) => ({ ...prev, ...patch }))
                 }
+                deferProfileImageUpload={!user}
+                onProfileImageFileChange={setPendingProfileImageFile}
               />
             )}
             {role === "vendor" && (
@@ -743,6 +746,8 @@ export function RegisterPage() {
                 onChange={(patch) =>
                   setVendorDraft((prev) => ({ ...prev, ...patch }))
                 }
+                deferProfileImageUpload={!user}
+                onProfileImageFileChange={setPendingProfileImageFile}
               />
             )}
             {role === "organizer" && (
@@ -755,7 +760,7 @@ export function RegisterPage() {
                   setOrganizerDraft((prev) => ({ ...prev, ...patch }))
                 }
                 deferProfileImageUpload={!user}
-                onProfileImageFileChange={setPendingOrganizerProfileImageFile}
+                onProfileImageFileChange={setPendingProfileImageFile}
               />
             )}
 

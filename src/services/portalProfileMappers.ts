@@ -28,7 +28,7 @@ export function talentDraftToPortalPatch(
   profileImageUrl?: string,
 ): PortalProfilePatchBody {
   const patch: PortalProfilePatchBody = {
-    full_name: draft.fullName.trim() || undefined,
+    stage_name: draft.fullName.trim() || undefined,
     contact_email: draft.contactEmail.trim() || undefined,
     contact_phone: draft.contactPhone.trim() || undefined,
     bio: draft.bio.trim() || undefined,
@@ -49,12 +49,15 @@ export function talentDraftToPortalPatch(
   return patch;
 }
 
-export function vendorDraftToPortalPatch(draft: VendorOnboardingDraft): PortalProfilePatchBody {
+export function vendorDraftToPortalPatch(
+  draft: VendorOnboardingDraft,
+  profileImageUrl?: string,
+): PortalProfilePatchBody {
   const cats = draft.serviceCategories.map((c) => c.trim()).filter(Boolean);
   const docs = draft.verificationDocuments.map((u) => u.trim()).filter(Boolean);
   const gallery = draft.gallery.map((u) => u.trim()).filter(Boolean);
 
-  return {
+  const patch: PortalProfilePatchBody = {
     business_name: draft.profileName.trim() || undefined,
     contact_email: draft.contactEmail.trim() || undefined,
     contact_phone: draft.contactPhone.trim() || undefined,
@@ -65,6 +68,11 @@ export function vendorDraftToPortalPatch(draft: VendorOnboardingDraft): PortalPr
     ...(docs.length ? { verification_documents: docs } : {}),
     ...(gallery.length ? { gallery } : {}),
   };
+
+  const pic = httpLike(profileImageUrl) ?? httpLike(draft.profileImage);
+  if (pic) patch.profile_image = pic;
+
+  return patch;
 }
 
 export function organizerDraftToPortalPatch(
@@ -108,7 +116,7 @@ export function draftToPortalPatch(
     return talentDraftToPortalPatch(draft as TalentOnboardingDraft, profileImageUrl);
   }
   if (role === 'vendor') {
-    return vendorDraftToPortalPatch(draft as VendorOnboardingDraft);
+    return vendorDraftToPortalPatch(draft as VendorOnboardingDraft, profileImageUrl);
   }
   return organizerDraftToPortalPatch(draft as OrganizerOnboardingDraft, profileImageUrl);
 }
