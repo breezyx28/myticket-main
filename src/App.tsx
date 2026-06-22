@@ -15,6 +15,7 @@ import { OAuthCallbackPage } from '@/pages/auth/OAuthCallbackPage';
 import { RegisterPage } from '@/pages/auth/RegisterPage';
 import { ApplyRolePage } from '@/pages/auth/ApplyRolePage';
 import { ResetPasswordPage } from '@/pages/auth/ResetPasswordPage';
+import { EmailVerifiedPage } from '@/pages/auth/EmailVerifiedPage';
 import { CookiesPage } from '@/pages/legal/CookiesPage';
 import { PrivacyPage } from '@/pages/legal/PrivacyPage';
 import { TermsPage } from '@/pages/legal/TermsPage';
@@ -121,6 +122,7 @@ export function App() {
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/auth/oauth/:provider/callback" element={<OAuthCallbackPage />} />
+          <Route path="/auth/email-verified" element={<EmailVerifiedPage />} />
         </Route>
 
         <Route element={<MainLayout />}>

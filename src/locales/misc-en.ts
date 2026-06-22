@@ -160,5 +160,30 @@ export const miscEn = {
       goHome: 'Go home',
       loadingAria: 'Loading',
     },
+    emailVerified: {
+      eyebrow: {
+        verified: 'Email confirmed',
+        missing: 'Link incomplete',
+        invalid: 'Link expired',
+      },
+      title: {
+        verified: 'Your email is verified',
+        missing: 'Verification link is missing',
+        invalid: 'This verification link is no longer valid',
+      },
+      body: {
+        verified:
+          'Your address is confirmed. Sign in to access your tickets, profile, and role dashboard.',
+        missing:
+          'The link you opened did not include a verification token. Open the full link from your inbox, or sign in to request a new one.',
+        invalid:
+          'This link has expired or was already used. Sign in and we can send you a fresh verification email if your account still needs it.',
+      },
+      verifiedHint: 'You can close this tab after signing in — your email is all set.',
+      signIn: 'Sign in',
+      home: 'Back to home',
+      supportHint: 'Still stuck?',
+      supportLink: 'Contact support',
+    },
   },
 } as const;
