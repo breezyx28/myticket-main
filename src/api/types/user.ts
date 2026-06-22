@@ -16,6 +16,10 @@ export interface UserMe {
   /** Primary role string when the API does not return `roles[]`. */
   role?: string | null;
   roles?: string[];
+  city?: string | null;
+  /** Legacy string region; prefer `saudi_region_id` from the API. */
+  region?: string | null;
+  saudi_region_id?: Id | number | null;
   preferences?: NotificationPreferences;
   created_at?: Iso8601;
   updated_at?: Iso8601;
@@ -27,6 +31,10 @@ export interface UpdateMeRequest {
   display_name?: string;
   bio?: string;
   avatar_url?: string;
+  phone?: string;
+  city?: string;
+  /** Saudi administrative region id from `GET /reference/saudi-regions`. */
+  saudi_region_id?: Id | number | null;
   [key: string]: unknown;
 }
 

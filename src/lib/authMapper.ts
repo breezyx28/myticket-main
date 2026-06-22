@@ -11,6 +11,7 @@ import {
   EmailVerificationRequiredError,
   TwoFactorRequiredError,
 } from '@/lib/authErrors';
+import { getGuestLanguage } from '@/lib/language';
 
 const VALID_ROLES: readonly UserRole[] = ['guest', 'talent', 'vendor', 'organizer'];
 
@@ -28,6 +29,24 @@ function pickRole(
     if (match) return match;
   }
   return prev ?? 'guest';
+}
+
+/** Read region id for profile form selects from `GET /me`. */
+export function readSaudiRegionIdFromUserMe(me: UserMe): string {
+  const raw = me.saudi_region_id;
+  if (raw != null && String(raw).trim() !== '') return String(raw);
+  if (typeof me.region === 'string' && me.region.trim()) return me.region.trim();
+  return '';
+}
+
+/** `PATCH /me` expects `saudi_region_id`, not `region`. */
+export function regionSelectValueToApiSaudiRegionId(
+  region: string,
+): number | string | null {
+  const trimmed = region.trim();
+  if (!trimmed) return null;
+  if (/^\d+$/.test(trimmed)) return Number(trimmed);
+  return trimmed;
 }
 
 /**
@@ -57,11 +76,11 @@ export function mapUserMeToMockUser(me: UserMe, prev?: MockUser | null): MockUse
     role,
     phone: me.phone ?? fallback?.phone ?? '',
     city: typeof me['city'] === 'string' ? (me['city'] as string) : (fallback?.city ?? ''),
-    region: typeof me['region'] === 'string' ? (me['region'] as string) : (fallback?.region ?? ''),
+    region: readSaudiRegionIdFromUserMe(me) || (fallback?.region ?? ''),
     bio: me.bio ?? fallback?.bio ?? '',
     profileImage: me.avatar_url ?? me.profile_image_url ?? fallback?.profileImage ?? '',
     preferences: {
-      language: fallback?.preferences.language ?? 'en',
+      language: fallback?.preferences.language ?? getGuestLanguage() ?? 'en',
       theme: fallback?.preferences.theme ?? 'system',
       emailNotifications: apiPrefs?.email ?? fallback?.preferences.emailNotifications ?? true,
       pushNotifications: apiPrefs?.push ?? fallback?.preferences.pushNotifications ?? true,

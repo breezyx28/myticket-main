@@ -8,7 +8,6 @@ import { useNotifications } from '@/contexts/NotificationContext';
 import { cn } from '@/lib/utils';
 import {
   getEffectiveLanguage,
-  setGuestLanguage,
   type AppLanguage,
 } from '@/lib/language';
 import { changeAppLanguage } from '@/i18n';
@@ -37,8 +36,8 @@ export function Navbar() {
     try {
       if (user) {
         await updatePreferences({ language: nextLanguage });
+        changeAppLanguage(nextLanguage);
       } else {
-        setGuestLanguage(nextLanguage);
         changeAppLanguage(nextLanguage);
       }
     } catch {

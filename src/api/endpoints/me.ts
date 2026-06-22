@@ -147,6 +147,7 @@ export const {
   useUploadProfileImageMutation,
   useDeleteMeMutation,
   useGetPreferencesQuery,
+  useLazyGetPreferencesQuery,
   useUpdatePreferencesMutation,
   useListSessionsQuery,
   useRevokeSessionMutation,

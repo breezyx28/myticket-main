@@ -159,6 +159,26 @@ export function eventHasPrimaryInventory(ticketsLeft: number | null): boolean {
   return ticketsLeft !== 0;
 }
 
+export type EventSalesPhase = 'open' | 'not_started' | 'ended';
+
+/** Whether primary ticket sales are within the event's scheduled window. */
+export function getEventSalesPhase(
+  dateStart: string,
+  dateEnd: string,
+  now: Date = new Date(),
+): EventSalesPhase {
+  const startMs = Date.parse(dateStart);
+  const endMs = Date.parse(dateEnd);
+  const t = now.getTime();
+  if (Number.isFinite(startMs) && t < startMs) return 'not_started';
+  if (Number.isFinite(endMs) && t > endMs) return 'ended';
+  return 'open';
+}
+
+export function isEventSalesOpen(dateStart: string, dateEnd: string, now?: Date): boolean {
+  return getEventSalesPhase(dateStart, dateEnd, now) === 'open';
+}
+
 export function formatEventLocation(event: {
   venue?: string;
   city?: string;

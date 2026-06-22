@@ -1,6 +1,6 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
-import { applyDocumentLanguage, getEffectiveLanguage, setApiLanguage, type AppLanguage } from '@/lib/language';
+import { applyDocumentLanguage, getEffectiveLanguage, setApiLanguage, setGuestLanguage, type AppLanguage } from '@/lib/language';
 import { pickLocalizedName } from '@/lib/localized';
 
 export type { AppLanguage };
@@ -47,6 +47,7 @@ void i18n.use(initReactI18next).init({
 applyDocumentLanguage(initialLanguage);
 
 export function changeAppLanguage(language: AppLanguage) {
+  setGuestLanguage(language);
   setApiLanguage(language);
   void i18n.changeLanguage(language);
   applyDocumentLanguage(language);

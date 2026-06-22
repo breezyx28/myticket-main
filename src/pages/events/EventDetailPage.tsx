@@ -43,6 +43,7 @@ import type { EventListQuery } from '@/api/types/event';
 import {
   eventHasPrimaryInventory,
   formatEventLocation,
+  getEventSalesPhase,
   isEventSoldOut,
   mergeEventTicketTypes,
   eventListItemPublicPathSegment,
@@ -372,6 +373,11 @@ export function EventDetailPage() {
     [auctionListingsPaged]
   );
 
+  const salesPhase = useMemo(
+    () => (event ? getEventSalesPhase(event.dateStart, event.dateEnd) : 'open'),
+    [event],
+  );
+
   if (!slugParam) {
     return <Navigate to="/events" replace />;
   }
@@ -405,6 +411,7 @@ export function EventDetailPage() {
   const locationLabel = formatEventLocation(event);
   const soldOut = isEventSoldOut(event.ticketsLeft);
   const hasInventory = eventHasPrimaryInventory(event.ticketsLeft);
+  const canBuyTickets = hasInventory && salesPhase === 'open';
   const mapEmbedUrl = buildMapEmbedUrl(event);
   const mapOpenUrl = buildMapOpenUrl(event);
   const org = event.organizer;
@@ -910,7 +917,7 @@ export function EventDetailPage() {
                 </li>
               ))}
             </ul>
-            {hasInventory ? (
+            {canBuyTickets ? (
               <Link
                 to={
                   event.layoutType === 'seated'
@@ -925,10 +932,28 @@ export function EventDetailPage() {
                       }
                     : undefined
                 }
-                className="mt-6 flex h-12 w-full items-center justify-center rounded-full bg-ink text-[14px] font-semibold text-white transition-colors hover:bg-ink-80"
+                className="mt-6 flex h-12 w-full items-center justify-center rounded-full bg-ink text-[14px] font-semibold text-white transition-colors hover:bg-ink-80 active:scale-[0.96]"
               >
                 {event.layoutType === 'seated' ? t('chooseSeats') : t('continueCheckout')}
               </Link>
+            ) : hasInventory ? (
+              <div className="mt-6 space-y-2">
+                <p className="text-center text-[13px] font-semibold text-ink-60">
+                  {salesPhase === 'not_started' ? t('salesNotStartedHint') : t('salesEndedHint')}
+                </p>
+                <button
+                  type="button"
+                  disabled
+                  aria-disabled
+                  className="flex h-12 w-full cursor-not-allowed items-center justify-center rounded-full bg-ink-10 text-[14px] font-semibold text-ink-40"
+                >
+                  {salesPhase === 'not_started'
+                    ? t('salesNotStarted')
+                    : event.layoutType === 'seated'
+                      ? t('chooseSeats')
+                      : t('continueCheckout')}
+                </button>
+              </div>
             ) : (
               <div className="mt-6 space-y-3">
                 <p className="text-center text-[13px] font-semibold text-coral">{t('soldOut')}</p>
@@ -957,7 +982,7 @@ export function EventDetailPage() {
                 </Link>
               </div>
             )}
-            {hasInventory && (
+            {canBuyTickets && (
               <Link
                 to={`/auction/events/${event.id}`}
                 className="mt-3 flex h-11 w-full items-center justify-center rounded-full border border-ink-10 bg-white text-[13px] font-semibold text-ink hover:bg-ink-5"

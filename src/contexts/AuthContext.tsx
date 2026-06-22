@@ -26,6 +26,7 @@ import {
   useDeleteMeMutation,
   useForgotPasswordMutation,
   useLazyGetMeQuery,
+  useLazyGetPreferencesQuery,
   useLoginMutation,
   useLogoutMutation,
   useOauthCallbackMutation,
@@ -46,9 +47,10 @@ import {
 } from "@/api/authToken";
 import { logout as logoutAction, setCredentials } from "@/store/authSlice";
 import { useAppDispatch } from "@/store/hooks";
-import { mapUserMeToMockUser, parseAuthResponse } from "@/lib/authMapper";
+import { mapUserMeToMockUser, parseAuthResponse, regionSelectValueToApiSaudiRegionId } from "@/lib/authMapper";
 import {
   getEffectiveLanguage,
+  setGuestLanguage,
 } from "@/lib/language";
 import { changeAppLanguage } from "@/i18n";
 import i18n from "@/i18n";
@@ -117,6 +119,23 @@ function mockPrefsPatchToApi(
   if (patch.marketingEmails !== undefined)
     body.marketing_emails = patch.marketingEmails;
   return body;
+}
+
+async function fetchPreferencesForUser(
+  triggerGetPreferences: ReturnType<typeof useLazyGetPreferencesQuery>[0],
+): Promise<UserPreferences | null> {
+  try {
+    return await triggerGetPreferences(undefined, false).unwrap();
+  } catch {
+    return null;
+  }
+}
+
+function mergePreferencesIntoUser(
+  base: MockUser,
+  prefs: UserPreferences,
+): MockUser {
+  return { ...base, preferences: apiPrefsToMock(prefs) };
 }
 
 type AuthContextValue = {
@@ -214,12 +233,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [resetPasswordMutation] = useResetPasswordMutation();
   const [logoutMutation] = useLogoutMutation();
   const [triggerGetMe] = useLazyGetMeQuery();
+  const [triggerGetPreferences] = useLazyGetPreferencesQuery();
   const [updateMeMutation] = useUpdateMeMutation();
   const [updatePreferencesMutation] = useUpdatePreferencesMutation();
   const [changePasswordMutation] = useChangePasswordMutation();
   const [changeEmailMutation] = useChangeEmailMutation();
   const [deleteMeMutation] = useDeleteMeMutation();
   const [setTalentAvailabilityMutation] = useSetTalentAvailabilityMutation();
+
+  const hydrateUserFromMe = useCallback(
+    async (me: UserMe, prev: MockUser | null): Promise<MockUser> => {
+      let next = mapUserMeToMockUser(me, prev);
+      const prefs = await fetchPreferencesForUser(triggerGetPreferences);
+      if (prefs) {
+        next = mergePreferencesIntoUser(next, prefs);
+        setGuestLanguage(next.preferences.language);
+      }
+      return next;
+    },
+    [triggerGetPreferences],
+  );
 
   /**
    * Persist credentials into Redux and **secure cookies** (`SameSite=Lax`, `Secure` on HTTPS),
@@ -246,7 +279,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       try {
         const me = await triggerGetMe(undefined, false).unwrap();
-        const next = mapUserMeToMockUser(me, userRef.current);
+        const next = await hydrateUserFromMe(me, userRef.current);
         setUser(next);
         const at = getToken();
         if (at) {
@@ -264,7 +297,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw toAuthApiError(error, i18n.t('auth:loadProfileFailed', 'Failed to load your profile.'));
       }
     },
-    [dispatch, triggerGetMe],
+    [dispatch, hydrateUserFromMe, triggerGetMe],
   );
 
   /**
@@ -287,10 +320,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     triggerGetMe(undefined, false)
       .unwrap()
-      .then((me) => {
+      .then(async (me) => {
         if (cancelled) return;
         if (getToken() !== tokenAtStart) return;
-        const next = mapUserMeToMockUser(me, userRef.current);
+        const next = await hydrateUserFromMe(me, userRef.current);
         setUser(next);
       })
       .catch(() => {
@@ -306,7 +339,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [dispatch, triggerGetMe]);
+  }, [dispatch, hydrateUserFromMe, triggerGetMe]);
 
   useEffect(() => {
     const language = getEffectiveLanguage(user?.preferences.language);
@@ -547,7 +580,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       if (patch.phone !== undefined) body.phone = patch.phone;
       if (patch.city !== undefined) body.city = patch.city;
-      if (patch.region !== undefined) body.region = patch.region;
+      if (patch.region !== undefined) {
+        body.saudi_region_id = regionSelectValueToApiSaudiRegionId(patch.region);
+      }
       try {
         const me = await updateMeMutation(body).unwrap();
         const next = mapUserMeToMockUser(me, userRef.current);
@@ -564,11 +599,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const body = mockPrefsPatchToApi(patch);
       try {
         const prefs = await updatePreferencesMutation(body).unwrap();
+        const merged = apiPrefsToMock(prefs);
+        setGuestLanguage(merged.language);
         setUser((prev) => {
           if (!prev) return prev;
           return {
             ...prev,
-            preferences: apiPrefsToMock(prefs),
+            preferences: merged,
           };
         });
       } catch (error) {
