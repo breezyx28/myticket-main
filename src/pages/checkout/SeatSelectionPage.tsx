@@ -13,40 +13,29 @@ import type { Id } from '@/api/types/common';
 import type { SeatLock } from '@/api/types/seat';
 import { Button } from '@/components/ui/Button';
 import { CheckoutAlertBanner } from '@/components/checkout/CheckoutAlertBanner';
-import { CheckoutMainPanel, CheckoutShell, CHECKOUT_MODAL_OVERLAY } from '@/components/checkout/CheckoutShell';
+import { CheckoutMainPanel, CheckoutShell } from '@/components/checkout/CheckoutShell';
 import { CheckoutPageHeader } from '@/components/checkout/CheckoutPageHeader';
 import { CheckoutSkeleton } from '@/components/checkout/CheckoutSkeleton';
-import { SaudiRiyalIcon } from '@/components/icons/SaudiRiyalIcon';
 import { SeatGridRaw } from '@/components/seats/SeatGridRaw';
 import { SeatLegend } from '@/components/seats/SeatLegend';
-import { formatSaudiRiyalAmountLatin } from '@/lib/saudiCurrency';
 import { mergeEventTicketTypes } from '@/lib/eventMappers';
 import { apiSeatsToSeatRecords, ticketTypeRowHints, uiSeatIdToApi } from '@/lib/seatMappers';
 import {
   filterSeatsForMapDisplay,
   getSeatInventoryStats,
   isSeatSelectable,
-  seatRecordsFromLockIds,
+  seatRecordsFromIds,
   toSelectedSeat,
 } from '@/lib/seating';
 import { formatTicketRemainingLabel } from '@/lib/ticketTypeFromApi';
+import { SEAT_LOCK_TTL_SECONDS, type CheckoutNavState } from '@/lib/checkoutNav';
 import { useAuth } from '@/contexts/AuthContext';
 import type { SeatRecord } from '@/types/seating';
 
-const DEFAULT_LOCK_TTL_SECONDS = 180;
+const DEFAULT_LOCK_TTL_SECONDS = SEAT_LOCK_TTL_SECONDS;
 const LOW_TIME_WARNING_SECONDS = 30;
 
-type CheckoutSeatNavigationState = {
-  selectedSeats?: {
-    seatId: string;
-    label: string;
-    section: string;
-    ticketTypeId: string;
-  }[];
-  selectedTicketTypeId?: string;
-  lockId?: Id | null;
-  generalAdmissionQuantity?: number;
-};
+type CheckoutSeatNavigationState = CheckoutNavState;
 
 function formatCountdown(secondsLeft: number): string {
   const m = Math.floor(secondsLeft / 60);
@@ -103,7 +92,6 @@ export function SeatSelectionPage() {
 
   const [selectedTicketTypeId, setSelectedTicketTypeId] = useState('');
   const [selectedSeatIds, setSelectedSeatIds] = useState<string[]>([]);
-  const [pendingCrossTypeSeat, setPendingCrossTypeSeat] = useState<SeatRecord | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [activeLockId, setActiveLockId] = useState<Id | null>(null);
   const [lockExpiresAt, setLockExpiresAt] = useState<string | null>(null);
@@ -152,7 +140,9 @@ export function SeatSelectionPage() {
 
     setSelectedTicketTypeId(incomingState.selectedTicketTypeId ?? event.ticketTypes[0]?.id ?? '');
     setSelectedSeatIds(incomingState.selectedSeats?.map((seat) => seat.seatId) ?? []);
-    if (incomingState.lockId != null) setActiveLockId(incomingState.lockId);
+    if (incomingState.lockId != null && !incomingState.relockNeeded) {
+      setActiveLockId(incomingState.lockId);
+    }
     setHydrated(true);
   }, [
     event,
@@ -164,24 +154,13 @@ export function SeatSelectionPage() {
     incomingState.selectedTicketTypeId,
     incomingState.selectedSeats,
     incomingState.lockId,
+    incomingState.relockNeeded,
   ]);
 
   useEffect(() => {
-    if (!event || !hydrated || !lockData) return;
-    const lockSeatIds = (lockData.seat_ids ?? []).map(String);
-    const sameType = String(lockData.ticket_type_id) === selectedTicketTypeId;
-    const sameSeats =
-      lockSeatIds.length === selectedSeatIds.length &&
-      lockSeatIds.every((id) => selectedSeatIds.includes(id));
-    if (sameType && sameSeats && activeLockId === lockData.id) return;
-
-    applyLockToState(lockData, {
-      setActiveLockId,
-      setLockExpiresAt,
-      setSelectedTicketTypeId,
-      setSelectedSeatIds,
-    });
-  }, [event, hydrated, lockData, selectedTicketTypeId, selectedSeatIds, activeLockId]);
+    if (!lockData?.expires_at) return;
+    setLockExpiresAt(lockData.expires_at);
+  }, [lockData?.expires_at, lockData?.id]);
 
   useEffect(() => {
     if (!event || !hydrated) return;
@@ -207,86 +186,49 @@ export function SeatSelectionPage() {
     [event, selectedTicketTypeId],
   );
 
-  const ticketTypeForSelection = lockData
-    ? String(lockData.ticket_type_id)
-    : selectedTicketTypeId;
-
   const selectedSeats = useMemo(
-    () => seatRecordsFromLockIds(inventory, selectedSeatIds, ticketTypeForSelection),
-    [inventory, selectedSeatIds, ticketTypeForSelection],
+    () => seatRecordsFromIds(inventory, selectedSeatIds),
+    [inventory, selectedSeatIds],
   );
 
-  const lockTicketTypeId = useMemo(() => {
-    if (selectedSeats.length > 0) return selectedSeats[0].ticketTypeId;
-    if (lockData) return String(lockData.ticket_type_id);
-    return selectedTicketTypeId;
-  }, [selectedSeats, lockData, selectedTicketTypeId]);
+  const seatsByType = useMemo(() => {
+    const groups = new Map<string, SeatRecord[]>();
+    for (const seat of selectedSeats) {
+      const list = groups.get(seat.ticketTypeId) ?? [];
+      list.push(seat);
+      groups.set(seat.ticketTypeId, list);
+    }
+    return groups;
+  }, [selectedSeats]);
 
   const seatStats = useMemo(() => getSeatInventoryStats(displaySeats), [displaySeats]);
-
-  function applySeatSelection(seat: SeatRecord) {
-    if (selectedSeatIds.includes(seat.id)) {
-      setSelectedSeatIds((prev) => prev.filter((id) => id !== seat.id));
-      return;
-    }
-    setSelectedSeatIds((prev) => {
-      const compatible = prev.filter((id) => {
-        const s = inventory.find((item) => item.id === id);
-        return s?.ticketTypeId === seat.ticketTypeId;
-      });
-      return [...compatible, seat.id];
-    });
-  }
 
   function toggleSeat(seat: SeatRecord) {
     if (!isSeatSelectable(seat, selectedSeatIds)) return;
     if (selectedSeatIds.includes(seat.id)) {
-      applySeatSelection(seat);
+      setSelectedSeatIds((prev) => prev.filter((id) => id !== seat.id));
       return;
     }
-    if (seat.ticketTypeId !== selectedTicketTypeId) {
-      setPendingCrossTypeSeat(seat);
-      return;
-    }
-    applySeatSelection(seat);
-  }
-
-  function confirmCrossTypeSeat() {
-    const seat = pendingCrossTypeSeat;
-    if (!seat) return;
-    setSelectedTicketTypeId(seat.ticketTypeId);
-    setSelectedSeatIds((prev) => {
-      const compatible = prev.filter((id) => {
-        const s = inventory.find((item) => item.id === id);
-        return s?.ticketTypeId === seat.ticketTypeId;
-      });
-      return [...compatible, seat.id];
-    });
-    setPendingCrossTypeSeat(null);
-  }
-
-  function cancelCrossTypeSeat() {
-    setPendingCrossTypeSeat(null);
+    setSelectedSeatIds((prev) => [...prev, seat.id]);
   }
 
   async function continueToCheckout() {
     if (!event || selectedSeats.length < 1) return;
-    const ticketTypeForLock = lockTicketTypeId;
-    if (!ticketTypeForLock) return;
     setLockError(null);
     try {
       const lock = await createLock({
         slug,
         body: {
-          ticket_type_id: uiSeatIdToApi(ticketTypeForLock),
+          // ponytail: API field is singular; backend locks each seat_id (mixed tiers allowed).
+          ticket_type_id: uiSeatIdToApi(selectedSeats[0]!.ticketTypeId),
           seat_ids: selectedSeatIds.map(uiSeatIdToApi),
           ttl_seconds: DEFAULT_LOCK_TTL_SECONDS,
         },
       }).unwrap();
       const state: CheckoutSeatNavigationState = {
-        selectedTicketTypeId: ticketTypeForLock,
         selectedSeats: selectedSeats.map(toSelectedSeat),
         lockId: lock.id,
+        checkoutStep: 2,
       };
       setActiveLockId(lock.id);
       setLockExpiresAt(lock.expires_at);
@@ -339,10 +281,6 @@ export function SeatSelectionPage() {
 
   const lowTime = secondsLeft != null && secondsLeft <= LOW_TIME_WARNING_SECONDS;
   const continueDisabled = selectedSeats.length < 1 || creatingLock || !user;
-  const pendingTargetTypeName = pendingCrossTypeSeat
-    ? (ticketTypeNameById.get(pendingCrossTypeSeat.ticketTypeId) ?? t('anotherTicketType'))
-    : '';
-  const pendingCurrentTypeName = currentTicketType?.name ?? t('theHighlightedType');
 
   const loginReturnPath = `/checkout/${eventId}/seats`;
 
@@ -380,6 +318,12 @@ export function SeatSelectionPage() {
             {t('signInLink')}
           </Link>{' '}
           {t('signInContinue')}
+        </CheckoutAlertBanner>
+      )}
+
+      {incomingState.relockNeeded && (
+        <CheckoutAlertBanner title={t('holdExpired')} variant="coral">
+          {t('holdExpiredBanner')}
         </CheckoutAlertBanner>
       )}
 
@@ -432,6 +376,7 @@ export function SeatSelectionPage() {
                 </option>
               ))}
             </select>
+            <p className="text-[11px] text-ink-40">{t('highlightTicketTypeHint')}</p>
           </label>
           {rowHints.length > 0 && (
             <ul className="mt-2 space-y-0.5 text-[11px] text-ink-40">
@@ -482,7 +427,9 @@ export function SeatSelectionPage() {
               </h2>
               <p className="mt-1 text-[12px] text-ink-40">
                 {selectedSeats.length > 0
-                  ? (ticketTypeNameById.get(lockTicketTypeId) ?? currentTicketType?.name ?? '—')
+                  ? seatsByType.size > 1
+                    ? t('mixedTypeSelection', { count: selectedSeats.length })
+                    : t('highlighting', { name: ticketTypeNameById.get(selectedSeats[0]!.ticketTypeId) ?? '—' })
                   : t('highlighting', { name: currentTicketType?.name ?? '—' })}
               </p>
             </div>
@@ -505,15 +452,15 @@ export function SeatSelectionPage() {
             <div className="border-t border-ink-10 px-6 py-4">
               {selectedSeats.length > 0 ? (
                 <ul className="max-h-[220px] divide-y divide-ink-10 overflow-auto text-[12px] text-ink-60">
-                  {selectedSeats.map((seat) => (
-                    <li key={seat.id} className="flex items-center justify-between gap-2 py-2.5">
-                      <span>{seat.label}</span>
-                      {seat.priceOverride != null ? (
-                        <span className="inline-flex items-center gap-0.5 font-semibold tabular-nums text-ink">
-                          <SaudiRiyalIcon className="h-[0.8em] w-[0.8em]" />
-                          {formatSaudiRiyalAmountLatin(seat.priceOverride)}
-                        </span>
-                      ) : null}
+                  {[...seatsByType.entries()].map(([typeId, seats]) => (
+                    <li key={typeId} className="py-2.5">
+                      <p className="font-semibold text-ink">
+                        {ticketTypeNameById.get(typeId) ?? typeId}{' '}
+                        <span className="font-normal text-ink-40">({seats.length})</span>
+                      </p>
+                      <p className="mt-1 leading-relaxed">
+                        {seats.map((seat) => seat.label).join(', ')}
+                      </p>
                     </li>
                   ))}
                 </ul>
@@ -543,39 +490,6 @@ export function SeatSelectionPage() {
           </article>
         </aside>
       </div>
-
-      {pendingCrossTypeSeat && (
-        <div
-          className={CHECKOUT_MODAL_OVERLAY}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="cross-type-seat-title"
-        >
-          <div className="w-full max-w-md rounded-[2rem] bg-white p-6 shadow-[0_24px_48px_-20px_rgba(26,26,26,0.18)]">
-            <h2 id="cross-type-seat-title" className="text-balance text-[17px] font-extrabold text-ink">
-              {t('crossTypeTitle')}
-            </h2>
-            <p className="mt-3 text-pretty text-[14px] leading-relaxed text-ink-60">
-              {t('crossTypeBody', {
-                seat: pendingCrossTypeSeat.label,
-                targetType: pendingTargetTypeName,
-                currentType: pendingCurrentTypeName,
-              })}
-            </p>
-            <p className="mt-2 text-[13px] text-ink-60">
-              {t('crossTypeContinue', { targetType: pendingTargetTypeName })}
-            </p>
-            <div className="mt-6 flex flex-wrap justify-end gap-3">
-              <Button variant="outline" size="md" onClick={cancelCrossTypeSeat}>
-                {t('common:cancel')}
-              </Button>
-              <Button variant="dark" size="md" onClick={confirmCrossTypeSeat}>
-                {t('continue')}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </CheckoutShell>
   );
 }

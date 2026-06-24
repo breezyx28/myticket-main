@@ -283,6 +283,7 @@ export function EventDetailPage() {
     isError: detailError,
   } = useGetEventBySlugQuery(slugParam ? { slug: slugParam } : { slug: '' }, {
     skip: !slugParam,
+    refetchOnMountOrArgChange: true,
   });
 
   const { data: ticketTypesList } = useGetEventTicketTypesQuery(
@@ -373,7 +374,18 @@ export function EventDetailPage() {
     [auctionListingsPaged]
   );
 
-  const salesPhase = useMemo(() => getTicketSalesPhaseFromDetail(detail), [detail]);
+  // ponytail: sales phase depends on wall-clock time; re-check while the page stays open.
+  const [salesTick, setSalesTick] = useState(0);
+  useEffect(() => {
+    if (!detail) return;
+    const id = window.setInterval(() => setSalesTick((n) => n + 1), 30_000);
+    return () => window.clearInterval(id);
+  }, [detail]);
+
+  const salesPhase = useMemo(
+    () => getTicketSalesPhaseFromDetail(detail),
+    [detail, salesTick],
+  );
 
   if (!slugParam) {
     return <Navigate to="/events" replace />;

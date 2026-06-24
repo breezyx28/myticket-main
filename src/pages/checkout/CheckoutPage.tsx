@@ -4,6 +4,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import { CheckCircle, ShieldCheck, Warning } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
+  useAbandonOrderMutation,
   useCheckTicketOverlapMutation,
   useConfirmOrderPaymentMutation,
   useCreateOrderMutation,
@@ -12,6 +13,7 @@ import {
   useGetEventBySlugQuery,
   useGetEventSeatsQuery,
   useGetEventTicketTypesQuery,
+  useLazyGetOrderQuery,
   useListSavedCardsQuery,
 } from '@/api/endpoints';
 import type { Id } from '@/api/types/common';
@@ -56,7 +58,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { mergeEventTicketTypes } from '@/lib/eventMappers';
 import { apiSeatsToSeatRecords, uiSeatIdToApi } from '@/lib/seatMappers';
-import { isSeatSelectable, seatRecordsFromLockIds, toSelectedSeat } from '@/lib/seating';
+import { isSeatSelectable, seatRecordsFromIds, toSelectedSeat, ticketQuantitiesFromSeats } from '@/lib/seating';
 import {
   brandToMethod,
   CARD_PAYMENT_METHODS,
@@ -69,16 +71,14 @@ import {
   validatePaymentForm,
 } from '@/lib/cardPayment';
 import { detectCardMethod } from '@/lib/cardPaymentValidation';
-import type { SelectedSeat } from '@/types/seating';
-
-type Step = 1 | 2 | 3;
-type CheckoutLocationState = {
-  selectedSeats?: SelectedSeat[];
-  selectedTicketTypeId?: string;
-  lockId?: Id | null;
-  /** GA / free-layout quantity (from event detail or checkout step 1). */
-  generalAdmissionQuantity?: number;
-};
+import {
+  type CheckoutNavState,
+  type CheckoutStep,
+  isSeatHoldErrorMessage,
+  recoverCheckoutAfterConfirmFailure,
+  SEAT_LOCK_TTL_SECONDS,
+  isOrderPaidWithTickets,
+} from '@/lib/checkoutNav';
 
 type ApiError = { data?: { message?: string; errors?: Record<string, string[]> }; status?: number };
 
@@ -93,7 +93,7 @@ function readApiErrorMessage(err: unknown): string | null {
   return null;
 }
 
-const FREE_LOCK_TTL_SECONDS = 180;
+const FREE_LOCK_TTL_SECONDS = SEAT_LOCK_TTL_SECONDS;
 
 export function CheckoutPage() {
   const { t } = useTranslation('checkout');
@@ -102,7 +102,7 @@ export function CheckoutPage() {
   const location = useLocation();
   const { user } = useAuth();
   const { pushNotification } = useNotifications();
-  const locationState = (location.state as CheckoutLocationState | null) ?? {};
+  const locationState = (location.state as CheckoutNavState | null) ?? {};
   const slug = eventId ?? '';
 
   const {
@@ -118,7 +118,16 @@ export function CheckoutPage() {
     [detail, ticketTypesList]
   );
 
-  const [step, setStep] = useState<Step>(1);
+  const [step, setStep] = useState<CheckoutStep>(() => {
+    const fromNav = locationState.checkoutStep;
+    if (fromNav === 2 || fromNav === 3) return fromNav;
+    return 1;
+  });
+  const [maxStepReached, setMaxStepReached] = useState<CheckoutStep>(() => {
+    const fromNav = locationState.checkoutStep;
+    if (fromNav === 2 || fromNav === 3) return fromNav;
+    return 1;
+  });
   const [ticketTypeId, setTicketTypeId] = useState<string>('');
   const [qtyInput, setQtyInput] = useState(1);
   const [overlapOpen, setOverlapOpen] = useState(false);
@@ -148,8 +157,11 @@ export function CheckoutPage() {
 
   const [createOrder, { isLoading: creatingOrder }] = useCreateOrderMutation();
   const [confirmOrderPayment, { isLoading: confirmingPayment }] = useConfirmOrderPaymentMutation();
+  const [abandonOrder] = useAbandonOrderMutation();
+  const [fetchOrder] = useLazyGetOrderQuery();
   const [checkOverlap, { isLoading: checkingOverlap }] = useCheckTicketOverlapMutation();
   const payLoading = creatingOrder || confirmingPayment || checkingOverlap || tokenizingPayment;
+  const pendingOrderRef = useRef<Id | null>(null);
 
   const {
     data: savedCardsRaw,
@@ -198,6 +210,48 @@ export function CheckoutPage() {
     }
   }, [event, step]);
 
+  useEffect(() => {
+    setMaxStepReached((prev) => (step > prev ? step : prev));
+  }, [step]);
+
+  useEffect(() => {
+    return () => {
+      const pendingId = pendingOrderRef.current;
+      if (pendingId == null) return;
+      void abandonOrder({ id: pendingId })
+        .unwrap()
+        .catch(() => {});
+    };
+  }, [abandonOrder]);
+
+  function patchCheckoutState(patch: Partial<CheckoutNavState>) {
+    navigate(
+      { pathname: location.pathname, search: location.search },
+      { replace: true, state: { ...locationState, ...patch } },
+    );
+  }
+
+  function goToStep(target: CheckoutStep) {
+    setPayFailOpen(false);
+    setStep(target);
+    patchCheckoutState({ checkoutStep: target });
+  }
+
+  function navigateToSeats(options?: { clearLock?: boolean; relockNeeded?: boolean }) {
+    if (!event) return;
+    setPayFailOpen(false);
+    const clearLock = options?.clearLock ?? false;
+    const state: CheckoutNavState = {
+      selectedSeats,
+      selectedTicketTypeId: selectedSeats[0]?.ticketTypeId ?? ticketTypeId,
+      checkoutStep: step,
+      generalAdmissionQuantity: locationState.generalAdmissionQuantity,
+      relockNeeded: options?.relockNeeded ?? clearLock,
+      ...(clearLock ? { lockId: null } : { lockId }),
+    };
+    navigate(`/checkout/${event.id}/seats`, { state });
+  }
+
   const {
     data: currentLockEnvelope,
     isFetching: currentLockFetching,
@@ -213,6 +267,19 @@ export function CheckoutPage() {
 
   const lockId = useMemo(() => stateLockId ?? serverLockId, [stateLockId, serverLockId]);
 
+  const staleSeatHold =
+    !!user &&
+    event?.layoutType === 'seated' &&
+    stateLockId != null &&
+    !currentLockLoading &&
+    !currentLockFetching &&
+    serverLock == null;
+
+  useEffect(() => {
+    if (!staleSeatHold) return;
+    patchCheckoutState({ lockId: null, relockNeeded: true });
+  }, [staleSeatHold]);
+
   const { data: seatedSeatMap } = useGetEventSeatsQuery(
     { slug },
     { skip: !slug || event?.layoutType !== 'seated' },
@@ -224,12 +291,9 @@ export function CheckoutPage() {
     const fromState = locationState.selectedSeats ?? [];
     if (fromState.length > 0) return fromState;
     if (!serverLock || event?.layoutType !== 'seated') return fromState;
-    const typeId = String(serverLock.ticket_type_id);
-    return seatRecordsFromLockIds(
-      seatedInventory,
-      (serverLock.seat_ids ?? []).map(String),
-      typeId,
-    ).map(toSelectedSeat);
+    return seatRecordsFromIds(seatedInventory, (serverLock.seat_ids ?? []).map(String)).map(
+      toSelectedSeat,
+    );
   }, [locationState.selectedSeats, serverLock, event?.layoutType, seatedInventory]);
 
   const { data: freeSeatMap, isFetching: freeSeatsFetching } = useGetEventSeatsQuery(
@@ -271,7 +335,7 @@ export function CheckoutPage() {
     void createFreeSeatLock({ slug, body })
       .unwrap()
       .then((lock) => {
-        const prev = (locationRef.current.state as CheckoutLocationState | null) ?? {};
+        const prev = (locationRef.current.state as CheckoutNavState | null) ?? {};
         navigate(`/checkout/${slug}`, {
           replace: true,
           state: {
@@ -302,14 +366,31 @@ export function CheckoutPage() {
     freeLockRetry,
   ]);
 
-  const seatedTicketTypeId = selectedSeats[0]?.ticketTypeId;
-  const effectiveTicketTypeId =
-    event?.layoutType === 'seated' ? seatedTicketTypeId ?? ticketTypeId : ticketTypeId;
   const qty = event?.layoutType === 'seated' ? selectedSeats.length : qtyInput;
 
-  const selectedType = event?.ticketTypes.find((t) => t.id === effectiveTicketTypeId);
+  const seatedLineItems = useMemo(() => {
+    if (!event || event.layoutType !== 'seated' || selectedSeats.length === 0) return [];
+    const byType = new Map<string, { name: string; count: number; unitPrice: number }>();
+    for (const seat of selectedSeats) {
+      const tt = event.ticketTypes.find((t) => t.id === seat.ticketTypeId);
+      const key = seat.ticketTypeId;
+      const existing = byType.get(key);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        byType.set(key, { name: tt?.name ?? key, count: 1, unitPrice: tt?.price ?? 0 });
+      }
+    }
+    return [...byType.values()];
+  }, [event, selectedSeats]);
+
+  const isMixedSeatedOrder = seatedLineItems.length > 1;
+  const selectedType = event?.ticketTypes.find((t) => t.id === ticketTypeId);
   const unitPrice = selectedType?.price ?? 0;
-  const subtotal = unitPrice * qty;
+  const subtotal =
+    event?.layoutType === 'seated'
+      ? seatedLineItems.reduce((sum, line) => sum + line.unitPrice * line.count, 0)
+      : unitPrice * qty;
   const fees = Math.round(subtotal * 0.05);
   const total = subtotal + fees;
   const selectedMethodConfig = useMemo(
@@ -323,10 +404,40 @@ export function CheckoutPage() {
     (usingSavedCard || paymentValidation.isValid) &&
     !payLoading &&
     !!user &&
+    !staleSeatHold &&
     !(paymentForm.saveCard && atSavedCardLimit && !usingSavedCard);
 
+  function showCheckoutSuccess(order: Order, orderId: Id) {
+    if (!event) return;
+    pendingOrderRef.current = null;
+    const orderRef = order.reference ?? `ORD-${String(orderId)}`;
+    setSuccess({
+      orderRef,
+      tickets: order.tickets ?? [],
+    });
+    pushNotification({
+      kind: 'order',
+      title: t('orderConfirmed'),
+      body: `${event.title} · ${orderRef} · ${t('ticketCount', { count: qty })}`,
+      href: `/my-tickets`,
+    });
+  }
+
+  async function rollbackFailedCheckout(orderId: Id) {
+    const outcome = await recoverCheckoutAfterConfirmFailure({
+      orderId,
+      fetchOrder: (id) => fetchOrder({ id }).unwrap(),
+      abandonOrder: (id) => abandonOrder({ id }).unwrap(),
+    });
+    pendingOrderRef.current = null;
+    patchCheckoutState({ lockId: null, relockNeeded: true });
+    return outcome;
+  }
+
   async function handlePay() {
-    if (!event || !selectedType || !detail) return;
+    if (!event || !detail) return;
+    if (event.layoutType === 'seated' && selectedSeats.length < 1) return;
+    if (event.layoutType !== 'seated' && !selectedType) return;
     setPaymentTouched(true);
     setPaymentErrorMessage(null);
     if (!usingSavedCard && !paymentValidation.isValid) return;
@@ -341,7 +452,7 @@ export function CheckoutPage() {
     if (lockId == null) {
       if (event.layoutType === 'seated') {
         setPaymentErrorMessage(t('holdMissing'));
-        navigate(`/checkout/${event.id}/seats`, { state: locationState });
+        navigateToSeats({ clearLock: true, relockNeeded: true });
       } else {
         setPaymentErrorMessage(t('holdNotReady'));
       }
@@ -351,7 +462,11 @@ export function CheckoutPage() {
       try {
         const overlap = await checkOverlap({
           event_id: detail.id,
-          ticket_type_id: uiSeatIdToApi(selectedType.id),
+          ticket_type_id: uiSeatIdToApi(
+            event.layoutType === 'seated'
+              ? (selectedSeats[0]?.ticketTypeId ?? ticketTypeId)
+              : selectedType!.id,
+          ),
           event_start: event.dateStart,
           event_end: event.dateEnd,
         }).unwrap();
@@ -368,11 +483,13 @@ export function CheckoutPage() {
   }
 
   async function completePurchase() {
-    if (!event || !selectedType || !detail) return;
+    if (!event || !detail) return;
+    if (event.layoutType === 'seated' && selectedSeats.length < 1) return;
+    if (event.layoutType !== 'seated' && !selectedType) return;
     if (lockId == null) {
       if (event.layoutType === 'seated') {
         setPaymentErrorMessage(t('holdMissing'));
-        navigate(`/checkout/${event.id}/seats`, { replace: false, state: locationState });
+        navigateToSeats({ clearLock: true, relockNeeded: true });
       } else {
         setPaymentErrorMessage(t('holdNotReady'));
       }
@@ -398,10 +515,10 @@ export function CheckoutPage() {
       }
     }
 
-    const typeIdKey = String(uiSeatIdToApi(selectedType.id));
-    const ticket_type_quantities: CreateOrderRequest['ticket_type_quantities'] = {
-      [typeIdKey]: qty,
-    };
+    const ticket_type_quantities: CreateOrderRequest['ticket_type_quantities'] =
+      event.layoutType === 'seated'
+        ? ticketQuantitiesFromSeats(selectedSeats, uiSeatIdToApi)
+        : { [String(uiSeatIdToApi(selectedType!.id))]: qty };
     const orderBody: CreateOrderRequest = {
       event_id: detail.id,
       lock_id: lockId,
@@ -419,6 +536,9 @@ export function CheckoutPage() {
       const message = readApiErrorMessage(err) ?? t('orderCreateFailed');
       setPaymentErrorMessage(message);
       setPayFailOpen(true);
+      if (event.layoutType === 'seated' && isSeatHoldErrorMessage(message)) {
+        patchCheckoutState({ lockId: null, relockNeeded: true });
+      }
       return;
     }
 
@@ -428,6 +548,8 @@ export function CheckoutPage() {
       setPayFailOpen(true);
       return;
     }
+
+    pendingOrderRef.current = orderId;
 
     try {
       const confirmBody: ConfirmOrderPaymentRequest = {};
@@ -450,22 +572,31 @@ export function CheckoutPage() {
         }
       }
       const confirmed = await confirmOrderPayment({ id: orderId, body: confirmBody }).unwrap();
-      const orderRef =
-        confirmed.reference ?? order.reference ?? `ORD-${String(orderId)}`;
-      setSuccess({
-        orderRef,
-        tickets: confirmed.tickets ?? [],
-      });
-      pushNotification({
-        kind: 'order',
-        title: t('orderConfirmed'),
-        body: `${event.title} · ${orderRef} · ${t('ticketCount', { count: qty })}`,
-        href: `/my-tickets`,
-      });
+      showCheckoutSuccess(confirmed, orderId);
       return;
     } catch (err) {
-      const message =
-        readApiErrorMessage(err) ?? t('paymentDeclined');
+      const message = readApiErrorMessage(err) ?? t('paymentDeclined');
+      try {
+        const refreshed = await fetchOrder({ id: orderId }).unwrap();
+        if (isOrderPaidWithTickets(refreshed)) {
+          showCheckoutSuccess(refreshed, orderId);
+          return;
+        }
+      } catch {
+        /* fall through to abandon */
+      }
+
+      const outcome = await rollbackFailedCheckout(orderId);
+      if (outcome === 'paid') {
+        try {
+          const refreshed = await fetchOrder({ id: orderId }).unwrap();
+          showCheckoutSuccess(refreshed, orderId);
+          return;
+        } catch {
+          /* show failure UI below */
+        }
+      }
+
       setPaymentErrorMessage(message);
       setPayFailOpen(true);
       return;
@@ -549,12 +680,24 @@ export function CheckoutPage() {
     event.layoutType === 'seated' ? selectedSeats.map((seat) => seat.label) : undefined;
   const loginReturnPath = `/checkout/${eventId}`;
 
+  const summaryTicketTypeName =
+    event.layoutType === 'seated'
+      ? isMixedSeatedOrder
+        ? undefined
+        : (seatedLineItems[0]?.name ??
+          event.ticketTypes.find((tt) => tt.id === selectedSeats[0]?.ticketTypeId)?.name)
+      : selectedType?.name;
+  const summaryUnitPrice =
+    event.layoutType === 'seated' && !isMixedSeatedOrder
+      ? (seatedLineItems[0]?.unitPrice ?? 0)
+      : unitPrice;
+
   const orderSummary = (
     <OrderSummaryPanel
       eventTitle={event.title}
-      ticketTypeName={selectedType?.name}
+      ticketTypeName={summaryTicketTypeName}
       quantity={qty}
-      unitPrice={unitPrice}
+      unitPrice={summaryUnitPrice}
       subtotal={subtotal}
       fees={fees}
       total={total}
@@ -584,7 +727,13 @@ export function CheckoutPage() {
         </CheckoutAlertBanner>
       )}
 
-      <CheckoutStepIndicator flow={checkoutFlow} step={step} />
+      <CheckoutStepIndicator
+        flow={checkoutFlow}
+        step={step}
+        maxStepReached={maxStepReached}
+        onStepClick={(target) => goToStep(target)}
+        onSeatsClick={event.layoutType === 'seated' ? () => navigateToSeats() : undefined}
+      />
 
       <CheckoutLayout
         main={
@@ -622,7 +771,7 @@ export function CheckoutPage() {
                       className="w-full rounded-xl border border-ink-10 px-4 py-3 text-[14px] tabular-nums"
                     />
                   </label>
-                  <Button variant="dark" size="md" className="w-full" onClick={() => setStep(2)}>
+                  <Button variant="dark" size="md" className="w-full" onClick={() => goToStep(2)}>
                     {t('continue')}
                   </Button>
                 </div>
@@ -636,13 +785,31 @@ export function CheckoutPage() {
                     <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-ink-40">
                       {t('reviewOrder')}
                     </p>
-                    <p className="mt-2 text-[15px] font-semibold text-ink">
-                      {qty}× {selectedType?.name}
-                    </p>
-                    <p className="mt-1 inline-flex items-center gap-1 text-[14px] text-ink-60 tabular-nums">
-                      <SaudiRiyalIcon className="h-[0.85em] w-[0.85em]" />
-                      {formatSaudiRiyalAmountLatin(unitPrice)} {t('each')}
-                    </p>
+                    {event.layoutType === 'seated' && seatedLineItems.length > 0 ? (
+                      <ul className="mt-2 space-y-1 text-[15px] font-semibold text-ink">
+                        {seatedLineItems.map((line) => (
+                          <li key={line.name} className="flex flex-wrap items-baseline justify-between gap-2">
+                            <span>
+                              {line.count}× {line.name}
+                            </span>
+                            <span className="inline-flex items-center gap-1 text-[14px] font-medium text-ink-60 tabular-nums">
+                              <SaudiRiyalIcon className="h-[0.85em] w-[0.85em]" />
+                              {formatSaudiRiyalAmountLatin(line.unitPrice)} {t('each')}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <>
+                        <p className="mt-2 text-[15px] font-semibold text-ink">
+                          {qty}× {selectedType?.name}
+                        </p>
+                        <p className="mt-1 inline-flex items-center gap-1 text-[14px] text-ink-60 tabular-nums">
+                          <SaudiRiyalIcon className="h-[0.85em] w-[0.85em]" />
+                          {formatSaudiRiyalAmountLatin(unitPrice)} {t('each')}
+                        </p>
+                      </>
+                    )}
                   </div>
 
                   {event.layoutType === 'seated' && (
@@ -660,24 +827,16 @@ export function CheckoutPage() {
                         variant="outline"
                         size="md"
                         className="flex-1"
-                        onClick={() =>
-                          navigate(`/checkout/${event.id}/seats`, {
-                            state: {
-                              selectedSeats,
-                              selectedTicketTypeId: selectedSeats[0]?.ticketTypeId ?? ticketTypeId,
-                              lockId,
-                            } as CheckoutLocationState,
-                          })
-                        }
+                        onClick={() => navigateToSeats()}
                       >
                         {t('backToSeats')}
                       </Button>
                     ) : (
-                      <Button variant="outline" size="md" className="flex-1" onClick={() => setStep(1)}>
+                      <Button variant="outline" size="md" className="flex-1" onClick={() => goToStep(1)}>
                         {t('back')}
                       </Button>
                     )}
-                    <Button variant="dark" size="md" className="flex-1" onClick={() => setStep(3)}>
+                    <Button variant="dark" size="md" className="flex-1" onClick={() => goToStep(3)}>
                       {t('proceedToPayment')}
                     </Button>
                   </div>
@@ -695,6 +854,19 @@ export function CheckoutPage() {
                     </span>
                   </div>
                   <p className="text-[13px] leading-relaxed text-ink-60">{t('paymentIntro')}</p>
+
+                  {(staleSeatHold || locationState.relockNeeded) && event.layoutType === 'seated' && (
+                    <CheckoutAlertBanner title={t('holdExpired')} variant="coral">
+                      {t('holdExpiredBanner')}{' '}
+                      <button
+                        type="button"
+                        className="font-semibold text-coral underline"
+                        onClick={() => navigateToSeats({ clearLock: true, relockNeeded: true })}
+                      >
+                        {t('reselectSeats')}
+                      </button>
+                    </CheckoutAlertBanner>
+                  )}
 
                   {user && savedCardsLoading && (
                     <div className="flex gap-4 overflow-hidden" aria-hidden>
@@ -923,24 +1095,36 @@ export function CheckoutPage() {
                     </CheckoutAlertBanner>
                   )}
 
-                  <div className="flex flex-col gap-3 sm:flex-row">
-                    <Button variant="outline" size="md" className="flex-1" onClick={() => setStep(2)}>
-                      {t('back')}
-                    </Button>
-                    <Button
-                      variant="dark"
-                      size="md"
-                      className="flex-1"
-                      loading={payLoading}
-                      disabled={!canSubmitPayment}
-                      onClick={handlePay}
-                    >
-                      <span className="inline-flex items-center justify-center gap-1 tabular-nums">
-                        {t('pay')}
-                        <SaudiRiyalIcon className="h-[0.9em] w-[0.9em]" />
-                        {formatSaudiRiyalAmountLatin(total)}
-                      </span>
-                    </Button>
+                  <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-3 sm:flex-row">
+                      {event.layoutType === 'seated' ? (
+                        <Button
+                          variant="outline"
+                          size="md"
+                          className="flex-1"
+                          onClick={() => navigateToSeats()}
+                        >
+                          {t('editSeats')}
+                        </Button>
+                      ) : null}
+                      <Button variant="outline" size="md" className="flex-1" onClick={() => goToStep(2)}>
+                        {t('backToReview')}
+                      </Button>
+                      <Button
+                        variant="dark"
+                        size="md"
+                        className="flex-1"
+                        loading={payLoading}
+                        disabled={!canSubmitPayment}
+                        onClick={handlePay}
+                      >
+                        <span className="inline-flex items-center justify-center gap-1 tabular-nums">
+                          {t('pay')}
+                          <SaudiRiyalIcon className="h-[0.9em] w-[0.9em]" />
+                          {formatSaudiRiyalAmountLatin(total)}
+                        </span>
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </CheckoutStepContent>
@@ -1099,9 +1283,52 @@ export function CheckoutPage() {
               <p className="mt-2 text-[14px] leading-relaxed text-ink-60">
                 {paymentErrorMessage ?? t('seatLocksReleased')}
               </p>
-              <Button variant="dark" size="md" className="mt-6 w-full" onClick={() => setPayFailOpen(false)}>
-                {t('ok')}
-              </Button>
+              <div className="mt-6 flex flex-col gap-2">
+                {event.layoutType === 'seated' ? (
+                  <Button
+                    variant="dark"
+                    size="md"
+                    className="w-full"
+                    onClick={() => navigateToSeats({ clearLock: true, relockNeeded: true })}
+                  >
+                    {t('reselectSeats')}
+                  </Button>
+                ) : (
+                  <Button
+                    variant="dark"
+                    size="md"
+                    className="w-full"
+                    onClick={() => {
+                      setPayFailOpen(false);
+                      if (lockId == null) setFreeLockRetry((n) => n + 1);
+                    }}
+                  >
+                    {t('tryPaymentAgain')}
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="md"
+                  className="w-full"
+                  onClick={() => goToStep(2)}
+                >
+                  {t('backToReview')}
+                </Button>
+                {event.layoutType === 'seated' ? (
+                  <Button
+                    variant="outline"
+                    size="md"
+                    className="w-full"
+                    onClick={() => navigateToSeats()}
+                  >
+                    {t('editSeats')}
+                  </Button>
+                ) : (
+                  <Button variant="outline" size="md" className="w-full" onClick={() => goToStep(1)}>
+                    {t('editTickets')}
+                  </Button>
+                )}
+              </div>
             </motion.div>
           </motion.div>
         )}

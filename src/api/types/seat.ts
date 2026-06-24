@@ -10,9 +10,14 @@ export interface SeatLockRequest {
 export interface SeatLock {
   id: Id;
   event_slug?: string;
-  ticket_type_id: Id;
+  ticket_type_id?: Id;
   seat_ids: Id[];
   expires_at: Iso8601;
+  /** Present on `POST …/seats/lock` (top-level `lock_id`). */
+  lock_id?: Id;
+  locks?: unknown[];
+  ttl_seconds?: number;
+  idempotent?: boolean;
   [key: string]: unknown;
 }
 

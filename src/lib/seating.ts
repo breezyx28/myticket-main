@@ -18,7 +18,13 @@ export function filterSeatsForMapDisplay(seats: SeatRecord[], selectedSeatIds: s
   return seats.filter((s) => s.status === 'available' || selectedSeatIds.includes(s.id));
 }
 
-/** Resolve lock `seat_ids` to UI records; synthesize placeholders when held seats are omitted from inventory. */
+/** Resolve seat ids to inventory rows (mixed ticket types). */
+export function seatRecordsFromIds(inventory: SeatRecord[], seatIds: string[]): SeatRecord[] {
+  const byId = new Map(inventory.map((s) => [s.id, s]));
+  return seatIds.map((id) => byId.get(id)).filter((s): s is SeatRecord => s != null);
+}
+
+/** @deprecated Prefer `seatRecordsFromIds` for mixed-type picks. */
 export function seatRecordsFromLockIds(
   inventory: SeatRecord[],
   seatIds: string[],
@@ -56,6 +62,29 @@ export function toSelectedSeat(seat: SeatRecord) {
     section: seat.section,
     ticketTypeId: seat.ticketTypeId,
   };
+}
+
+/** Count seats per ticket type for `POST /orders`. */
+export function ticketQuantitiesFromSeats(
+  seats: { ticketTypeId: string }[],
+  toApiId: (id: string) => string | number,
+): Record<string, number> {
+  const map: Record<string, number> = {};
+  for (const seat of seats) {
+    const key = String(toApiId(seat.ticketTypeId));
+    map[key] = (map[key] ?? 0) + 1;
+  }
+  return map;
+}
+
+if (import.meta.env.DEV) {
+  const q = ticketQuantitiesFromSeats(
+    [{ ticketTypeId: '1' }, { ticketTypeId: '1' }, { ticketTypeId: '2' }],
+    (id) => id,
+  );
+  if (q['1'] !== 2 || q['2'] !== 1) {
+    console.warn('[seating] ticketQuantitiesFromSeats self-check failed:', q);
+  }
 }
 
 export function seatsByRows(seats: SeatRecord[]) {

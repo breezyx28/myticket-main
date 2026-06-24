@@ -161,14 +161,57 @@ export function eventHasPrimaryInventory(ticketsLeft: number | null): boolean {
 
 export type EventSalesPhase = 'open' | 'not_started' | 'ended';
 
+function isoDateString(value: unknown): string {
+  if (typeof value === 'string') return value.trim();
+  return '';
+}
+
+/** Normalize Laravel/PHP timestamps for cross-browser `Date.parse`. */
+function parseApiDateTimeMs(value: string): number {
+  const raw = value.trim();
+  if (!raw) return NaN;
+  const isoish = raw.includes('T') ? raw : raw.replace(' ', 'T');
+  const trimmedFrac = isoish
+    .replace(/\.(\d{3})\d+([Zz]|[+-])/, '.$1$2')
+    .replace(/\.(\d{3})\d+$/, '.$1');
+  let ms = Date.parse(trimmedFrac);
+  if (Number.isFinite(ms)) return ms;
+  return Date.parse(isoish.replace(/\.\d+/, ''));
+}
+
+function ticketSalesWindowFromDetail(
+  detail: Pick<EventDetail, 'ticket_sales_starts_at' | 'ticket_sales_ends_at'> | null | undefined,
+): { start: string; end: string } {
+  if (!detail) return { start: '', end: '' };
+  const r = detail as Record<string, unknown>;
+  const nested =
+    r.ticket_sales && typeof r.ticket_sales === 'object'
+      ? (r.ticket_sales as Record<string, unknown>)
+      : null;
+  return {
+    start: isoDateString(
+      r.ticket_sales_starts_at ??
+        r.ticketSalesStartsAt ??
+        nested?.starts_at ??
+        nested?.ticket_sales_starts_at,
+    ),
+    end: isoDateString(
+      r.ticket_sales_ends_at ??
+        r.ticketSalesEndsAt ??
+        nested?.ends_at ??
+        nested?.ticket_sales_ends_at,
+    ),
+  };
+}
+
 /** Whether `now` falls inside a sales window (`startsAt` … `endsAt`). */
 export function getEventSalesPhase(
   salesStartsAt: string,
   salesEndsAt: string,
   now: Date = new Date(),
 ): EventSalesPhase {
-  const startMs = Date.parse(salesStartsAt);
-  const endMs = Date.parse(salesEndsAt);
+  const startMs = parseApiDateTimeMs(salesStartsAt);
+  const endMs = parseApiDateTimeMs(salesEndsAt);
   const t = now.getTime();
   if (Number.isFinite(startMs) && t < startMs) return 'not_started';
   if (Number.isFinite(endMs) && t > endMs) return 'ended';
@@ -180,9 +223,7 @@ export function getTicketSalesPhaseFromDetail(
   detail: Pick<EventDetail, 'ticket_sales_starts_at' | 'ticket_sales_ends_at'> | null | undefined,
   now?: Date,
 ): EventSalesPhase {
-  if (!detail) return 'open';
-  const start = detail.ticket_sales_starts_at?.trim() ?? '';
-  const end = detail.ticket_sales_ends_at?.trim() ?? '';
+  const { start, end } = ticketSalesWindowFromDetail(detail);
   if (!start && !end) return 'open';
   return getEventSalesPhase(start, end, now);
 }
@@ -499,4 +540,17 @@ export function mergeEventTicketTypes(
     return { ...base, ticketTypes: ticketTypesToMockShape(fromEndpoint) };
   }
   return base;
+}
+
+if (import.meta.env.DEV) {
+  const probe = getTicketSalesPhaseFromDetail(
+    {
+      ticket_sales_starts_at: '2026-06-22T22:00:00.000000Z',
+      ticket_sales_ends_at: '2026-06-28T22:00:00.000000Z',
+    },
+    new Date('2026-06-24T12:00:00.000Z'),
+  );
+  if (probe !== 'open') {
+    console.warn('[eventMappers] ticket sales phase self-check failed:', probe);
+  }
 }

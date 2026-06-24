@@ -71,6 +71,20 @@ export const ordersApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: (_res, _err, arg) => [{ type: 'Order', id: arg.id }, 'Ticket'],
     }),
+    /** Release holds for unpaid checkout (`payment_status: pending`, no tickets). */
+    abandonOrder: build.mutation<Order, { id: Id }>({
+      query: ({ id }) => ({
+        url: `/orders/${id}/abandon`,
+        method: 'POST',
+      }),
+      transformResponse: unwrapOrderResponse,
+      invalidatesTags: (_res, _err, arg) => [
+        { type: 'Order', id: arg.id },
+        'Order',
+        'Ticket',
+        { type: 'SeatLock', id: 'LIST' },
+      ],
+    }),
     listMyOrders: build.query<Paginated<Order>, PaginationQuery | void>({
       query: (params) => ({ url: '/me/orders', params: params ?? undefined }),
       providesTags: (result) =>
@@ -87,7 +101,9 @@ export const ordersApi = baseApi.injectEndpoints({
 export const {
   useCreateOrderMutation,
   useGetOrderQuery,
+  useLazyGetOrderQuery,
   useConfirmOrderPaymentMutation,
   useCancelOrderMutation,
+  useAbandonOrderMutation,
   useListMyOrdersQuery,
 } = ordersApi;

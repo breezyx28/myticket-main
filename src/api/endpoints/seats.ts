@@ -9,13 +9,64 @@ import type {
   SeatLockRequest,
 } from '@/api/types/seat';
 
-/** Main API wraps seat locks in `{ data: SeatLock }`. */
-export function unwrapSeatLock(raw: unknown): SeatLock {
-  if (raw && typeof raw === 'object' && 'data' in raw) {
-    const inner = (raw as CurrentSeatLockEnvelope).data;
-    if (inner && typeof inner === 'object') return inner;
+function seatIdsFromLockRows(locks: unknown[]): Id[] {
+  const ids: Id[] = [];
+  for (const row of locks) {
+    if (!row || typeof row !== 'object') continue;
+    const r = row as Record<string, unknown>;
+    if (r.seat_id != null) ids.push(r.seat_id as Id);
+    if (Array.isArray(r.seat_ids)) ids.push(...(r.seat_ids as Id[]));
   }
+  return ids;
+}
+
+/** Normalize lock payloads: legacy `{ data }`, flat `SeatLock`, or `{ lock_id, locks[] }`. */
+export function unwrapSeatLock(raw: unknown): SeatLock {
+  if (!raw || typeof raw !== 'object') return raw as SeatLock;
+  const r = raw as Record<string, unknown>;
+
+  if ('data' in r && r.data && typeof r.data === 'object') {
+    return unwrapSeatLock(r.data);
+  }
+
+  const lockId = (r.lock_id ?? r.id) as Id | undefined;
+  const locks = Array.isArray(r.locks) ? r.locks : [];
+  const seatIdsFromLocks = seatIdsFromLockRows(locks);
+  const seat_ids = (
+    seatIdsFromLocks.length > 0
+      ? seatIdsFromLocks
+      : Array.isArray(r.seat_ids)
+        ? (r.seat_ids as Id[])
+        : []
+  ) as Id[];
+
+  const firstLock =
+    locks[0] && typeof locks[0] === 'object' ? (locks[0] as Record<string, unknown>) : null;
+  const ticket_type_id = (r.ticket_type_id ?? firstLock?.ticket_type_id) as Id | undefined;
+
+  if (lockId != null) {
+    return {
+      ...(r as SeatLock),
+      id: lockId,
+      lock_id: lockId,
+      seat_ids,
+      expires_at: String(r.expires_at ?? ''),
+      ...(ticket_type_id != null ? { ticket_type_id } : {}),
+    };
+  }
+
   return raw as SeatLock;
+}
+
+if (import.meta.env.DEV) {
+  const normalized = unwrapSeatLock({
+    lock_id: 12,
+    expires_at: '2026-06-24T19:30:00+00:00',
+    locks: [{ seat_id: 1, ticket_type_id: 2 }, { seat_id: 3, ticket_type_id: 2 }],
+  });
+  if (normalized.id !== 12 || normalized.seat_ids.length !== 2) {
+    console.warn('[seats] unwrapSeatLock self-check failed:', normalized);
+  }
 }
 
 export const seatsApi = baseApi.injectEndpoints({
@@ -67,7 +118,11 @@ export const seatsApi = baseApi.injectEndpoints({
           if (response.status === 204) return null;
           const text = await response.text();
           if (!text) return null;
-          return JSON.parse(text) as CurrentSeatLockEnvelope;
+          const parsed: unknown = JSON.parse(text);
+          if (parsed && typeof parsed === 'object' && 'data' in parsed) {
+            return parsed as CurrentSeatLockEnvelope;
+          }
+          return { data: unwrapSeatLock(parsed) };
         },
       }),
       providesTags: (result, _err, arg) =>
