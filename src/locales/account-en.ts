@@ -169,6 +169,9 @@ export const accountEn = {
       underReviewBody: 'Withdraw if you need to correct something before a decision is made.',
       withdraw: 'Withdraw application',
     },
+    rolesUpgrade: {
+      lead: 'Choose talent, vendor, or organizer and finish onboarding to unlock your role dashboard.',
+    },
     otherRoles: {
       title: 'Other role applications',
       lead: 'Vendor and organizer applications you started from registration (or re-apply) appear here.',

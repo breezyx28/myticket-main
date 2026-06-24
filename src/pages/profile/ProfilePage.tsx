@@ -1,51 +1,32 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { Controller, useForm, type Resolver } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
-import type { RoleOnboardingStatus, TalentOnboardingDraft } from '@/types/domain';
 import { AccountProfileAvatar } from '@/components/profile/AccountProfileAvatar';
-import { DraftProfileImageAvatarInput } from '@/components/auth/DraftProfileImageAvatarInput';
-import { TALENT_BIO_MAX_CHARS, TALENT_BIO_MIN_CHARS } from '@/lib/onboardingValidation';
+import { RoleUpgradeBannersSection } from '@/components/sections/RoleUpgradeBannersSection';
 import {
   canonicalPlaceName,
   findRegionIdByName,
   getCitiesForRegionFlexible,
   getRegionsFlexible,
-  isValidSaudiCityFlexible,
   resolveCitySelectValue,
 } from '@/lib/saudiLocations';
 import { pickLocalizedName, type AppLanguage } from '@/i18n';
-import { apiStatusToOnboardingStatus, apiTalentDetailToDraft } from '@/lib/roleApplicationMappers';
-import { runTalentRoleApplicationPipeline } from '@/services/roleApplicationSubmit';
 import { isOrganizerUser } from '@/lib/organizerPortal';
 import { isTalentUser } from '@/lib/talentPortal';
-import { buildVendorPortalUrl, isVendorUser } from '@/lib/vendorPortal';
-import type { RoleApplicationSummary } from '@/api/types/roleApplication';
+import { isVendorUser } from '@/lib/vendorPortal';
 import type { UserSession } from '@/api/types/user';
 import {
-  useAddTalentMediaMutation,
-  useCreateTalentApplicationMutation,
   useGetPreferencesQuery,
-  useGetRoleApplicationQuery,
-  useGetTalentAvailabilityQuery,
-  useGetMyRoleApplicationsQuery,
   useGetSaudiRegionsQuery,
   useListDevicesQuery,
   useListSavedCardsQuery,
   useListSessionsQuery,
   useRemoveDeviceMutation,
-  useResubmitTalentApplicationMutation,
   useRevokeSessionMutation,
-  useSubmitTalentApplicationMutation,
-  useUpdateTalentApplicationMutation,
-  useWithdrawTalentApplicationMutation,
-  useWithdrawVendorApplicationMutation,
-  useWithdrawOrganizerApplicationMutation,
-  useResubmitVendorApplicationMutation,
-  useResubmitOrganizerApplicationMutation,
 } from '@/api/endpoints';
 import type { SavedCard } from '@/api/types/savedCard';
 import { SavedCardsSection } from '@/components/profile/SavedCardsSection';
@@ -60,20 +41,6 @@ import {
 import { createChangePasswordSchema, type ChangePasswordSchema } from '@/schemas/auth';
 import { EmailChangeDialog } from '@/pages/profile/EmailChangeDialog';
 
-const EMPTY_DRAFT: TalentOnboardingDraft = {
-  fullName: '',
-  contactEmail: '',
-  contactPhone: '',
-  profileImage: '',
-  bio: '',
-  saudiRegionId: '',
-  city: '',
-  travelReady: false,
-  locationPublic: false,
-  verificationMedia: [],
-  certificateName: '',
-  acceptedQualityDisclaimer: false,
-};
 const SAUDI_COUNTRY_CODE = '+966';
 
 function formatSeenAt(iso?: string | null, emDash = '—'): string {
@@ -114,19 +81,6 @@ function formatRelativeSeenAt(iso?: string | null, emDash = '—'): string {
 
 type ProfileTab = 'info' | 'preferences' | 'cards' | 'security' | 'roles' | 'danger';
 
-function readApiErrorMessage(err: unknown, fallback: string): string {
-  if (err && typeof err === 'object') {
-    const candidate = (err as { data?: unknown }).data;
-    if (candidate && typeof candidate === 'object') {
-      const message = (candidate as { message?: unknown }).message;
-      if (typeof message === 'string' && message.trim().length > 0) return message;
-    }
-    const direct = (err as { message?: unknown }).message;
-    if (typeof direct === 'string' && direct.trim().length > 0) return direct;
-  }
-  return fallback;
-}
-
 type DeleteAccountFormValues = {
   confirmation: string;
   reason: string;
@@ -152,7 +106,6 @@ export function ProfilePage() {
     () => createDeleteAccountSchema(tValidation),
     [tValidation, i18n.language],
   );
-  const navigate = useNavigate();
   const {
     user,
     signOut,
@@ -162,7 +115,6 @@ export function ProfilePage() {
     changePassword,
     requestEmailChange,
     requestAccountDeletion,
-    setTalentAvailabilityStatus,
   } = useAuth();
 
   const { data: prefsFromApi } = useGetPreferencesQuery(undefined, { skip: !user });
@@ -178,9 +130,6 @@ export function ProfilePage() {
   const { data: devices = [], isFetching: devicesLoading } = useListDevicesQuery(undefined, { skip: !user });
   const [revokeSession, { isLoading: revokingSession }] = useRevokeSessionMutation();
   const [removeDevice, { isLoading: removingDevice }] = useRemoveDeviceMutation();
-  const { data: talentAvail, isFetching: availLoading } = useGetTalentAvailabilityQuery(undefined, {
-    skip: !user || user.role !== 'talent',
-  });
 
   const { data: savedCardsRaw, isFetching: savedCardsLoading, isError: savedCardsError } =
     useListSavedCardsQuery(undefined, { skip: !user });
@@ -190,64 +139,10 @@ export function ProfilePage() {
     return savedCardsRaw.data ?? [];
   }, [savedCardsRaw]);
 
-  const { data: myRoleApps, refetch: refetchMyApps } = useGetMyRoleApplicationsQuery(undefined, { skip: !user });
-  const talentSummary = myRoleApps?.talent;
-  const vendorSummary = myRoleApps?.vendor;
-  const organizerSummary = myRoleApps?.organizer;
-  const talentAppId = talentSummary?.id;
-  const talentUiStatus = apiStatusToOnboardingStatus(talentSummary?.status);
-
-  const {
-    data: talentDetail,
-    isLoading: talentDetailLoading,
-    refetch: refetchTalentDetail,
-  } = useGetRoleApplicationQuery({ role: 'talent', id: talentAppId! }, { skip: !user || !talentAppId });
-
   const { data: saudiRegionsRes } = useGetSaudiRegionsQuery();
   const apiSaudiRegions = saudiRegionsRes?.data;
 
-  const serverTalentMediaUrls = useMemo(() => {
-    const media = talentDetail?.talent_application?.verification_media ?? [];
-    return media.map((m) => (typeof m === 'string' ? m : (m.url ?? ''))).filter(Boolean);
-  }, [talentDetail]);
-
-  const [createTalentApplication] = useCreateTalentApplicationMutation();
-  const [updateTalentApplication] = useUpdateTalentApplicationMutation();
-  const [addTalentMedia] = useAddTalentMediaMutation();
-  const [submitTalentApplication] = useSubmitTalentApplicationMutation();
-  const [resubmitTalentApplication] = useResubmitTalentApplicationMutation();
-  const [withdrawTalentApplication] = useWithdrawTalentApplicationMutation();
-  const [withdrawVendorApplication] = useWithdrawVendorApplicationMutation();
-  const [withdrawOrganizerApplication] = useWithdrawOrganizerApplicationMutation();
-  const [resubmitVendorApplication] = useResubmitVendorApplicationMutation();
-  const [resubmitOrganizerApplication] = useResubmitOrganizerApplicationMutation();
-
-  const talentMutations = useMemo(
-    () => ({
-      createTalentApplication: (body: Parameters<typeof createTalentApplication>[0]) =>
-        createTalentApplication(body).unwrap(),
-      updateTalentApplication: (args: Parameters<typeof updateTalentApplication>[0]) =>
-        updateTalentApplication(args).unwrap(),
-      addTalentMedia: (args: Parameters<typeof addTalentMedia>[0]) => addTalentMedia(args).unwrap(),
-      submitTalentApplication: (args: Parameters<typeof submitTalentApplication>[0]) =>
-        submitTalentApplication(args).unwrap(),
-      resubmitTalentApplication: (args: Parameters<typeof resubmitTalentApplication>[0]) =>
-        resubmitTalentApplication(args).unwrap(),
-    }),
-    [
-      createTalentApplication,
-      updateTalentApplication,
-      addTalentMedia,
-      submitTalentApplication,
-      resubmitTalentApplication,
-    ],
-  );
-
   const [activeTab, setActiveTab] = useState<ProfileTab>('info');
-  const [draft, setDraft] = useState<TalentOnboardingDraft>(EMPTY_DRAFT);
-  const [talentHydrated, setTalentHydrated] = useState(false);
-  const [talentFormBusy, setTalentFormBusy] = useState(false);
-  const [mediaInput, setMediaInput] = useState('');
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -257,7 +152,6 @@ export function ProfilePage() {
   } | null>(null);
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(user?.security.twoFactorEnabled ?? false);
-  const [availabilityBusy, setAvailabilityBusy] = useState(false);
 
   const profileForm = useForm<UpdateProfileSchema>({
     resolver: yupResolver(updateProfileSchema) as Resolver<UpdateProfileSchema>,
@@ -275,11 +169,8 @@ export function ProfilePage() {
     resolver: yupResolver(updatePreferencesSchema) as Resolver<UpdatePreferencesSchema>,
     defaultValues: {
       language: 'en',
-      theme: 'system',
       email_notifications: true,
       push_notifications: true,
-      sms_notifications: false,
-      marketing_emails: false,
     },
   });
 
@@ -300,12 +191,7 @@ export function ProfilePage() {
   const profileRegion = profileForm.watch('region');
   const accountCities = getCitiesForRegionFlexible(profileRegion ?? '', apiSaudiRegions);
 
-  const talentRegionOptions = getRegionsFlexible(apiSaudiRegions);
-  const talentCities = useMemo(
-    () => getCitiesForRegionFlexible(draft.saudiRegionId, apiSaudiRegions),
-    [draft.saudiRegionId, apiSaudiRegions],
-  );
-  const talentCitySelectValue = resolveCitySelectValue(draft.city, talentCities);
+  const regionOptions = getRegionsFlexible(apiSaudiRegions);
 
   useEffect(() => {
     if (!user) return;
@@ -334,64 +220,10 @@ export function ProfilePage() {
     if (!prefsFromApi) return;
     preferencesForm.reset({
       language: prefsFromApi.language,
-      theme: prefsFromApi.theme,
       email_notifications: prefsFromApi.email_notifications,
       push_notifications: prefsFromApi.push_notifications,
-      sms_notifications: prefsFromApi.sms_notifications,
-      marketing_emails: prefsFromApi.marketing_emails,
     });
   }, [prefsFromApi, preferencesForm]);
-
-  useEffect(() => {
-    setTalentHydrated(false);
-  }, [talentAppId]);
-
-  useEffect(() => {
-    if (!user) return;
-    if (talentAppId && talentDetailLoading) return;
-    if (talentHydrated) return;
-    const ta = talentDetail?.talent_application;
-    if (ta) {
-      setDraft(apiTalentDetailToDraft(ta, { name: user.name, email: user.email, phone: user.phone }));
-    } else {
-      setDraft({
-        ...EMPTY_DRAFT,
-        fullName: user.name,
-        contactEmail: user.email,
-        contactPhone: user.phone,
-      });
-    }
-    setTalentHydrated(true);
-  }, [user, talentAppId, talentDetail, talentDetailLoading, talentHydrated]);
-
-  const requiredReady = useMemo(() => {
-    const regionOk =
-      Boolean(draft.saudiRegionId) &&
-      isValidSaudiCityFlexible(draft.saudiRegionId, draft.city.trim(), apiSaudiRegions);
-    return (
-      draft.fullName.trim().length >= 3 &&
-      draft.contactEmail.includes('@') &&
-      draft.bio.trim().length >= TALENT_BIO_MIN_CHARS &&
-      draft.bio.trim().length <= TALENT_BIO_MAX_CHARS &&
-      draft.verificationMedia.length > 0 &&
-      draft.acceptedQualityDisclaimer &&
-      regionOk
-    );
-  }, [draft, apiSaudiRegions]);
-
-  const statusBadge = useMemo(() => {
-    if (!user) return null;
-    if (talentUiStatus === 'approved') return t('statusBadge.approvedTalent');
-    if (talentUiStatus === 'submitted') return t('statusBadge.underReview');
-    if (talentUiStatus === 'rejected') return t('statusBadge.rejected');
-    if (talentUiStatus === 'draft') return t('statusBadge.draft');
-    return t('statusBadge.notStarted');
-  }, [user, talentUiStatus, t]);
-
-  const talentFormLocked = talentUiStatus === 'submitted' || talentUiStatus === 'approved';
-
-  const talentRejectionReason =
-    talentDetail?.rejection_reason ?? talentSummary?.rejection_reason ?? null;
 
   const onSaveProfile = profileForm.handleSubmit(async (values) => {
     setSaveError(null);
@@ -417,11 +249,8 @@ export function ProfilePage() {
     try {
       await updatePreferences({
         language: values.language as 'en' | 'ar',
-        theme: values.theme as 'system' | 'light' | 'dark',
         emailNotifications: Boolean(values.email_notifications),
         pushNotifications: Boolean(values.push_notifications),
-        smsNotifications: Boolean(values.sms_notifications),
-        marketingEmails: Boolean(values.marketing_emails),
       });
       setSaveMessage(t('messages.preferencesSaved'));
     } catch (e) {
@@ -471,20 +300,6 @@ export function ProfilePage() {
     }
   }
 
-  async function onToggleAvailability(next: 'available' | 'reserved') {
-    if (!user || user.role !== 'talent') return;
-    setSaveError(null);
-    setAvailabilityBusy(true);
-    try {
-      await setTalentAvailabilityStatus(next);
-      setSaveMessage(next === 'available' ? t('messages.markedAvailable') : t('messages.markedReserved'));
-    } catch (e) {
-      setSaveError(toAuthApiError(e, t('errors.updateAvailability')).message);
-    } finally {
-      setAvailabilityBusy(false);
-    }
-  }
-
   async function onSubmitDeleteAccount(values: DeleteAccountFormValues) {
     setSaveError(null);
     try {
@@ -499,191 +314,6 @@ export function ProfilePage() {
     } catch (e) {
       setSaveError(toAuthApiError(e, t('errors.deleteAccount')).message);
     }
-  }
-
-  async function onSaveTalentDraft() {
-    if (!user) return;
-    setSaveError(null);
-    setTalentFormBusy(true);
-    try {
-      await runTalentRoleApplicationPipeline(
-        {
-          draft,
-          basic: { fullName: user.name, email: user.email, contactPhone: user.phone },
-          finalize: 'none',
-          existingApplicationId: talentSummary?.id,
-          existingApiStatus: talentSummary?.status != null ? String(talentSummary.status) : null,
-          existingMediaUrls: serverTalentMediaUrls,
-        },
-        talentMutations,
-      );
-      await refetchMyApps();
-      await refetchTalentDetail();
-      setSaveMessage(t('messages.talentDraftSaved'));
-    } catch (e) {
-      setSaveError(readApiErrorMessage(e, t('errors.saveDraft')));
-    } finally {
-      setTalentFormBusy(false);
-    }
-  }
-
-  async function onSubmitTalentApplication() {
-    if (!user || !requiredReady) return;
-    setSaveError(null);
-    setTalentFormBusy(true);
-    try {
-      await runTalentRoleApplicationPipeline(
-        {
-          draft,
-          basic: { fullName: user.name, email: user.email, contactPhone: user.phone },
-          finalize: 'submit',
-          existingApplicationId: talentSummary?.id,
-          existingApiStatus: talentSummary?.status != null ? String(talentSummary.status) : null,
-          existingMediaUrls: serverTalentMediaUrls,
-        },
-        talentMutations,
-      );
-      await refetchMyApps();
-      await refetchTalentDetail();
-      setSaveMessage(t('messages.applicationSubmitted'));
-    } catch (e) {
-      setSaveError(readApiErrorMessage(e, t('errors.submitApplication')));
-    } finally {
-      setTalentFormBusy(false);
-    }
-  }
-
-  async function onWithdrawTalentApplication() {
-    if (!talentAppId) return;
-    setSaveError(null);
-    try {
-      await withdrawTalentApplication({ id: talentAppId }).unwrap();
-      await refetchMyApps();
-      await refetchTalentDetail();
-      setSaveMessage(t('messages.talentWithdrawn'));
-    } catch (e) {
-      setSaveError(readApiErrorMessage(e, t('errors.withdrawApplication')));
-    }
-  }
-
-  function appendVerificationItem(value: string) {
-    const v = value.trim();
-    if (!v) return;
-    setDraft((prev) => {
-      if (prev.verificationMedia.includes(v)) return prev;
-      return { ...prev, verificationMedia: [...prev.verificationMedia, v] };
-    });
-  }
-
-  const bioLen = draft.bio.trim().length;
-
-  function statusText(status: RoleOnboardingStatus) {
-    if (status === 'approved') return t('status.approved');
-    if (status === 'submitted') return t('status.underReview');
-    if (status === 'rejected') return t('status.rejected');
-    if (status === 'draft') return t('status.draft');
-    return t('status.notStarted');
-  }
-
-  function renderVendorOrganizerCard(
-    kind: 'vendor' | 'organizer',
-    title: string,
-    summary: RoleApplicationSummary | null | undefined,
-  ) {
-    const status = apiStatusToOnboardingStatus(summary?.status);
-    const isSubmitted = status === 'submitted';
-    const isRejected = status === 'rejected';
-    const isApproved = status === 'approved';
-    const rejectionReason =
-      typeof summary?.rejection_reason === 'string' ? summary.rejection_reason : undefined;
-
-    return (
-      <article className="rounded-xl border border-ink-10 bg-white p-4">
-        <div className="flex items-center justify-between gap-3">
-          <p className="font-bold text-ink">{title}</p>
-          <span className="rounded-full bg-ink-5 px-2.5 py-1 text-[11px] font-semibold text-ink-60">
-            {statusText(status)}
-          </span>
-        </div>
-        {isRejected && (
-          <p className="mt-2 text-[12px] text-coral">
-            {t('otherRoles.rejectionReason')}{' '}
-            {rejectionReason ?? t('otherRoles.rejectionFallback')}
-          </p>
-        )}
-        {kind === 'vendor' && !isApproved ? (
-          <div className="mt-3">
-            <a
-              href={buildVendorPortalUrl(
-                status === 'submitted' ? '/application/status' : '/application',
-                user,
-              )}
-              className="text-[13px] font-semibold text-coral hover:underline"
-            >
-              {t('otherRoles.continueVendor')}
-            </a>
-          </div>
-        ) : null}
-        {isApproved ? (
-          <p className="mt-2 text-[12px] text-mint-dark">{t('otherRoles.roleActive')}</p>
-        ) : (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {isRejected && summary?.id && (
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                onClick={async () => {
-                  setSaveError(null);
-                  try {
-                    if (kind === 'vendor') {
-                      await resubmitVendorApplication({ id: summary.id }).unwrap();
-                    } else {
-                      await resubmitOrganizerApplication({ id: summary.id }).unwrap();
-                    }
-                    await refetchMyApps();
-                    if (kind === 'vendor') {
-                      window.location.assign(buildVendorPortalUrl('/application', user));
-                    } else {
-                      navigate(`/apply/${kind}`);
-                    }
-                  } catch (e) {
-                    setSaveError(readApiErrorMessage(e, t('errors.reopenApplication')));
-                  }
-                }}
-              >
-                {t('otherRoles.reapply')}
-              </Button>
-            )}
-            {isSubmitted && summary?.id && (
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                onClick={async () => {
-                  setSaveError(null);
-                  try {
-                    if (kind === 'vendor') {
-                      await withdrawVendorApplication({ id: summary.id }).unwrap();
-                    } else {
-                      await withdrawOrganizerApplication({ id: summary.id }).unwrap();
-                    }
-                    await refetchMyApps();
-                    setSaveMessage(
-                      kind === 'vendor' ? t('messages.vendorWithdrawn') : t('messages.organizerWithdrawn'),
-                    );
-                  } catch (e) {
-                    setSaveError(readApiErrorMessage(e, t('errors.withdrawApplication')));
-                  }
-                }}
-              >
-                {t('otherRoles.withdraw')}
-              </Button>
-            )}
-          </div>
-        )}
-      </article>
-    );
   }
 
   if (isTalentUser(user)) {
@@ -836,7 +466,7 @@ export function ProfilePage() {
                       className="mt-1.5 w-full rounded-xl border border-ink-10 bg-white px-4 py-3 text-[14px]"
                     >
                       <option value="">{t('info.selectRegion')}</option>
-                      {talentRegionOptions.map((r) => (
+                      {regionOptions.map((r) => (
                         <option key={r.id} value={r.id}>
                           {pickLocalizedName(r, language)}
                         </option>
@@ -903,7 +533,7 @@ export function ProfilePage() {
             {!prefsFromApi && user ? (
               <p className="text-[13px] text-ink-40">{t('preferences.loading')}</p>
             ) : null}
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4">
               <label className="block">
                 <span className="text-[12px] font-semibold text-ink-60">{t('preferences.language')}</span>
                 <select
@@ -914,17 +544,6 @@ export function ProfilePage() {
                   <option value="ar">{t('preferences.arabic')}</option>
                 </select>
               </label>
-              <label className="block">
-                <span className="text-[12px] font-semibold text-ink-60">{t('preferences.theme')}</span>
-                <select
-                  {...preferencesForm.register('theme')}
-                  className="mt-1.5 w-full rounded-xl border border-ink-10 bg-white px-4 py-3 text-[14px]"
-                >
-                  <option value="system">{t('preferences.system')}</option>
-                  <option value="light">{t('preferences.light')}</option>
-                  <option value="dark">{t('preferences.dark')}</option>
-                </select>
-              </label>
               <label className="inline-flex items-center gap-2 text-[13px] text-ink-60">
                 <input type="checkbox" {...preferencesForm.register('email_notifications')} />
                 {t('preferences.emailNotifications')}
@@ -932,14 +551,6 @@ export function ProfilePage() {
               <label className="inline-flex items-center gap-2 text-[13px] text-ink-60">
                 <input type="checkbox" {...preferencesForm.register('push_notifications')} />
                 {t('preferences.pushNotifications')}
-              </label>
-              <label className="inline-flex items-center gap-2 text-[13px] text-ink-60">
-                <input type="checkbox" {...preferencesForm.register('sms_notifications')} />
-                {t('preferences.smsNotifications')}
-              </label>
-              <label className="inline-flex items-center gap-2 text-[13px] text-ink-60">
-                <input type="checkbox" {...preferencesForm.register('marketing_emails')} />
-                {t('preferences.marketingEmails')}
               </label>
             </div>
             <Button type="submit" variant="dark" size="md" disabled={preferencesForm.formState.isSubmitting}>
@@ -1147,328 +758,7 @@ export function ProfilePage() {
         )}
 
         {activeTab === 'roles' && (
-          <>
-            {user?.role === 'talent' && (
-              <div className="mt-10 rounded-2xl border border-ink-10 p-6">
-                <h2 className="text-lg font-extrabold text-ink">{t('talentAvailability.title')}</h2>
-                <p className="mt-2 text-[14px] text-ink-60">{t('talentAvailability.lead')}</p>
-                {availLoading ? (
-                  <p className="mt-4 text-[13px] text-ink-40">{t('talentAvailability.loading')}</p>
-                ) : (
-                  <div className="mt-4 flex flex-wrap items-center gap-3">
-                    <span className="rounded-full bg-ink-5 px-3 py-1 text-[11px] font-semibold text-ink-60">
-                      {t('talentAvailability.status')}{' '}
-                      {talentAvail?.status === 'reserved'
-                        ? t('talentAvailability.reserved')
-                        : t('talentAvailability.available')}
-                    </span>
-                    <Button
-                      type="button"
-                      variant={talentAvail?.status === 'available' ? 'dark' : 'outline'}
-                      size="md"
-                      disabled={availabilityBusy || talentAvail?.status === 'available'}
-                      onClick={() => void onToggleAvailability('available')}
-                    >
-                      {t('talentAvailability.available')}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={talentAvail?.status === 'reserved' ? 'dark' : 'outline'}
-                      size="md"
-                      disabled={availabilityBusy || talentAvail?.status === 'reserved'}
-                      onClick={() => void onToggleAvailability('reserved')}
-                    >
-                      {t('talentAvailability.reserved')}
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="mt-10 rounded-2xl border border-ink-10 p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-extrabold text-ink">{t('talentOnboarding.title')}</h2>
-            <span className="rounded-full bg-ink-5 px-3 py-1 text-[11px] font-semibold text-ink-60">{statusBadge}</span>
-          </div>
-          <p className="mt-2 text-[14px] text-ink-60">{t('talentOnboarding.lead')}</p>
-
-          {talentUiStatus === 'approved' ? (
-            <div className="mt-4 rounded-xl border border-mint/40 bg-mint/15 p-4 text-[13px] text-ink-60">
-              <p className="font-semibold text-mint-dark">{t('talentOnboarding.roleActive')}</p>
-              <p className="mt-1">{t('talentOnboarding.roleActiveBody')}</p>
-            </div>
-          ) : (
-            <div className="mt-4 space-y-4">
-              {talentUiStatus === 'submitted' && (
-                <div className="rounded-xl border border-lemon/50 bg-lemon/15 p-4 text-[13px] text-ink-60">
-                  <p className="font-semibold text-ink">{t('talentOnboarding.submittedTitle')}</p>
-                  <p className="mt-1">{t('talentOnboarding.submittedBody')}</p>
-                </div>
-              )}
-              {talentUiStatus === 'rejected' && (
-                <div className="rounded-xl border border-coral/40 bg-coral/10 p-4 text-[13px] text-ink-60">
-                  <p className="font-semibold text-coral">{t('talentOnboarding.rejectedTitle')}</p>
-                  <p className="mt-1">
-                    {t('talentOnboarding.reason')}{' '}
-                    {typeof talentRejectionReason === 'string' && talentRejectionReason.trim().length > 0
-                      ? talentRejectionReason
-                      : t('talentOnboarding.rejectionFallback')}
-                  </p>
-                </div>
-              )}
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="block">
-                  <span className="text-[12px] font-semibold text-ink-60">{t('talentOnboarding.fullName')}</span>
-                  <input
-                    value={draft.fullName}
-                    disabled={talentFormLocked}
-                    onChange={(e) => setDraft((prev) => ({ ...prev, fullName: e.target.value }))}
-                    className="mt-1.5 w-full rounded-xl border border-ink-10 px-4 py-3 text-[14px]"
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-[12px] font-semibold text-ink-60">{t('talentOnboarding.contactEmail')}</span>
-                  <input
-                    type="email"
-                    value={draft.contactEmail}
-                    disabled={talentFormLocked}
-                    onChange={(e) => setDraft((prev) => ({ ...prev, contactEmail: e.target.value }))}
-                    className="mt-1.5 w-full rounded-xl border border-ink-10 px-4 py-3 text-[14px]"
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-[12px] font-semibold text-ink-60">{t('talentOnboarding.contactPhone')}</span>
-                  <input
-                    value={draft.contactPhone}
-                    disabled={talentFormLocked}
-                    onChange={(e) => setDraft((prev) => ({ ...prev, contactPhone: e.target.value }))}
-                    className="mt-1.5 w-full rounded-xl border border-ink-10 px-4 py-3 text-[14px]"
-                    placeholder={t('talentOnboarding.contactPhonePlaceholder')}
-                  />
-                </label>
-                <div className="sm:col-span-2">
-                  <DraftProfileImageAvatarInput
-                    value={draft.profileImage}
-                    onChange={(url) => setDraft((prev) => ({ ...prev, profileImage: url }))}
-                    displayName={draft.fullName.trim() || user?.name || t('defaultUser')}
-                    disabled={talentFormLocked}
-                  />
-                </div>
-                <label className="block">
-                  <span className="text-[12px] font-semibold text-ink-60">{t('talentOnboarding.saudiRegion')}</span>
-                  <select
-                    value={draft.saudiRegionId}
-                    disabled={talentFormLocked}
-                    onChange={(e) => {
-                      const id = e.target.value;
-                      setDraft((prev) => ({ ...prev, saudiRegionId: id, city: '' }));
-                    }}
-                    className="mt-1.5 w-full rounded-xl border border-ink-10 bg-white px-4 py-3 text-[14px]"
-                  >
-                    <option value="">{t('info.selectRegion')}</option>
-                    {talentRegionOptions.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {pickLocalizedName(r, language)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block">
-                  <span className="text-[12px] font-semibold text-ink-60">{t('talentOnboarding.city')}</span>
-                  <select
-                    value={talentCitySelectValue}
-                    disabled={talentFormLocked || !draft.saudiRegionId}
-                    onChange={(e) => setDraft((prev) => ({ ...prev, city: e.target.value }))}
-                    className="mt-1.5 w-full rounded-xl border border-ink-10 bg-white px-4 py-3 text-[14px] disabled:cursor-not-allowed disabled:bg-ink-5 disabled:text-ink-40"
-                  >
-                    <option value="">
-                      {draft.saudiRegionId ? t('info.selectCity') : t('info.chooseRegionFirst')}
-                    </option>
-                    {talentCities.map((c) => (
-                      <option key={c.id} value={canonicalPlaceName(c)}>
-                        {pickLocalizedName(c, language)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block sm:col-span-2">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-[12px] font-semibold text-ink-60">{t('talentOnboarding.bio')}</span>
-                    <span
-                      className={
-                        bioLen >= TALENT_BIO_MIN_CHARS
-                          ? 'text-[11px] font-bold text-mint-dark'
-                          : 'text-[11px] font-bold text-ink-40'
-                      }
-                    >
-                      {t('talentOnboarding.bioMinChars', { count: bioLen, min: TALENT_BIO_MIN_CHARS })}
-                    </span>
-                  </div>
-                  <textarea
-                    rows={4}
-                    value={draft.bio}
-                    disabled={talentFormLocked}
-                    onChange={(e) => setDraft((prev) => ({ ...prev, bio: e.target.value }))}
-                    className="mt-1.5 w-full rounded-xl border border-ink-10 px-4 py-3 text-[14px]"
-                    placeholder={t('talentOnboarding.bioPlaceholder')}
-                  />
-                </label>
-              </div>
-
-              <div className="rounded-xl border border-ink-10 bg-ink-5/50 p-4">
-                <p className="text-[12px] font-semibold text-ink-60">{t('talentOnboarding.verificationTitle')}</p>
-                <p className="mt-1 text-[12px] text-ink-40">{t('talentOnboarding.verificationHint')}</p>
-                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                  <input
-                    value={mediaInput}
-                    disabled={talentFormLocked}
-                    onChange={(e) => setMediaInput(e.target.value)}
-                    placeholder={t('talentOnboarding.urlPlaceholder')}
-                    className="min-w-0 flex-1 rounded-xl border border-ink-10 bg-white px-4 py-2.5 text-[14px]"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="md"
-                    disabled={talentFormLocked}
-                    onClick={() => {
-                      appendVerificationItem(mediaInput);
-                      setMediaInput('');
-                    }}
-                  >
-                    {t('talentOnboarding.addUrl')}
-                  </Button>
-                </div>
-                {!talentFormLocked && (
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    <label className="flex cursor-pointer flex-col rounded-xl border border-dashed border-ink-20 bg-white px-4 py-3 text-[12px] font-semibold text-ink-60 hover:bg-ink-5">
-                      <span>{t('talentOnboarding.videoFile')}</span>
-                      <span className="mt-0.5 text-[11px] font-normal text-ink-40">{t('talentOnboarding.videoFormats')}</span>
-                      <input
-                        type="file"
-                        accept="video/*"
-                        className="sr-only"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) appendVerificationItem(`video:${f.name}`);
-                          e.target.value = '';
-                        }}
-                      />
-                    </label>
-                    <label className="flex cursor-pointer flex-col rounded-xl border border-dashed border-ink-20 bg-white px-4 py-3 text-[12px] font-semibold text-ink-60 hover:bg-ink-5">
-                      <span>{t('talentOnboarding.imageFile')}</span>
-                      <span className="mt-0.5 text-[11px] font-normal text-ink-40">{t('talentOnboarding.imageFormats')}</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="sr-only"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) appendVerificationItem(`image:${f.name}`);
-                          e.target.value = '';
-                        }}
-                      />
-                    </label>
-                    <label className="flex cursor-pointer flex-col rounded-xl border border-dashed border-ink-20 bg-white px-4 py-3 text-[12px] font-semibold text-ink-60 hover:bg-ink-5 sm:col-span-2">
-                      <span>{t('talentOnboarding.certificate')}</span>
-                      <span className="mt-0.5 text-[11px] font-normal text-ink-40">{t('talentOnboarding.certificateFormats')}</span>
-                      <input
-                        type="file"
-                        accept="image/*,.pdf,application/pdf"
-                        className="sr-only"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) appendVerificationItem(`certificate:${f.name}`);
-                          e.target.value = '';
-                        }}
-                      />
-                    </label>
-                  </div>
-                )}
-                {draft.verificationMedia.length > 0 && (
-                  <ul className="mt-3 space-y-1">
-                    {draft.verificationMedia.map((item) => (
-                      <li key={item} className="flex items-center justify-between rounded-lg border border-ink-10 bg-white px-3 py-2 text-[12px] text-ink-60">
-                        <span className="truncate pr-3">{item}</span>
-                        {!talentFormLocked && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setDraft((prev) => ({
-                                ...prev,
-                                verificationMedia: prev.verificationMedia.filter((media) => media !== item),
-                              }))
-                            }
-                            className="font-semibold text-coral"
-                          >
-                            {t('talentOnboarding.remove')}
-                          </button>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-
-              <div className="rounded-xl border border-lemon bg-lemon/15 p-4">
-                <p className="text-[12px] font-semibold text-ink">{t('talentOnboarding.disclaimerTitle')}</p>
-                <p className="mt-1 text-[12px] text-ink-60">{t('talentOnboarding.disclaimerBody')}</p>
-                <label className="mt-3 inline-flex items-center gap-2 text-[12px] text-ink-60">
-                  <input
-                    type="checkbox"
-                    checked={draft.acceptedQualityDisclaimer}
-                    disabled={talentFormLocked}
-                    onChange={(e) => setDraft((prev) => ({ ...prev, acceptedQualityDisclaimer: e.target.checked }))}
-                  />
-                  {t('talentOnboarding.disclaimerAgree')}
-                </label>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {!talentFormLocked && (
-                  <>
-                    <Button type="button" variant="outline" size="md" onClick={() => void onSaveTalentDraft()} loading={talentFormBusy}>
-                      {t('talentOnboarding.saveDraft')}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="dark"
-                      size="md"
-                      onClick={() => void onSubmitTalentApplication()}
-                      disabled={!requiredReady || talentFormBusy}
-                      loading={talentFormBusy}
-                    >
-                      {t('talentOnboarding.submitForReview')}
-                    </Button>
-                  </>
-                )}
-              </div>
-
-              {talentUiStatus === 'submitted' && talentAppId && (
-                <div className="rounded-xl border border-ink-10 bg-white p-4">
-                  <p className="text-[12px] font-semibold text-ink-60">{t('talentOnboarding.underReviewTitle')}</p>
-                  <p className="mt-1 text-[12px] text-ink-60">{t('talentOnboarding.underReviewBody')}</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Button type="button" variant="outline" size="md" onClick={() => void onWithdrawTalentApplication()}>
-                      {t('otherRoles.withdraw')}
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-            </div>
-
-            <div className="mt-10 rounded-2xl border border-ink-10 p-6">
-          <h2 className="text-lg font-extrabold text-ink">{t('otherRoles.title')}</h2>
-          <p className="mt-2 text-[14px] text-ink-60">{t('otherRoles.lead')}</p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {renderVendorOrganizerCard('vendor', t('otherRoles.vendorTitle'), vendorSummary)}
-            {renderVendorOrganizerCard('organizer', t('otherRoles.organizerTitle'), organizerSummary)}
-          </div>
-            </div>
-          </>
+          <RoleUpgradeBannersSection variant="profile" />
         )}
 
         {activeTab === 'danger' && (

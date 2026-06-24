@@ -28,8 +28,13 @@ const ROLE_BADGE_ICONS: Record<UpgradeRole, Icon> = {
   talent: MicrophoneStage,
 };
 
-export function RoleUpgradeBannersSection() {
-  const { t } = useTranslation(['landing', 'nav']);
+type RoleUpgradeBannersSectionProps = {
+  variant?: 'landing' | 'profile';
+};
+
+export function RoleUpgradeBannersSection({ variant = 'landing' }: RoleUpgradeBannersSectionProps) {
+  const isProfile = variant === 'profile';
+  const { t } = useTranslation(['landing', 'nav', 'profile']);
   const navigate = useNavigate();
   const { user } = useAuth();
   const reduceMotion = usePrefersReducedMotion();
@@ -76,27 +81,57 @@ export function RoleUpgradeBannersSection() {
       navigate('/login', { state: { from: { pathname: route } } });
       return;
     }
-    if (user.role !== 'guest') {
+    if (!isProfile && user.role !== 'guest') {
       navigate('/profile');
       return;
     }
     navigate(route);
   }
 
+  const cardSizeClass = isProfile
+    ? 'h-[210px] w-[min(calc(100vw-4.5rem),420px)] sm:h-[228px]'
+    : 'h-[240px] w-[min(90vw,520px)] sm:h-[260px] sm:w-[min(88vw,560px)]';
+
   return (
     <section
       dir={isArabic ? 'rtl' : 'ltr'}
-      className="relative overflow-hidden border-t border-ink-10 bg-ink-5 px-6 py-16 lg:px-8 lg:py-24"
+      className={cn(
+        isProfile
+          ? 'mt-10 rounded-2xl border border-ink-10 bg-white p-6'
+          : 'relative overflow-hidden border-t border-ink-10 bg-ink-5 px-6 py-16 lg:px-8 lg:py-24',
+      )}
     >
-      <div className="relative mx-auto max-w-[1280px]">
-        <div className="mb-8 flex flex-col gap-6 lg:mb-10 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-50">
+      <div className={cn(!isProfile && 'relative mx-auto max-w-[1280px]')}>
+        <div
+          className={cn(
+            'flex flex-col gap-4',
+            isProfile ? 'mb-6 sm:flex-row sm:items-end sm:justify-between' : 'mb-8 gap-6 lg:mb-10 lg:flex-row lg:items-end lg:justify-between',
+          )}
+        >
+          <div className={cn(isProfile ? 'max-w-xl' : 'max-w-2xl')}>
+            <span
+              className={cn(
+                'font-semibold uppercase tracking-[0.14em] text-ink-40',
+                isProfile ? 'text-[10px]' : 'text-[11px] text-ink-50',
+              )}
+            >
               {t('landing:roleUpgrade')}
             </span>
-            <h2 className="mt-3 text-[clamp(2rem,3.8vw,2.75rem)] font-extrabold leading-[1.05] tracking-tight text-ink">
+            <h2
+              className={cn(
+                'font-extrabold tracking-tight text-ink',
+                isProfile
+                  ? 'mt-1.5 text-balance text-lg'
+                  : 'mt-3 text-[clamp(2rem,3.8vw,2.75rem)] leading-[1.05]',
+              )}
+            >
               {t('landing:roleUpgradeTitle')}
             </h2>
+            {isProfile ? (
+              <p className="mt-2 text-pretty text-[14px] leading-relaxed text-ink-60">
+                {t('profile:rolesUpgrade.lead')}
+              </p>
+            ) : null}
           </div>
 
           <div className="flex items-center gap-2">
@@ -149,7 +184,8 @@ export function RoleUpgradeBannersSection() {
                 >
                   <article
                     className={cn(
-                      'group relative h-[240px] w-[min(90vw,520px)] overflow-hidden rounded-[1.75rem] sm:h-[260px] sm:w-[min(88vw,560px)]',
+                      'group relative overflow-hidden rounded-[1.5rem]',
+                      cardSizeClass,
                       banner.cardClass,
                       reduceMotion ? '' : 'transition-transform duration-300 hover:-translate-y-0.5',
                     )}
