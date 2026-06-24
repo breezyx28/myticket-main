@@ -62,6 +62,10 @@ export interface EventListItem {
   starts_at?: Iso8601 | null;
   date_end?: Iso8601 | null;
   ends_at?: Iso8601 | null;
+  /** When primary ticket sales open (may differ from `starts_at`). */
+  ticket_sales_starts_at?: Iso8601 | null;
+  /** When primary ticket sales close (may differ from `ends_at`). */
+  ticket_sales_ends_at?: Iso8601 | null;
   price_min?: Money | null;
   price_max?: Money | null;
   tickets_left?: number | null;

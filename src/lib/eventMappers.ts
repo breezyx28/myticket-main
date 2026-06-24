@@ -161,22 +161,34 @@ export function eventHasPrimaryInventory(ticketsLeft: number | null): boolean {
 
 export type EventSalesPhase = 'open' | 'not_started' | 'ended';
 
-/** Whether primary ticket sales are within the event's scheduled window. */
+/** Whether `now` falls inside a sales window (`startsAt` … `endsAt`). */
 export function getEventSalesPhase(
-  dateStart: string,
-  dateEnd: string,
+  salesStartsAt: string,
+  salesEndsAt: string,
   now: Date = new Date(),
 ): EventSalesPhase {
-  const startMs = Date.parse(dateStart);
-  const endMs = Date.parse(dateEnd);
+  const startMs = Date.parse(salesStartsAt);
+  const endMs = Date.parse(salesEndsAt);
   const t = now.getTime();
   if (Number.isFinite(startMs) && t < startMs) return 'not_started';
   if (Number.isFinite(endMs) && t > endMs) return 'ended';
   return 'open';
 }
 
-export function isEventSalesOpen(dateStart: string, dateEnd: string, now?: Date): boolean {
-  return getEventSalesPhase(dateStart, dateEnd, now) === 'open';
+/** Primary ticket sales window from `GET /events/{slug}` detail payload. */
+export function getTicketSalesPhaseFromDetail(
+  detail: Pick<EventDetail, 'ticket_sales_starts_at' | 'ticket_sales_ends_at'> | null | undefined,
+  now?: Date,
+): EventSalesPhase {
+  if (!detail) return 'open';
+  const start = detail.ticket_sales_starts_at?.trim() ?? '';
+  const end = detail.ticket_sales_ends_at?.trim() ?? '';
+  if (!start && !end) return 'open';
+  return getEventSalesPhase(start, end, now);
+}
+
+export function isEventSalesOpen(salesStartsAt: string, salesEndsAt: string, now?: Date): boolean {
+  return getEventSalesPhase(salesStartsAt, salesEndsAt, now) === 'open';
 }
 
 export function formatEventLocation(event: {

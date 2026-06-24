@@ -43,7 +43,7 @@ import type { EventListQuery } from '@/api/types/event';
 import {
   eventHasPrimaryInventory,
   formatEventLocation,
-  getEventSalesPhase,
+  getTicketSalesPhaseFromDetail,
   isEventSoldOut,
   mergeEventTicketTypes,
   eventListItemPublicPathSegment,
@@ -373,10 +373,7 @@ export function EventDetailPage() {
     [auctionListingsPaged]
   );
 
-  const salesPhase = useMemo(
-    () => (event ? getEventSalesPhase(event.dateStart, event.dateEnd) : 'open'),
-    [event],
-  );
+  const salesPhase = useMemo(() => getTicketSalesPhaseFromDetail(detail), [detail]);
 
   if (!slugParam) {
     return <Navigate to="/events" replace />;

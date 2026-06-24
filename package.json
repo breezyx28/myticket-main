@@ -8,7 +8,8 @@
     "dev:force": "vite --force",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy": "node scripts/deploy.mjs"
   },
   "dependencies": {
     "@emran-alhaddad/saudi-riyal-font": "^1.1.0",
