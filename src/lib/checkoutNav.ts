@@ -62,6 +62,7 @@ export async function recoverCheckoutAfterConfirmFailure(opts: {
 if (import.meta.env.DEV) {
   const pending = isOrderPaidWithTickets({
     id: 1,
+    event_id: 1,
     status: 'pending',
     payment_status: 'pending',
     lines: [],
@@ -71,9 +72,10 @@ if (import.meta.env.DEV) {
   });
   const approved = isOrderPaidWithTickets({
     id: 1,
+    event_id: 1,
     status: 'paid',
     payment_status: 'approved',
-    tickets: [{ id: 1 }],
+    tickets: [{ id: 1, code: 'T1', status: 'active', event_id: 1, qr_scan_value: 'x' }],
     lines: [],
     subtotal: 0,
     fees: 0,

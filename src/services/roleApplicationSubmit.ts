@@ -11,9 +11,20 @@ import type {
   UpdateVendorApplicationRequest,
 } from '@/api/types/roleApplication';
 import type { OrganizerOnboardingDraft, TalentOnboardingDraft, VendorOnboardingDraft } from '@/types/domain';
+import type { SaudiRegionRef } from '@/api/types/reference';
+import { resolveRoleApplicationId } from '@/lib/roleApplicationMappers';
+import { apiIntegerId, cityValueToApiId, findRegionIdForCity } from '@/lib/saudiLocations';
 import { vendorCategoryToApi } from '@/lib/vendorServiceCategories';
 
 export type FinalizeMode = 'none' | 'submit';
+
+function assertApplicationId(id: Id | null | undefined): Id {
+  const resolved = resolveRoleApplicationId(id);
+  if (resolved == null) {
+    throw new Error('Role application id missing from API response');
+  }
+  return resolved;
+}
 
 function httpLike(value: string | undefined): string | undefined {
   const t = value?.trim();
@@ -22,34 +33,102 @@ function httpLike(value: string | undefined): string | undefined {
   return undefined;
 }
 
-export function inferTalentMediaUpload(item: string): TalentApplicationMediaUpload {
-  const trimmed = item.trim();
-  let kind: NonNullable<TalentApplicationMediaUpload['kind']> = 'image';
-  let url = trimmed;
+type TalentMediaKind = NonNullable<TalentApplicationMediaUpload['kind']>;
 
+export interface ParsedTalentMediaDraft {
+  kind: TalentMediaKind;
+  label?: string;
+  hostedUrl?: string;
+  localBlobUrl?: string;
+}
+
+/** Parse wizard `verificationMedia` row (hosted URL, external link, or `kind:name|local:blob:…`). */
+export function parseTalentMediaDraftItem(item: string): ParsedTalentMediaDraft {
+  const trimmed = item.trim();
+  if (!trimmed) return { kind: 'image' };
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return { kind: 'url', hostedUrl: trimmed };
+  }
+
+  let kind: TalentMediaKind = 'image';
+  let rest = trimmed;
   const lower = trimmed.toLowerCase();
+
   if (lower.startsWith('certificate:')) {
     kind = 'certificate';
-    url = trimmed.slice(12).trim();
+    rest = trimmed.slice(12).trim();
   } else if (lower.startsWith('video:')) {
     kind = 'video';
-    url = trimmed.slice(6).trim();
+    rest = trimmed.slice(6).trim();
   } else if (lower.startsWith('image:')) {
     kind = 'image';
-    url = trimmed.slice(6).trim();
+    rest = trimmed.slice(6).trim();
   } else if (/\.(mp4|webm|mov|mkv)(\?|$)/i.test(lower)) {
     kind = 'video';
   } else if (/\.(pdf)(\?|$)/i.test(lower)) {
     kind = 'certificate';
   }
 
-  return { url: url || trimmed, kind };
+  const localIdx = rest.indexOf('|local:');
+  if (localIdx >= 0) {
+    const label = rest.slice(0, localIdx).trim() || undefined;
+    const localBlobUrl = rest.slice(localIdx + '|local:'.length).trim();
+    return { kind, label, localBlobUrl: localBlobUrl || undefined };
+  }
+
+  const hostedUrl = httpLike(rest) ?? httpLike(trimmed);
+  if (hostedUrl) {
+    return {
+      kind: /^https?:\/\//i.test(trimmed) ? 'url' : kind,
+      label: rest !== hostedUrl ? rest : undefined,
+      hostedUrl,
+    };
+  }
+
+  return { kind, label: rest || undefined };
+}
+
+export async function resolveTalentMediaUpload(
+  item: string,
+  uploadFile: (file: File) => Promise<string>,
+): Promise<TalentApplicationMediaUpload> {
+  const parsed = parseTalentMediaDraftItem(item);
+  let value = parsed.hostedUrl;
+
+  if (!value && parsed.localBlobUrl) {
+    const res = await fetch(parsed.localBlobUrl);
+    if (!res.ok) throw new Error('Could not read verification file from browser storage');
+    const blob = await res.blob();
+    const name = parsed.label ?? 'verification-upload';
+    const file = new File([blob], name, { type: blob.type || undefined });
+    value = await uploadFile(file);
+  }
+
+  if (!value) {
+    throw new Error('Verification media must be an uploaded file or a public URL');
+  }
+
+  const body: TalentApplicationMediaUpload = { kind: parsed.kind, value };
+  if (parsed.label) body.label = parsed.label.slice(0, 255);
+  return body;
+}
+
+// ponytail: dev-only — fails if draft media string parsing regresses
+if (import.meta.env.DEV) {
+  const sample =
+    'certificate:ticket.pdf|local:blob:http://localhost:5173/61b6b674-b9d3-4204-b722-b7fffcd12cf4';
+  const parsed = parseTalentMediaDraftItem(sample);
+  console.assert(parsed.kind === 'certificate');
+  console.assert(parsed.label === 'ticket.pdf');
+  console.assert(parsed.localBlobUrl?.startsWith('blob:'));
 }
 
 export interface TalentPipelineMutations {
   createTalentApplication: (body: CreateTalentApplicationRequest) => Promise<RoleApplicationSummary>;
   updateTalentApplication: (args: { id: Id; body: UpdateTalentApplicationRequest }) => Promise<RoleApplicationSummary>;
   addTalentMedia: (args: { id: Id; body: TalentApplicationMediaUpload }) => Promise<unknown>;
+  uploadTalentApplicationFile: (file: File) => Promise<string>;
   submitTalentApplication: (args: { id: Id }) => Promise<RoleApplicationSummary>;
   resubmitTalentApplication: (args: { id: Id }) => Promise<RoleApplicationSummary>;
 }
@@ -61,6 +140,7 @@ export interface TalentPipelineInput {
   existingApplicationId?: Id | null;
   existingApiStatus?: string | null;
   existingMediaUrls?: Iterable<string>;
+  saudiRegions?: SaudiRegionRef[] | null;
 }
 
 export async function runTalentRoleApplicationPipeline(
@@ -72,28 +152,32 @@ export async function runTalentRoleApplicationPipeline(
   const phone = input.draft.contactPhone.trim() || input.basic.contactPhone.trim();
 
   const priorStatus = String(input.existingApiStatus ?? '').toLowerCase();
-  const existingId = input.existingApplicationId ?? null;
+  const existingId = resolveRoleApplicationId(input.existingApplicationId);
   const useExisting =
     existingId != null && priorStatus !== '' && priorStatus !== 'withdrawn';
 
   let id: Id;
   if (useExisting) {
-    id = existingId as Id;
+    id = existingId;
   } else {
     const created = await m.createTalentApplication({
       stage_name: stageName,
       contact_email: email,
       contact_phone: phone,
     });
-    id = created.id;
+    id = assertApplicationId(created.id);
   }
 
   const patch: UpdateTalentApplicationRequest = {
     bio: input.draft.bio.trim() || undefined,
     contact_email: email,
     contact_phone: phone,
-    saudi_region_id: input.draft.saudiRegionId.trim() || undefined,
-    city: input.draft.city.trim() || undefined,
+    saudi_region_id: apiIntegerId(input.draft.saudiRegionId),
+    city: cityValueToApiId(
+      input.draft.saudiRegionId.trim(),
+      input.draft.city.trim(),
+      input.saudiRegions,
+    ),
     travel_ready: input.draft.travelReady,
     location_public: input.draft.locationPublic,
     certificate_name: input.draft.certificateName?.trim() || undefined,
@@ -109,7 +193,12 @@ export async function runTalentRoleApplicationPipeline(
   );
   const toAdd = input.draft.verificationMedia.filter((item) => !existingSet.has(item.trim()));
 
-  await Promise.all(toAdd.map((item) => m.addTalentMedia({ id, body: inferTalentMediaUpload(item) })));
+  await Promise.all(
+    toAdd.map(async (item) => {
+      const body = await resolveTalentMediaUpload(item, m.uploadTalentApplicationFile);
+      await m.addTalentMedia({ id, body });
+    }),
+  );
 
   if (input.finalize === 'submit') {
     if (priorStatus === 'rejected' || priorStatus === 'changes_requested') {
@@ -139,6 +228,7 @@ export interface VendorPipelineInput {
   existingApiStatus?: string | null;
   existingDocumentUrls?: Iterable<string>;
   existingGalleryUrls?: Iterable<string>;
+  saudiRegions?: SaudiRegionRef[] | null;
 }
 
 export async function runVendorRoleApplicationPipeline(
@@ -153,13 +243,13 @@ export async function runVendorRoleApplicationPipeline(
     .filter((c) => c.trim().length > 0);
 
   const priorStatus = String(input.existingApiStatus ?? '').toLowerCase();
-  const existingId = input.existingApplicationId ?? null;
+  const existingId = resolveRoleApplicationId(input.existingApplicationId);
   const useExisting =
     existingId != null && priorStatus !== '' && priorStatus !== 'withdrawn';
 
   let id: Id;
   if (useExisting) {
-    id = existingId as Id;
+    id = existingId;
   } else {
     const created = await m.createVendorApplication({
       business_name: business,
@@ -167,7 +257,7 @@ export async function runVendorRoleApplicationPipeline(
       contact_phone: phone,
       service_categories: cats,
     });
-    id = created.id;
+    id = assertApplicationId(created.id);
   }
 
   let summary = await m.updateVendorApplication({
@@ -177,7 +267,11 @@ export async function runVendorRoleApplicationPipeline(
       bio: input.draft.bio.trim() || undefined,
       contact_email: email,
       contact_phone: phone,
-      city: input.draft.city.trim() || undefined,
+      city: cityValueToApiId(
+        findRegionIdForCity(input.draft.city.trim(), input.saudiRegions),
+        input.draft.city.trim(),
+        input.saudiRegions,
+      ),
       coverage_area: input.draft.coverageArea.trim() || undefined,
       service_categories: cats.length ? cats : undefined,
       ...(httpLike(input.draft.profileImage)
@@ -250,13 +344,13 @@ export async function runOrganizerRoleApplicationPipeline(
   const phone = input.draft.contactPhone.trim() || input.basic.contactPhone.trim();
 
   const priorStatus = String(input.existingApiStatus ?? '').toLowerCase();
-  const existingId = input.existingApplicationId ?? null;
+  const existingId = resolveRoleApplicationId(input.existingApplicationId);
   const useExisting =
     existingId != null && priorStatus !== '' && priorStatus !== 'withdrawn';
 
   let id: Id;
   if (useExisting) {
-    id = existingId as Id;
+    id = existingId;
   } else {
     const created = await m.createOrganizerApplication({
       display_name: display,
@@ -264,7 +358,7 @@ export async function runOrganizerRoleApplicationPipeline(
       contact_phone: phone,
       is_company: input.draft.isCompany,
     });
-    id = created.id;
+    id = assertApplicationId(created.id);
   }
 
   const patch: UpdateOrganizerApplicationRequest = {

@@ -12,6 +12,7 @@
  */
 
 import type { UserMe } from '@/api/types/user';
+import { clearLoginDraft, clearRegisterDraft } from '@/lib/formDraftStorage';
 
 const COOKIE_ACCESS = 'myticket_at';
 const COOKIE_REFRESH = 'myticket_rt';
@@ -19,6 +20,11 @@ const COOKIE_META = 'myticket_meta';
 
 const LEGACY_LS_AT = 'myticket_auth_token';
 const LEGACY_LS_RT = 'myticket_refresh_token';
+const LEGACY_LS_MOCK_AUTH = 'myticket_mock_auth';
+
+export const OAUTH_STATE_KEY = 'myticket_oauth_state';
+export const OAUTH_PROVIDER_KEY = 'myticket_oauth_provider';
+export const OAUTH_REDIRECT_KEY = 'myticket_oauth_redirect_after';
 
 const META_VERSION = 1;
 const DEFAULT_MAX_AGE_SEC = 60 * 60 * 24 * 30;
@@ -126,6 +132,23 @@ function clearLegacyLocalStorage(): void {
   try {
     localStorage.removeItem(LEGACY_LS_AT);
     localStorage.removeItem(LEGACY_LS_RT);
+    localStorage.removeItem(LEGACY_LS_MOCK_AUTH);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Drop bearer cookies, cached creds, and sensitive auth drafts (call before / during sign-out). */
+export function clearAuthSession(): void {
+  clearTokens();
+  clearLoginDraft();
+  clearRegisterDraft();
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.removeItem(OAUTH_STATE_KEY);
+      sessionStorage.removeItem(OAUTH_PROVIDER_KEY);
+      sessionStorage.removeItem(OAUTH_REDIRECT_KEY);
+    }
   } catch {
     /* ignore */
   }

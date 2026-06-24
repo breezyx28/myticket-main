@@ -1,6 +1,7 @@
 import type { OnboardingRole } from '@/types/domain';
 import type { MockUser } from '@/contexts/AuthContext';
 import type { UserRole } from '@/types/domain';
+import { NonGuestRoleError } from '@/lib/authErrors';
 import { buildOrganizerPortalUrl } from '@/lib/organizerPortal';
 import { buildTalentPortalUrl } from '@/lib/talentPortal';
 import { buildVendorPortalUrl } from '@/lib/vendorPortal';
@@ -16,6 +17,22 @@ const PORTAL_ONBOARDING_PATH: Record<OnboardingRole, string> = {
 
 export function shouldRedirectToRolePortal(role: UserRole | undefined): boolean {
   return role != null && PORTAL_ROLES.has(role);
+}
+
+/** Ticket-buyer main site — only `guest` may hold a session here. */
+export function isMainSiteAllowedRole(role: UserRole | string | null | undefined): boolean {
+  if (role == null || role === '') return true;
+  return String(role).toLowerCase() === 'guest';
+}
+
+/** Reject portal-role accounts on the main site (clears session before throw). */
+export function assertMainSiteGuestUser(
+  user: Pick<MockUser, 'role' | 'email'>,
+  clearSession: () => void,
+): void {
+  if (isMainSiteAllowedRole(user.role)) return;
+  clearSession();
+  throw new NonGuestRoleError(user.role, getRolePortalLoginUrl(user as MockUser));
 }
 
 function portalLoginPath(): string {

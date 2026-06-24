@@ -1,6 +1,6 @@
 import { createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
-import { clearTokens, getRefreshToken, getToken, persistAuthCookies, saveRefreshTokenOnly } from '@/api/authToken';
+import { clearAuthSession, getRefreshToken, getToken, persistAuthCookies, saveRefreshTokenOnly } from '@/api/authToken';
 import type { UserMe } from '@/api/types/user';
 
 export interface AuthState {
@@ -51,7 +51,7 @@ const authSlice = createSlice({
       state.token = null;
       state.refreshToken = null;
       state.user = null;
-      clearTokens();
+      clearAuthSession();
     },
   },
 });

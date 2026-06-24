@@ -31,6 +31,8 @@ export const en = {
       twoFactorRequired: 'Two-factor authentication required.',
       emailVerificationRequired:
         'Sign-in is incomplete; verification required. Check your email for a verification link, then sign in again.',
+      mainSiteGuestOnly:
+        'This site is for ticket buyers. Talent, vendor, and organizer accounts must sign in through their dedicated portal.',
     },
   },
   nav: {

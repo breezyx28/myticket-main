@@ -1,7 +1,11 @@
 import { baseApi } from '@/api/baseApi';
 import type { UploadFileEnvelope, UploadFileResponse } from '@/api/types/tourismAd';
 
-export type UploadContext = 'tourism_ad_gallery';
+export type UploadContext =
+  | 'tourism_ad_gallery'
+  | 'talent_application'
+  | 'vendor_application'
+  | 'vendor_document';
 
 export const uploadsApi = baseApi.injectEndpoints({
   endpoints: (build) => ({

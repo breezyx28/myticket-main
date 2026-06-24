@@ -5,13 +5,8 @@ import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
+import { authErrorMessage, isEmailVerificationRequiredError, isNonGuestRoleError, isTwoFactorRequiredError } from '@/lib/authErrors';
 import { getSafeRedirectPath } from '@/lib/navigation';
-import { getRolePortalLoginUrl, shouldRedirectToRolePortal } from '@/lib/rolePortalRedirect';
-import {
-  authErrorMessage,
-  isEmailVerificationRequiredError,
-  isTwoFactorRequiredError,
-} from '@/lib/authErrors';
 import { FormSectionCard } from '@/components/ui/form/FormSectionCard';
 import { Field } from '@/components/ui/form/Field';
 import { PasswordInput } from '@/components/ui/form/PasswordInput';
@@ -48,23 +43,22 @@ export function LoginPage() {
   const onSubmit = handleSubmit(async (values) => {
     setError(null);
     try {
-      let signedInUser;
       if (challengeToken) {
         const otp = (values.otp ?? '').trim();
         if (!/^\d{6}$/.test(otp)) {
           setFieldError('otp', { type: 'manual', message: t('login.otpInvalid') });
           return;
         }
-        signedInUser = await signInWithOtp(otp, challengeToken);
+        await signInWithOtp(otp, challengeToken);
       } else {
-        signedInUser = await signIn((values.email ?? '').trim(), values.password);
-      }
-      if (shouldRedirectToRolePortal(signedInUser.role)) {
-        window.location.assign(getRolePortalLoginUrl(signedInUser));
-        return;
+        await signIn((values.email ?? '').trim(), values.password);
       }
       navigate(from, { replace: true });
     } catch (e) {
+      if (isNonGuestRoleError(e)) {
+        setError(e.message);
+        return;
+      }
       if (isEmailVerificationRequiredError(e)) {
         setError(e.message);
         return;

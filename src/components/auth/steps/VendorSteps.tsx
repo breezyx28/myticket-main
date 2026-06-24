@@ -11,7 +11,7 @@ import { Field } from "@/components/ui/form/Field";
 import { InlineNotice } from "@/components/ui/form/InlineNotice";
 import { Select, TextArea, TextInput } from "@/components/ui/form/inputs";
 import { UploadTileInput } from "@/components/ui/form/UploadTileInput";
-import { getCitiesForRegionFlexible, getRegionsFlexible, findRegionIdByCityName, canonicalPlaceName, resolveCitySelectValue } from "@/lib/saudiLocations";
+import { getCitiesForRegionFlexible, getRegionsFlexible, findRegionIdByCityName, resolveCitySelectValue } from "@/lib/saudiLocations";
 import { pickLocalizedName } from "@/lib/localized";
 import type { AppLanguage } from "@/lib/language";
 import { useGetSaudiRegionsQuery, useGetVendorServiceCategoriesQuery } from "@/api/endpoints";
@@ -398,7 +398,7 @@ export function VendorSteps({
               : t("onboarding.shared.chooseRegionFirst")}
           </option>
           {vendorCities.map((city) => (
-            <option key={city.id} value={canonicalPlaceName(city)}>
+            <option key={city.id} value={city.id}>
               {pickLocalizedName(city, language)}
             </option>
           ))}

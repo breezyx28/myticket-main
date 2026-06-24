@@ -38,8 +38,8 @@ export interface UpdateTalentApplicationRequest {
   bio?: string;
   contact_email?: string;
   contact_phone?: string;
-  saudi_region_id?: string;
-  city?: string;
+  saudi_region_id?: Id | number | string;
+  city?: Id | number | string;
   travel_ready?: boolean;
   location_public?: boolean;
   certificate_name?: string;
@@ -50,9 +50,10 @@ export interface UpdateTalentApplicationRequest {
 }
 
 export interface TalentApplicationMediaUpload {
-  url: string;
-  caption?: string;
-  kind?: 'image' | 'video' | 'certificate' | string;
+  kind: 'url' | 'video' | 'image' | 'certificate' | string;
+  value: string;
+  label?: string;
+  position?: number;
 }
 
 export interface CreateVendorApplicationRequest {
@@ -68,7 +69,7 @@ export interface UpdateVendorApplicationRequest {
   bio?: string;
   contact_email?: string;
   contact_phone?: string;
-  city?: string;
+  city?: Id | number | string;
   coverage_area?: string;
   /**
    * Backend currently does not persist `service_categories` on vendor PATCH (only on create).

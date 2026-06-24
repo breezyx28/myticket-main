@@ -64,12 +64,42 @@ export function placeMatchesName(
   );
 }
 
-/** Match stored city string to a canonical option value. */
+/** Match stored city (id or legacy name) to a select option value (city id). */
 export function resolveCitySelectValue(city: string, cities: SaudiCity[]): string {
   const trimmed = city.trim();
   if (!trimmed) return '';
-  const match = cities.find((c) => placeMatchesName(c, trimmed));
-  return match ? canonicalPlaceName(match) : trimmed;
+  const byId = cities.find((c) => String(c.id) === trimmed);
+  if (byId) return String(byId.id);
+  const byName = cities.find((c) => placeMatchesName(c, trimmed));
+  return byName ? String(byName.id) : trimmed;
+}
+
+/** `PATCH /role-applications/*` — `city` maps to `city_id` (integer). */
+export function apiIntegerId(value: string | undefined | null): number | undefined {
+  if (value == null) return undefined;
+  const trimmed = String(value).trim();
+  if (!trimmed) return undefined;
+  const n = Number(trimmed);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+export function cityValueToApiId(
+  regionId: string,
+  cityValue: string,
+  apiRegions?: SaudiRegionRef[] | null,
+): number | undefined {
+  const trimmed = cityValue.trim();
+  if (!regionId || !trimmed) return undefined;
+
+  const cities = getCitiesForRegionFlexible(regionId, apiRegions);
+  const asInt = apiIntegerId(trimmed);
+  if (asInt != null && cities.some((c) => String(c.id) === String(asInt))) {
+    return asInt;
+  }
+
+  const match = cities.find((c) => String(c.id) === trimmed || placeMatchesName(c, trimmed));
+  if (!match) return undefined;
+  return apiIntegerId(match.id);
 }
 
 export const SAUDI_CITIES_BY_REGION: Record<string, SaudiCity[]> = {
@@ -169,9 +199,11 @@ export function getCitiesForRegion(regionId: string): SaudiCity[] {
   return SAUDI_CITIES_BY_REGION[regionId] ?? [];
 }
 
-export function isValidSaudiCity(regionId: string, cityName: string): boolean {
+export function isValidSaudiCity(regionId: string, cityValue: string): boolean {
+  const trimmed = cityValue.trim();
+  if (!trimmed) return false;
   const cities = getCitiesForRegion(regionId);
-  return cities.some((c) => placeMatchesName(c, cityName));
+  return cities.some((c) => String(c.id) === trimmed || placeMatchesName(c, trimmed));
 }
 
 /** Prefer API `GET /reference/saudi-regions` when loaded; fall back to static lists. */
@@ -185,7 +217,9 @@ export function isValidSaudiCityFlexible(
   if (apiRegions && apiRegions.length > 0) {
     const region = apiRegions.find((r) => String(r.id) === String(regionId));
     if (!region) return false;
-    return region.cities.some((c) => placeMatchesName(mapApiCity(c), trimmed));
+    return region.cities.some(
+      (c) => String(c.id) === trimmed || placeMatchesName(mapApiCity(c), trimmed),
+    );
   }
   return isValidSaudiCity(regionId, trimmed);
 }
@@ -223,6 +257,23 @@ export function findRegionIdByName(
   return regions.find((r) => placeMatchesName(r, trimmed))?.id ?? '';
 }
 
+/** Region that contains a city id or name (any locale). */
+export function findRegionIdForCity(
+  cityValue: string,
+  apiRegions?: SaudiRegionRef[] | null,
+): string {
+  const trimmed = cityValue.trim();
+  if (!trimmed) return '';
+  const regions = getRegionsFlexible(apiRegions);
+  for (const region of regions) {
+    const cities = getCitiesForRegionFlexible(region.id, apiRegions);
+    if (cities.some((c) => String(c.id) === trimmed || placeMatchesName(c, trimmed))) {
+      return region.id;
+    }
+  }
+  return findRegionIdByCityName(trimmed, apiRegions);
+}
+
 /** Find region id that contains a city name in any locale. */
 export function findRegionIdByCityName(
   cityName: string,
@@ -238,4 +289,32 @@ export function findRegionIdByCityName(
     }
   }
   return '';
+}
+
+// ponytail: dev-only — fails if city name/id → API integer mapping regresses
+if (import.meta.env.DEV) {
+  const mockRegions: SaudiRegionRef[] = [
+    {
+      id: 3,
+      name: 'Madinah',
+      cities: [{ id: 77, name: 'Yanbu', name_en: 'Yanbu' }],
+    },
+  ];
+  console.assert(cityValueToApiId('3', 'Yanbu', mockRegions) === 77);
+  console.assert(cityValueToApiId('3', '77', mockRegions) === 77);
+  console.assert(apiIntegerId('3') === 3);
+}
+
+// ponytail: dev-only — fails if city name/id → API integer mapping regresses
+if (import.meta.env.DEV) {
+  const mockRegions: SaudiRegionRef[] = [
+    {
+      id: 3,
+      name: 'Madinah',
+      cities: [{ id: 77, name: 'Yanbu', name_en: 'Yanbu' }],
+    },
+  ];
+  console.assert(cityValueToApiId('3', 'Yanbu', mockRegions) === 77);
+  console.assert(cityValueToApiId('3', '77', mockRegions) === 77);
+  console.assert(apiIntegerId('3') === 3);
 }

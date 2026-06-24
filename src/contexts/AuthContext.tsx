@@ -39,10 +39,14 @@ import {
   useUpdatePreferencesMutation,
 } from "@/api/endpoints";
 import {
+  clearAuthSession,
   getRefreshToken,
   getSessionUserFromMeta,
   getStoredAuthMeta,
   getToken,
+  OAUTH_PROVIDER_KEY,
+  OAUTH_REDIRECT_KEY,
+  OAUTH_STATE_KEY,
   persistAuthCookies,
 } from "@/api/authToken";
 import { logout as logoutAction, setCredentials } from "@/store/authSlice";
@@ -56,9 +60,14 @@ import { changeAppLanguage } from "@/i18n";
 import i18n from "@/i18n";
 import {
   EmailVerificationRequiredError,
+  NonGuestRoleError,
   TwoFactorRequiredError,
   toAuthApiError,
 } from "@/lib/authErrors";
+import {
+  assertMainSiteGuestUser,
+  isMainSiteAllowedRole,
+} from "@/lib/rolePortalRedirect";
 import type { OnboardingRole, UserRole } from "@/types/domain";
 
 export type SignUpResult =
@@ -189,21 +198,6 @@ type AuthContextValue = {
   signOut: () => void;
 };
 
-const OAUTH_STATE_KEY = "myticket_oauth_state";
-const OAUTH_PROVIDER_KEY = "myticket_oauth_provider";
-const OAUTH_REDIRECT_KEY = "myticket_oauth_redirect_after";
-
-/**
- * Migration shim: the legacy mirrored-user cache `myticket_mock_auth` was
- * removed in favor of `/me` rehydration. Clear any stale entry that already
- * exists in users' browsers. Safe to remove after a few releases.
- */
-try {
-  localStorage.removeItem("myticket_mock_auth");
-} catch {
-  /* ignore SSR / private-mode storage errors */
-}
-
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 function readMockUserFromSessionCookies(): MockUser | null {
@@ -240,6 +234,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [changeEmailMutation] = useChangeEmailMutation();
   const [deleteMeMutation] = useDeleteMeMutation();
   const [setTalentAvailabilityMutation] = useSetTalentAvailabilityMutation();
+
+  const revokeLocalSession = useCallback(() => {
+    clearAuthSession();
+    dispatch(logoutAction());
+    setUser(null);
+  }, [dispatch]);
 
   const hydrateUserFromMe = useCallback(
     async (me: UserMe, prev: MockUser | null): Promise<MockUser> => {
@@ -280,6 +280,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const me = await triggerGetMe(undefined, false).unwrap();
         const next = await hydrateUserFromMe(me, userRef.current);
+        assertMainSiteGuestUser(next, revokeLocalSession);
         setUser(next);
         const at = getToken();
         if (at) {
@@ -297,7 +298,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw toAuthApiError(error, i18n.t('auth:loadProfileFailed', 'Failed to load your profile.'));
       }
     },
-    [dispatch, hydrateUserFromMe, triggerGetMe],
+    [dispatch, hydrateUserFromMe, revokeLocalSession, triggerGetMe],
   );
 
   /**
@@ -324,6 +325,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (cancelled) return;
         if (getToken() !== tokenAtStart) return;
         const next = await hydrateUserFromMe(me, userRef.current);
+        if (!isMainSiteAllowedRole(next.role)) {
+          revokeLocalSession();
+          return;
+        }
         setUser(next);
       })
       .catch(() => {
@@ -339,7 +344,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [dispatch, hydrateUserFromMe, triggerGetMe]);
+  }, [dispatch, hydrateUserFromMe, revokeLocalSession, triggerGetMe]);
 
   useEffect(() => {
     const language = getEffectiveLanguage(user?.preferences.language);
@@ -362,6 +367,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (error) {
         if (error instanceof TwoFactorRequiredError) throw error;
         if (error instanceof EmailVerificationRequiredError) throw error;
+        if (error instanceof NonGuestRoleError) throw error;
         throw toAuthApiError(error, i18n.t('auth:signInFailed', 'Sign-in failed.'));
       }
     },
@@ -387,6 +393,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (error) {
         if (error instanceof TwoFactorRequiredError) throw error;
         if (error instanceof EmailVerificationRequiredError) throw error;
+        if (error instanceof NonGuestRoleError) throw error;
         throw toAuthApiError(error, i18n.t('auth:otpFailed', 'OTP verification failed.'));
       }
     },
@@ -444,6 +451,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (error) {
         if (error instanceof TwoFactorRequiredError) throw error;
         if (error instanceof EmailVerificationRequiredError) throw error;
+        if (error instanceof NonGuestRoleError) throw error;
         throw toAuthApiError(error, i18n.t('auth:oauthSignInFailed'));
       }
     },
@@ -684,16 +692,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const signOut = useCallback(() => {
-    if (getToken()) {
+    const hadToken = Boolean(getToken());
+    revokeLocalSession();
+    if (hadToken) {
       logoutMutation()
         .unwrap()
         .catch(() => {
-          /* server-side revocation is best-effort. */
+          /* server-side revocation is best-effort after local session is cleared. */
         });
     }
-    dispatch(logoutAction());
-    setUser(null);
-  }, [dispatch, logoutMutation]);
+  }, [logoutMutation, revokeLocalSession]);
 
   const value = useMemo(
     () => ({

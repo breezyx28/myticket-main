@@ -18,15 +18,26 @@ import type {
   VendorDocumentUpload,
   VendorGalleryUpload,
 } from '@/api/types/roleApplication';
+import {
+  normalizeMyRoleApplications,
+  unwrapRoleApplicationSummary,
+} from '@/lib/roleApplicationMappers';
 
 const TALENT = 'role-applications/talent';
 const VENDOR = 'role-applications/vendor';
 const ORGANIZER = 'role-applications/organizer';
 
+function requireRoleApplicationSummary(raw: unknown, action: string): RoleApplicationSummary {
+  const summary = unwrapRoleApplicationSummary(raw);
+  if (!summary) throw new Error(`Role application ${action} response missing id`);
+  return summary;
+}
+
 export const roleApplicationsApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
     getMyRoleApplications: build.query<MyRoleApplications, void>({
       query: () => ({ url: '/role-applications/me' }),
+      transformResponse: (raw: unknown) => normalizeMyRoleApplications(raw),
       providesTags: ['RoleApplication'],
     }),
     /**
@@ -57,6 +68,7 @@ export const roleApplicationsApi = baseApi.injectEndpoints({
       CreateTalentApplicationRequest
     >({
       query: (body) => ({ url: `/${TALENT}`, method: 'POST', body }),
+      transformResponse: (raw: unknown) => requireRoleApplicationSummary(raw, 'create'),
       invalidatesTags: ['RoleApplication'],
     }),
     updateTalentApplication: build.mutation<
@@ -64,14 +76,17 @@ export const roleApplicationsApi = baseApi.injectEndpoints({
       { id: Id; body: UpdateTalentApplicationRequest }
     >({
       query: ({ id, body }) => ({ url: `/${TALENT}/${id}`, method: 'PATCH', body }),
+      transformResponse: (raw: unknown) => requireRoleApplicationSummary(raw, 'update'),
       invalidatesTags: ['RoleApplication'],
     }),
     submitTalentApplication: build.mutation<RoleApplicationSummary, { id: Id }>({
       query: ({ id }) => ({ url: `/${TALENT}/${id}/submit`, method: 'POST' }),
+      transformResponse: (raw: unknown) => requireRoleApplicationSummary(raw, 'submit'),
       invalidatesTags: ['RoleApplication'],
     }),
     resubmitTalentApplication: build.mutation<RoleApplicationSummary, { id: Id }>({
       query: ({ id }) => ({ url: `/${TALENT}/${id}/resubmit`, method: 'POST' }),
+      transformResponse: (raw: unknown) => requireRoleApplicationSummary(raw, 'resubmit'),
       invalidatesTags: ['RoleApplication'],
     }),
     withdrawTalentApplication: build.mutation<AcknowledgementResponse, { id: Id }>({
@@ -99,6 +114,7 @@ export const roleApplicationsApi = baseApi.injectEndpoints({
       CreateVendorApplicationRequest
     >({
       query: (body) => ({ url: `/${VENDOR}`, method: 'POST', body }),
+      transformResponse: (raw: unknown) => requireRoleApplicationSummary(raw, 'create'),
       invalidatesTags: ['RoleApplication'],
     }),
     updateVendorApplication: build.mutation<
@@ -106,14 +122,17 @@ export const roleApplicationsApi = baseApi.injectEndpoints({
       { id: Id; body: UpdateVendorApplicationRequest }
     >({
       query: ({ id, body }) => ({ url: `/${VENDOR}/${id}`, method: 'PATCH', body }),
+      transformResponse: (raw: unknown) => requireRoleApplicationSummary(raw, 'update'),
       invalidatesTags: ['RoleApplication'],
     }),
     submitVendorApplication: build.mutation<RoleApplicationSummary, { id: Id }>({
       query: ({ id }) => ({ url: `/${VENDOR}/${id}/submit`, method: 'POST' }),
+      transformResponse: (raw: unknown) => requireRoleApplicationSummary(raw, 'submit'),
       invalidatesTags: ['RoleApplication'],
     }),
     resubmitVendorApplication: build.mutation<RoleApplicationSummary, { id: Id }>({
       query: ({ id }) => ({ url: `/${VENDOR}/${id}/resubmit`, method: 'POST' }),
+      transformResponse: (raw: unknown) => requireRoleApplicationSummary(raw, 'resubmit'),
       invalidatesTags: ['RoleApplication'],
     }),
     withdrawVendorApplication: build.mutation<AcknowledgementResponse, { id: Id }>({
@@ -163,6 +182,7 @@ export const roleApplicationsApi = baseApi.injectEndpoints({
       CreateOrganizerApplicationRequest
     >({
       query: (body) => ({ url: `/${ORGANIZER}`, method: 'POST', body }),
+      transformResponse: (raw: unknown) => requireRoleApplicationSummary(raw, 'create'),
       invalidatesTags: ['RoleApplication'],
     }),
     updateOrganizerApplication: build.mutation<
@@ -170,14 +190,17 @@ export const roleApplicationsApi = baseApi.injectEndpoints({
       { id: Id; body: UpdateOrganizerApplicationRequest }
     >({
       query: ({ id, body }) => ({ url: `/${ORGANIZER}/${id}`, method: 'PATCH', body }),
+      transformResponse: (raw: unknown) => requireRoleApplicationSummary(raw, 'update'),
       invalidatesTags: ['RoleApplication'],
     }),
     submitOrganizerApplication: build.mutation<RoleApplicationSummary, { id: Id }>({
       query: ({ id }) => ({ url: `/${ORGANIZER}/${id}/submit`, method: 'POST' }),
+      transformResponse: (raw: unknown) => requireRoleApplicationSummary(raw, 'submit'),
       invalidatesTags: ['RoleApplication'],
     }),
     resubmitOrganizerApplication: build.mutation<RoleApplicationSummary, { id: Id }>({
       query: ({ id }) => ({ url: `/${ORGANIZER}/${id}/resubmit`, method: 'POST' }),
+      transformResponse: (raw: unknown) => requireRoleApplicationSummary(raw, 'resubmit'),
       invalidatesTags: ['RoleApplication'],
     }),
     withdrawOrganizerApplication: build.mutation<AcknowledgementResponse, { id: Id }>({

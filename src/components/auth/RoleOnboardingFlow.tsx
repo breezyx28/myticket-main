@@ -29,6 +29,7 @@ import {
   useUpdateOrganizerApplicationMutation,
   useUpdateTalentApplicationMutation,
   useUpdateVendorApplicationMutation,
+  useUploadFileMutation,
 } from '@/api/endpoints';
 import { toAuthApiError } from '@/lib/authErrors';
 import {
@@ -147,6 +148,8 @@ export function RoleOnboardingFlow({ role }: RoleOnboardingFlowProps) {
   const [addOrganizerSocialLink] = useAddOrganizerSocialLinkMutation();
   const [submitOrganizerApplication] = useSubmitOrganizerApplicationMutation();
   const [resubmitOrganizerApplication] = useResubmitOrganizerApplicationMutation();
+
+  const [uploadFile] = useUploadFileMutation();
 
   const steps = useMemo(() => {
     const key = role === 'talent' || role === 'vendor' || role === 'organizer' ? role : 'organizer';
@@ -314,6 +317,10 @@ export function RoleOnboardingFlow({ role }: RoleOnboardingFlowProps) {
           updateTalentApplication(args).unwrap(),
         addTalentMedia: (args: Parameters<typeof addTalentMedia>[0]) =>
           addTalentMedia(args).unwrap(),
+        uploadTalentApplicationFile: async (file: File) => {
+          const uploaded = await uploadFile({ file, context: 'talent_application' }).unwrap();
+          return uploaded.url;
+        },
         submitTalentApplication: (args: Parameters<typeof submitTalentApplication>[0]) =>
           submitTalentApplication(args).unwrap(),
         resubmitTalentApplication: (args: Parameters<typeof resubmitTalentApplication>[0]) =>
@@ -364,6 +371,7 @@ export function RoleOnboardingFlow({ role }: RoleOnboardingFlowProps) {
             existingApiStatus:
               talentSummary?.status != null ? String(talentSummary.status) : null,
             existingMediaUrls: [],
+            saudiRegions: apiSaudiRegions,
           },
           talentMutations,
         );
@@ -383,6 +391,7 @@ export function RoleOnboardingFlow({ role }: RoleOnboardingFlowProps) {
               vendorSummary?.status != null ? String(vendorSummary.status) : null,
             existingDocumentUrls: [],
             existingGalleryUrls: [],
+            saudiRegions: apiSaudiRegions,
           },
           vendorMutations,
         );

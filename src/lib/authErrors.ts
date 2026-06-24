@@ -48,6 +48,26 @@ export function isEmailVerificationRequiredError(
 }
 
 /**
+ * Main website accepts guest (ticket buyer) accounts only. Talent, vendor, and
+ * organizer accounts must use their role portal.
+ */
+export class NonGuestRoleError extends Error {
+  readonly role: string;
+  readonly portalUrl: string;
+
+  constructor(role: string, portalUrl: string, message?: string) {
+    super(message ?? t('common:apiErrors.mainSiteGuestOnly'));
+    this.name = 'NonGuestRoleError';
+    this.role = role;
+    this.portalUrl = portalUrl;
+  }
+}
+
+export function isNonGuestRoleError(value: unknown): value is NonGuestRoleError {
+  return value instanceof NonGuestRoleError;
+}
+
+/**
  * Wraps an RTK Query / fetch failure into a presentable error so pages can
  * `setError(e instanceof AuthApiError ? e.message : ...)` without spelunking
  * into RTK Query's union types.

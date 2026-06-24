@@ -13,7 +13,6 @@ import { InlineNotice } from "@/components/ui/form/InlineNotice";
 import { Select, TextArea, TextInput } from "@/components/ui/form/inputs";
 import { UploadTileInput } from "@/components/ui/form/UploadTileInput";
 import {
-  canonicalPlaceName,
   getCitiesForRegionFlexible,
   getRegionsFlexible,
   resolveCitySelectValue,
@@ -357,7 +356,7 @@ export function TalentSteps({
               : t("onboarding.shared.chooseRegionFirst")}
           </option>
           {cities.map((c) => (
-            <option key={c.id} value={canonicalPlaceName(c)}>
+            <option key={c.id} value={c.id}>
               {pickLocalizedName(c, language)}
             </option>
           ))}
