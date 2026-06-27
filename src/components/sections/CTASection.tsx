@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import { ArrowRight, Ticket } from '@phosphor-icons/react';
 import { Starburst } from '@/components/shapes/Starburst';
 import { CrossPattern } from '@/components/shapes/CrossOrnament';
@@ -27,11 +28,16 @@ export function CTASection() {
           {t('cta.subtitle')}
         </p>
         <div className="flex items-center justify-center gap-4 flex-wrap">
-          <Button variant="primary" size="xl" icon={ArrowRight}>
-            {t('cta.getStarted')}
+          <Button variant="primary" size="xl" icon={ArrowRight} asChild>
+            <Link to="/register">{t('cta.getStarted')}</Link>
           </Button>
-          <Button variant="outline" size="xl" className="border-ink-40 text-white hover:bg-ink-80">
-            {t('cta.browseEvents')}
+          <Button
+            variant="outline"
+            size="xl"
+            className="border-white/50 bg-transparent text-white hover:border-white hover:bg-white/10 hover:text-white"
+            asChild
+          >
+            <Link to="/events">{t('cta.browseEvents')}</Link>
           </Button>
         </div>
       </div>

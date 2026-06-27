@@ -42,6 +42,8 @@ export const ar = {
     auction: 'المزاد',
     myTickets: 'تذاكري',
     searchEvents: 'البحث عن الفعاليات',
+    openMenu: 'فتح القائمة',
+    closeMenu: 'إغلاق القائمة',
     switchToEnglish: 'تبديل اللغة إلى الإنجليزية',
     switchToArabic: 'تبديل اللغة إلى العربية',
     previousBanners: 'البطاقات السابقة',

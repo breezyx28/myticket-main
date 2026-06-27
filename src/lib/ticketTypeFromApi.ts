@@ -35,8 +35,19 @@ export function remainingFromTicketApiRow(r: Record<string, unknown>): number | 
   return null;
 }
 
-export function formatTicketRemainingLabel(remaining: number | null | undefined): string {
-  if (remaining == null) return 'Available';
-  if (remaining <= 0) return 'Sold out';
-  return `${remaining.toLocaleString()} left`;
+export function formatTicketRemainingLabel(
+  remaining: number | null | undefined,
+  labels?: {
+    available: string;
+    soldOut: string;
+    left: (count: string) => string;
+  },
+  language: 'en' | 'ar' = 'en',
+): string {
+  const available = labels?.available ?? 'Available';
+  const soldOut = labels?.soldOut ?? 'Sold out';
+  if (remaining == null) return available;
+  if (remaining <= 0) return soldOut;
+  const count = new Intl.NumberFormat(language === 'ar' ? 'ar-SA' : 'en-US').format(remaining);
+  return labels?.left ? labels.left(count) : `${count} left`;
 }

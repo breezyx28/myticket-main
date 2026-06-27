@@ -49,6 +49,7 @@ import {
   OAUTH_STATE_KEY,
   persistAuthCookies,
 } from "@/api/authToken";
+import { baseApi } from "@/api/baseApi";
 import { logout as logoutAction, setCredentials } from "@/store/authSlice";
 import { useAppDispatch } from "@/store/hooks";
 import { mapUserMeToMockUser, parseAuthResponse, regionSelectValueToApiSaudiRegionId } from "@/lib/authMapper";
@@ -238,6 +239,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const revokeLocalSession = useCallback(() => {
     clearAuthSession();
     dispatch(logoutAction());
+    dispatch(baseApi.util.resetApiState());
     setUser(null);
   }, [dispatch]);
 

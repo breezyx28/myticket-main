@@ -42,6 +42,8 @@ export const en = {
     auction: 'Auction',
     myTickets: 'My Tickets',
     searchEvents: 'Search events',
+    openMenu: 'Open menu',
+    closeMenu: 'Close menu',
     switchToEnglish: 'Switch language to English',
     switchToArabic: 'Switch language to Arabic',
     previousBanners: 'Previous banners',

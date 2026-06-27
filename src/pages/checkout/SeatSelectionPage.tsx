@@ -30,6 +30,8 @@ import {
 import { formatTicketRemainingLabel } from '@/lib/ticketTypeFromApi';
 import { SEAT_LOCK_TTL_SECONDS, type CheckoutNavState } from '@/lib/checkoutNav';
 import { useAuth } from '@/contexts/AuthContext';
+import { formatCurrency } from '@/lib/intlFormat';
+import type { AppLanguage } from '@/lib/language';
 import type { SeatRecord } from '@/types/seating';
 
 const DEFAULT_LOCK_TTL_SECONDS = SEAT_LOCK_TTL_SECONDS;
@@ -56,7 +58,8 @@ function applyLockToState(lock: SeatLock, setters: {
 }
 
 export function SeatSelectionPage() {
-  const { t } = useTranslation(['checkout', 'common']);
+  const { t, i18n } = useTranslation(['checkout', 'eventDetail', 'common']);
+  const language = (i18n.language === 'ar' ? 'ar' : 'en') as AppLanguage;
   const { eventId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -75,6 +78,15 @@ export function SeatSelectionPage() {
   const event = useMemo(
     () => (detail ? mergeEventTicketTypes(detail, ticketTypesList) : null),
     [detail, ticketTypesList],
+  );
+
+  const ticketAvailabilityLabels = useMemo(
+    () => ({
+      available: t('eventDetail:ticketAvailable'),
+      soldOut: t('eventDetail:ticketSoldOut'),
+      left: (count: string) => t('eventDetail:ticketRemaining', { count }),
+    }),
+    [t],
   );
 
   const isSeated = event?.layoutType === 'seated';
@@ -371,8 +383,13 @@ export function SeatSelectionPage() {
             >
               {event.ticketTypes.map((ticketType) => (
                 <option key={ticketType.id} value={ticketType.id}>
-                  {ticketType.name} — {ticketType.price} SAR (
-                  {formatTicketRemainingLabel(ticketType.remaining)})
+                  {ticketType.name} — {formatCurrency(ticketType.price, language)} (
+                  {formatTicketRemainingLabel(
+                    ticketType.remaining,
+                    ticketAvailabilityLabels,
+                    language,
+                  )}
+                  )
                 </option>
               ))}
             </select>

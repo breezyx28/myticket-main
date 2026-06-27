@@ -125,6 +125,29 @@ export function EventsPage() {
 
   const { data: paginated, isFetching, isError } = useListEventsQuery(query);
   const events = paginated?.data ?? [];
+  const visibleEvents = useMemo(() => {
+    const kw = keyword.trim().toLowerCase();
+    if (!kw) return events;
+    return events.filter((ev) => {
+      const r = ev as Record<string, unknown>;
+      const haystack = [
+        ev.title,
+        ev.description,
+        ev.category,
+        ev.category_name,
+        ev.city,
+        ev.city_name,
+        ev.venue,
+        ev.venue_name,
+        r.organizer_name,
+        r.organizer,
+      ]
+        .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(kw);
+    });
+  }, [events, keyword]);
   const currentPage = paginated?.current_page ?? page;
   const lastPage = paginated?.last_page ?? 1;
   const total = paginated?.total ?? 0;
@@ -490,12 +513,12 @@ export function EventsPage() {
           <p className="text-center text-[12px] text-ink-40">{t('loading')}</p>
         ) : isError ? (
           <p className="text-center text-[13px] text-coral">{t('error')}</p>
-        ) : events.length === 0 ? (
+        ) : visibleEvents.length === 0 ? (
           <p className="text-center text-[13px] text-ink-60">{t('empty')}</p>
         ) : (
           <>
             <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-              {events.map((e) => {
+              {visibleEvents.map((e) => {
                 const props = eventListItemToCardProps(e);
                 return (
                   <EventCard

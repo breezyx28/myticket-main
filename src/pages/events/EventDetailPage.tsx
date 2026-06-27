@@ -52,7 +52,7 @@ import {
 import { formatTicketRemainingLabel } from '@/lib/ticketTypeFromApi';
 import { apiAuctionToMockAuctionListing } from '@/lib/auctionMappers';
 import type { MockAuctionListing, MockEvent } from '@/types/domain';
-import { formatDate, formatTime } from '@/lib/intlFormat';
+import { formatDate, formatTime, formatCurrency } from '@/lib/intlFormat';
 import type { AppLanguage } from '@/lib/language';
 import { cn } from '@/lib/utils';
 import { canBrowseMarketplace } from '@/lib/marketplaceAccess';
@@ -387,6 +387,20 @@ export function EventDetailPage() {
     [detail, salesTick],
   );
 
+  const ticketAvailabilityLabels = useMemo(
+    () => ({
+      available: t('ticketAvailable'),
+      soldOut: t('ticketSoldOut'),
+      left: (count: string) => t('ticketRemaining', { count }),
+    }),
+    [t],
+  );
+
+  const categoryLabel = useMemo(() => {
+    if (!event) return '';
+    return /^event$/i.test(event.category.trim()) ? t('genericCategory') : event.category;
+  }, [event, t]);
+
   if (!slugParam) {
     return <Navigate to="/events" replace />;
   }
@@ -445,7 +459,7 @@ export function EventDetailPage() {
           <div className="mx-auto max-w-[1280px]">
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-block rounded-full bg-lemon px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-ink">
-                {event.category}
+                {categoryLabel}
               </span>
               {event.featured && (
                 <span className="inline-block rounded-full bg-coral px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
@@ -908,8 +922,11 @@ export function EventDetailPage() {
             {event.ticketTypes.length > 0 && (
               <p className="mt-1 font-mono text-[13px] font-bold text-ink">
                 {event.priceMin === event.priceMax
-                  ? t('fromPrice', { price: event.priceMin })
-                  : t('priceRange', { min: event.priceMin, max: event.priceMax })}
+                  ? t('fromPrice', { price: formatCurrency(event.priceMin, language) })
+                  : t('priceRange', {
+                      min: formatCurrency(event.priceMin, language),
+                      max: formatCurrency(event.priceMax, language),
+                    })}
               </p>
             )}
             <ul className="mt-4 space-y-3">
@@ -920,9 +937,13 @@ export function EventDetailPage() {
                 >
                   <div>
                     <p className="font-semibold text-ink">{tt.name}</p>
-                    <p className="text-[12px] text-ink-40">{formatTicketRemainingLabel(tt.remaining)}</p>
+                    <p className="text-[12px] text-ink-40">
+                      {formatTicketRemainingLabel(tt.remaining, ticketAvailabilityLabels, language)}
+                    </p>
                   </div>
-                  <span className="font-mono text-[15px] font-bold text-ink">{tt.price} SAR</span>
+                  <span className="font-mono text-[15px] font-bold text-ink">
+                    {formatCurrency(tt.price, language)}
+                  </span>
                 </li>
               ))}
             </ul>

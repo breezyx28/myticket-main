@@ -240,7 +240,7 @@ export function Navbar() {
                   >
                     {user.name}
                   </Link>
-                  <Button variant="ghost" size="sm" className="!px-3" onClick={() => signOut()}>
+                  <Button variant="ghost" size="sm" className="!px-3" onClick={() => { setMobileOpen(false); signOut(); }}>
                     {t('common:signOut')}
                   </Button>
                 </div>
@@ -258,6 +258,9 @@ export function Navbar() {
               )}
               <button
                 type="button"
+                aria-expanded={mobileOpen}
+                aria-controls="mobile-nav"
+                aria-label={mobileOpen ? t('nav:closeMenu') : t('nav:openMenu')}
                 onClick={() => setMobileOpen(!mobileOpen)}
                 className="ms-1 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-ink transition-colors hover:bg-ink-5 md:hidden"
               >
@@ -268,6 +271,7 @@ export function Navbar() {
 
           {mobileOpen && (
             <div
+              id="mobile-nav"
               className={cn(
                 'absolute start-0 end-0 z-20 bg-white shadow-card-md md:hidden',
                 'top-[calc(100%+12px)]',
@@ -296,7 +300,7 @@ export function Navbar() {
                     >
                       {t('common:profile')}
                     </Link>
-                    <Button variant="ghost" size="md" className="w-full" onClick={() => signOut()}>
+                    <Button variant="ghost" size="md" className="w-full" onClick={() => { setMobileOpen(false); signOut(); }}>
                       {t('common:signOut')}
                     </Button>
                   </>
