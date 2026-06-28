@@ -354,8 +354,8 @@ export async function runOrganizerRoleApplicationPipeline(
   } else {
     const created = await m.createOrganizerApplication({
       display_name: display,
-      email,
-      contact_phone: phone,
+      contact_email: email,
+      contact_phone: phone || undefined,
       is_company: input.draft.isCompany,
     });
     id = assertApplicationId(created.id);
@@ -364,8 +364,8 @@ export async function runOrganizerRoleApplicationPipeline(
   const patch: UpdateOrganizerApplicationRequest = {
     display_name: display,
     bio: input.draft.bio.trim() || undefined,
-    email,
-    contact_phone: phone,
+    contact_email: email,
+    contact_phone: phone || undefined,
     location: input.draft.location.trim() || undefined,
     is_company: input.draft.isCompany,
     company_name: input.draft.isCompany ? input.draft.companyName?.trim() || undefined : undefined,

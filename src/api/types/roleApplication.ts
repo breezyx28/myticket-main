@@ -91,16 +91,16 @@ export interface VendorGalleryUpload {
 
 export interface CreateOrganizerApplicationRequest {
   display_name: string;
-  email: string;
-  contact_phone: string;
-  is_company: boolean;
+  contact_email: string;
+  contact_phone?: string;
+  is_company?: boolean;
   [key: string]: unknown;
 }
 
 export interface UpdateOrganizerApplicationRequest {
   display_name?: string;
   bio?: string;
-  email?: string;
+  contact_email?: string;
   contact_phone?: string;
   location?: string;
   is_company?: boolean;
@@ -162,6 +162,8 @@ export interface RoleApplicationOrganizerDetail {
   id: Id;
   display_name?: string | null;
   bio?: string | null;
+  contact_email?: string | null;
+  /** Legacy alias; prefer `contact_email`. */
   email?: string | null;
   contact_phone?: string | null;
   location?: string | null;
