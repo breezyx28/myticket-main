@@ -4,9 +4,12 @@ import { ArrowRight, Ticket } from '@phosphor-icons/react';
 import { Starburst } from '@/components/shapes/Starburst';
 import { CrossPattern } from '@/components/shapes/CrossOrnament';
 import { Button } from '@/components/ui/Button';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function CTASection() {
   const { t } = useTranslation('landing');
+  const { user } = useAuth();
+  const startHref = user ? '/profile' : '/register';
 
   return (
     <section className="bg-ink px-6 lg:px-8 py-16 lg:py-24 relative overflow-hidden">
@@ -29,7 +32,7 @@ export function CTASection() {
         </p>
         <div className="flex items-center justify-center gap-4 flex-wrap">
           <Button variant="primary" size="xl" icon={ArrowRight} asChild>
-            <Link to="/register">{t('cta.getStarted')}</Link>
+            <Link to={startHref}>{t('cta.getStarted')}</Link>
           </Button>
           <Button
             variant="outline"

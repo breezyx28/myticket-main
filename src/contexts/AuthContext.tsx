@@ -52,7 +52,8 @@ import {
 import { baseApi } from "@/api/baseApi";
 import { logout as logoutAction, setCredentials } from "@/store/authSlice";
 import { useAppDispatch } from "@/store/hooks";
-import { mapUserMeToMockUser, parseAuthResponse, regionSelectValueToApiSaudiRegionId } from "@/lib/authMapper";
+import { mapUserMeToMockUser, parseAuthResponse } from "@/lib/authMapper";
+import { apiIntegerId } from "@/lib/saudiLocations";
 import {
   getEffectiveLanguage,
   setGuestLanguage,
@@ -589,9 +590,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
       if (patch.phone !== undefined) body.phone = patch.phone;
-      if (patch.city !== undefined) body.city = patch.city;
+      if (patch.city !== undefined) {
+        const trimmed = String(patch.city).trim();
+        body.city_id = trimmed ? (apiIntegerId(trimmed) ?? null) : null;
+      }
       if (patch.region !== undefined) {
-        body.saudi_region_id = regionSelectValueToApiSaudiRegionId(patch.region);
+        const trimmed = patch.region.trim();
+        body.region_id = trimmed ? (apiIntegerId(trimmed) ?? null) : null;
       }
       try {
         const me = await updateMeMutation(body).unwrap();

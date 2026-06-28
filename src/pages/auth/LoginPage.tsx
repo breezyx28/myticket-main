@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { Button } from '@/components/ui/Button';
@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { authErrorMessage, isEmailVerificationRequiredError, isNonGuestRoleError, isTwoFactorRequiredError } from '@/lib/authErrors';
 import { getSafeRedirectPath } from '@/lib/navigation';
 import { FormSectionCard } from '@/components/ui/form/FormSectionCard';
+import { InlineNotice } from '@/components/ui/form/InlineNotice';
 import { Field } from '@/components/ui/form/Field';
 import { PasswordInput } from '@/components/ui/form/PasswordInput';
 import { TextInput } from '@/components/ui/form/inputs';
@@ -17,11 +18,13 @@ export function LoginPage() {
   const { t } = useTranslation('authPages');
   const { t: tValidation, i18n } = useTranslation('validation');
   const loginSchema = useMemo(() => createLoginSchema(tValidation), [tValidation, i18n.language]);
-  const { signIn, signInWithOtp, signInWithOAuth } = useAuth();
+  const { signIn, signInWithOtp, signInWithOAuth, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const fromRaw = (location.state as { from?: { pathname: string } } | null)?.from?.pathname;
   const from = getSafeRedirectPath(fromRaw) ?? '/';
+  const verificationNotice =
+    (location.state as { verificationNotice?: string } | null)?.verificationNotice ?? null;
   const registerState = { from: { pathname: from } };
 
   const [error, setError] = useState<string | null>(null);
@@ -92,6 +95,10 @@ export function LoginPage() {
 
   const submitDisabled = isSubmitting || oauthLoading;
 
+  if (user) {
+    return <Navigate to={from} replace />;
+  }
+
   return (
     <FormSectionCard
       eyebrow={challengeToken ? t('login.eyebrow2fa') : t('login.eyebrowWelcome')}
@@ -106,6 +113,12 @@ export function LoginPage() {
           </Link>
         </p>
       )}
+
+      {verificationNotice ? (
+        <InlineNotice variant="info" title={t('register.verificationReminder')} className="mt-4">
+          <p className="text-[13px] leading-relaxed text-ink-70">{verificationNotice}</p>
+        </InlineNotice>
+      ) : null}
 
       {error && (
         <div

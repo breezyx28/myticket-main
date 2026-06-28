@@ -11,13 +11,7 @@ const REGISTER_DRAFT_KEY = 'myticket_register_draft_v1';
 const LOGIN_DRAFT_KEY = 'myticket_login_draft_v1';
 
 export interface RegisterPageDraft {
-  stage: 'basic' | 'onboarding';
-  role: RegisterRoleDraft;
-  wizardStep: number;
   basic: BaseRegistrationFields;
-  talentDraft: TalentOnboardingDraft;
-  vendorDraft: VendorOnboardingDraft;
-  organizerDraft: OrganizerOnboardingDraft;
 }
 
 const EVENTS_FILTER_DRAFT_KEY = 'myticket_events_filters_v1';

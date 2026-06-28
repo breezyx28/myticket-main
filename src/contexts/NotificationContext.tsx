@@ -53,14 +53,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const isAuthenticated = Boolean(user);
   const userId = getSessionUserFromMeta()?.id ?? null;
 
-  const { data: streamGuidance } = useGetNotificationsStreamQuery(undefined, {
+  const { data: streamGuidance, isLoading: streamGuidanceLoading } = useGetNotificationsStreamQuery(undefined, {
     skip: !isAuthenticated,
   });
 
   const fallbackPollIntervalMs = useMemo(() => {
     const seconds = streamGuidance?.poll_interval_seconds;
     if (typeof seconds === 'number' && seconds > 0) {
-      return Math.max(seconds * 1000, 5_000);
+      return Math.max(seconds * 1000, 30_000);
     }
     return DEFAULT_POLL_INTERVAL_MS;
   }, [streamGuidance]);
@@ -75,7 +75,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   const { data: paged } = useListNotificationsQuery(
     { per_page: 30 },
-    { skip: !isAuthenticated, pollingInterval },
+    { skip: !isAuthenticated || streamGuidanceLoading, pollingInterval },
   );
 
   const [markNotificationRead] = useMarkNotificationReadMutation();

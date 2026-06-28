@@ -1,6 +1,6 @@
 import { baseApi } from '@/api/baseApi';
 import type { AcknowledgementResponse } from '@/api/types/auth';
-import type { Id } from '@/api/types/common';
+import type { Id, ResourceEnvelope } from '@/api/types/common';
 import type {
   NotificationListQuery,
   NotificationListResponse,
@@ -10,6 +10,14 @@ import type {
   NotificationPreferences,
   UpdateNotificationPreferencesRequest,
 } from '@/api/types/user';
+
+function unwrapNotificationStreamGuidance(response: unknown): NotificationStreamGuidance {
+  const maybe = response as ResourceEnvelope<NotificationStreamGuidance> | NotificationStreamGuidance;
+  if (maybe && typeof maybe === 'object' && 'data' in maybe && maybe.data != null) {
+    return maybe.data as NotificationStreamGuidance;
+  }
+  return maybe as NotificationStreamGuidance;
+}
 
 export const notificationsApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
@@ -30,6 +38,7 @@ export const notificationsApi = baseApi.injectEndpoints({
      */
     getNotificationsStream: build.query<NotificationStreamGuidance, void>({
       query: () => ({ url: '/me/notifications/stream' }),
+      transformResponse: (response: unknown) => unwrapNotificationStreamGuidance(response),
     }),
     markNotificationRead: build.mutation<AcknowledgementResponse, { id: Id }>({
       query: ({ id }) => ({

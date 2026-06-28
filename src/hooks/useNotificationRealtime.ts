@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { notificationsApi } from '@/api/endpoints/notifications';
 import type { NotificationStreamGuidance } from '@/api/types/notification';
 import { isReverbStreamGuidance } from '@/api/types/notification';
@@ -6,6 +6,8 @@ import { getToken } from '@/api/authToken';
 import {
   createEcho,
   disconnectEcho,
+  echoOptionsFromStreamGuidance,
+  echoPrivateChannelName,
   getEcho,
   isReverbConfigured,
 } from '@/lib/realtime/echo';
@@ -57,18 +59,37 @@ export function useNotificationRealtime({
   const [usePollingFallback, setUsePollingFallback] = useState(true);
   const channelRef = useRef<string | null>(null);
 
+  const reverbGuidance = isReverbStreamGuidance(streamGuidance) ? streamGuidance : undefined;
+  const echoOptions = useMemo(
+    () => (reverbGuidance ? echoOptionsFromStreamGuidance(reverbGuidance) : undefined),
+    [
+      reverbGuidance?.auth_endpoint,
+      reverbGuidance?.app_key,
+      reverbGuidance?.host,
+      reverbGuidance?.port,
+      reverbGuidance?.scheme,
+    ],
+  );
+  const channelName = useMemo(() => {
+    if (reverbGuidance) return echoPrivateChannelName(reverbGuidance.channel, userId ?? undefined);
+    return userId != null ? `user.${userId}` : '';
+  }, [reverbGuidance?.channel, userId]);
+
   const shouldUseReverb =
-    enabled &&
-    userId != null &&
-    isReverbStreamGuidance(streamGuidance) &&
-    isReverbConfigured();
+    enabled && userId != null && Boolean(reverbGuidance && channelName && isReverbConfigured(echoOptions));
 
   useEffect(() => {
-    if (!shouldUseReverb) {
+    if (!enabled) {
       setReverbActive(false);
       setUsePollingFallback(true);
       disconnectEcho();
       channelRef.current = null;
+      return;
+    }
+
+    if (!shouldUseReverb) {
+      setReverbActive(false);
+      setUsePollingFallback(true);
       return;
     }
 
@@ -80,7 +101,7 @@ export function useNotificationRealtime({
     }
 
     let cancelled = false;
-    const channelName = `user.${userId}`;
+    setUsePollingFallback(false);
 
     const reconcile = () => {
       if (cancelled) return;
@@ -95,7 +116,7 @@ export function useNotificationRealtime({
       if (cancelled) return;
 
       const existing = getEcho();
-      const echo = existing ?? createEcho(token);
+      const echo = existing ?? createEcho(token, echoOptions);
 
       if (channelRef.current && channelRef.current !== channelName) {
         echo.leave(channelRef.current);
@@ -138,11 +159,10 @@ export function useNotificationRealtime({
         activeEcho.leave(channelRef.current);
       }
       channelRef.current = null;
-      disconnectEcho();
       setReverbActive(false);
       setUsePollingFallback(true);
     };
-  }, [shouldUseReverb, userId, streamGuidance, dispatch]);
+  }, [shouldUseReverb, enabled, userId, channelName, echoOptions, dispatch]);
 
   return { reverbActive, usePollingFallback };
 }

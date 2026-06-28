@@ -16,9 +16,13 @@ export interface UserMe {
   /** Primary role string when the API does not return `roles[]`. */
   role?: string | null;
   roles?: string[];
-  city?: string | null;
-  /** Legacy string region; prefer `saudi_region_id` from the API. */
+  city?: string | number | null;
+  city_id?: Id | number | null;
+  /** Saudi administrative region id from `GET /reference/saudi-regions`. */
+  region_id?: Id | number | null;
+  /** Legacy string region name. */
   region?: string | null;
+  /** Legacy alias; prefer `region_id` from `GET /me`. */
   saudi_region_id?: Id | number | null;
   preferences?: NotificationPreferences;
   created_at?: Iso8601;
@@ -32,9 +36,10 @@ export interface UpdateMeRequest {
   bio?: string;
   avatar_url?: string;
   phone?: string;
-  city?: string;
-  /** Saudi administrative region id from `GET /reference/saudi-regions`. */
-  saudi_region_id?: Id | number | null;
+  /** Integer id from `GET /reference/saudi-regions` → cities. */
+  city_id?: Id | number | null;
+  /** Integer id from `GET /reference/saudi-regions`. */
+  region_id?: Id | number | null;
   [key: string]: unknown;
 }
 

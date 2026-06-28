@@ -45,6 +45,11 @@ export type NotificationReverbStreamGuidance = {
   transport: 'reverb';
   channel: string;
   auth_endpoint?: string;
+  /** When present, overrides `VITE_REVERB_APP_KEY`. */
+  app_key?: string;
+  host?: string;
+  port?: number;
+  scheme?: 'http' | 'https';
   since?: Iso8601;
   fallback?: {
     transport: 'polling';

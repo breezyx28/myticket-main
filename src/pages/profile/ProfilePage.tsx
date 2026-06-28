@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, Navigate } from 'react-router-dom';
 import { Controller, useForm, type Resolver } from 'react-hook-form';
@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import { AccountProfileAvatar } from '@/components/profile/AccountProfileAvatar';
 import { RoleUpgradeBannersSection } from '@/components/sections/RoleUpgradeBannersSection';
+import { InlineNotice } from '@/components/ui/form/InlineNotice';
 import {
-  canonicalPlaceName,
+  cityValueToApiId,
   findRegionIdByName,
   getCitiesForRegionFlexible,
   getRegionsFlexible,
@@ -152,6 +153,7 @@ export function ProfilePage() {
   } | null>(null);
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(user?.security.twoFactorEnabled ?? false);
+  const pageTopRef = useRef<HTMLDivElement>(null);
 
   const profileForm = useForm<UpdateProfileSchema>({
     resolver: yupResolver(updateProfileSchema) as Resolver<UpdateProfileSchema>,
@@ -201,8 +203,10 @@ export function ProfilePage() {
   useEffect(() => {
     if (!user) return;
     const mappedRegion =
-      findRegionIdByName(user.region ?? '', apiSaudiRegions) ||
-      (user.region && /^\d+$/.test(String(user.region)) ? String(user.region) : '');
+      (user.region && /^\d+$/.test(String(user.region)) ? String(user.region) : '') ||
+      findRegionIdByName(user.region ?? '', apiSaudiRegions);
+    const cities = getCitiesForRegionFlexible(mappedRegion, apiSaudiRegions);
+    const mappedCity = resolveCitySelectValue(user.city ?? '', cities);
     const normalizedPhone = user.phone.startsWith(SAUDI_COUNTRY_CODE)
       ? user.phone
       : `${SAUDI_COUNTRY_CODE}${user.phone.replace(/^\+/, '').trim()}`;
@@ -211,7 +215,7 @@ export function ProfilePage() {
       display_name: user.name,
       bio: user.bio,
       phone: normalizedPhone,
-      city: user.city,
+      city: mappedCity,
       region: mappedRegion,
     });
   }, [user, profileForm, apiSaudiRegions]);
@@ -229,17 +233,22 @@ export function ProfilePage() {
     setSaveError(null);
     setSaveMessage(null);
     try {
+      const regionId = values.region?.trim() ?? '';
+      const cityRaw = values.city?.trim() ?? '';
+      const cityApi = cityValueToApiId(regionId, cityRaw, apiSaudiRegions);
       await updateAccountInfo({
         name: values.full_name?.trim() ?? '',
         displayName: values.display_name?.trim() ?? '',
         phone: values.phone?.trim() ?? '',
-        region: values.region ?? '',
-        city: values.city ?? '',
+        region: regionId,
+        city: cityApi != null ? String(cityApi) : cityRaw,
         bio: values.bio ?? '',
       });
       setSaveMessage(t('messages.profileSaved'));
+      pageTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (e) {
       setSaveError(toAuthApiError(e, t('errors.saveProfile')).message);
+      pageTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   });
 
@@ -330,18 +339,19 @@ export function ProfilePage() {
 
   return (
     <div className="bg-white pb-20 pt-10">
-      <div className="mx-auto max-w-[720px] px-6 lg:px-8">
+      <div ref={pageTopRef} className="mx-auto max-w-[720px] px-6 lg:px-8">
         <h1 className="text-[32px] font-extrabold text-ink">{t('title')}</h1>
         <p className="mt-2 text-[15px] text-ink-60">{t('subtitle')}</p>
         {saveMessage && (
-          <p className="mt-3 rounded-lg border border-ink-10 bg-ink-5 px-3 py-2 text-[12px] font-semibold text-ink-60">
-            {saveMessage}
-          </p>
+          <InlineNotice variant="success" title={saveMessage} className="mt-4" />
         )}
         {saveError && (
-          <p className="mt-3 rounded-lg border border-coral/40 bg-coral/10 px-3 py-2 text-[12px] font-semibold text-coral">
+          <div
+            role="alert"
+            className="mt-4 rounded-xl border border-coral/40 bg-coral/10 px-4 py-3 text-[13px] font-semibold text-coral"
+          >
             {saveError}
-          </p>
+          </div>
         )}
 
         <div className="mt-8 grid w-full grid-cols-2 gap-1 rounded-2xl border border-ink-10 bg-ink-5/60 p-1 sm:grid-cols-3 lg:grid-cols-6">
@@ -352,6 +362,7 @@ export function ProfilePage() {
               onClick={() => {
                 setActiveTab(tab);
                 setSaveError(null);
+                setSaveMessage(null);
               }}
               className={`w-full rounded-xl px-4 py-2 text-center text-[12px] font-semibold ${
                 activeTab === tab ? 'bg-ink text-white' : 'text-ink-60 hover:bg-white'
@@ -460,7 +471,7 @@ export function ProfilePage() {
                       value={field.value ?? ''}
                       onBlur={field.onBlur}
                       onChange={(e) => {
-                        field.onChange(e);
+                        field.onChange(e.target.value);
                         profileForm.setValue('city', '', { shouldValidate: true });
                       }}
                       className="mt-1.5 w-full rounded-xl border border-ink-10 bg-white px-4 py-3 text-[14px]"
@@ -489,7 +500,7 @@ export function ProfilePage() {
                       name={field.name}
                       value={resolveCitySelectValue(field.value ?? '', accountCities)}
                       onBlur={field.onBlur}
-                      onChange={field.onChange}
+                      onChange={(e) => field.onChange(e.target.value)}
                       disabled={!profileRegion}
                       className="mt-1.5 w-full rounded-xl border border-ink-10 bg-white px-4 py-3 text-[14px] disabled:cursor-not-allowed disabled:bg-ink-5 disabled:text-ink-40"
                     >
@@ -497,7 +508,7 @@ export function ProfilePage() {
                         {profileRegion ? t('info.selectCity') : t('info.chooseRegionFirst')}
                       </option>
                       {accountCities.map((c) => (
-                        <option key={c.id} value={canonicalPlaceName(c)}>
+                        <option key={c.id} value={c.id}>
                           {pickLocalizedName(c, language)}
                         </option>
                       ))}
@@ -521,6 +532,19 @@ export function ProfilePage() {
                 )}
               </label>
             </div>
+            {(saveMessage || saveError) && activeTab === 'info' ? (
+              <div className="space-y-3">
+                {saveMessage ? <InlineNotice variant="success" title={saveMessage} /> : null}
+                {saveError ? (
+                  <div
+                    role="alert"
+                    className="rounded-xl border border-coral/40 bg-coral/10 px-4 py-3 text-[13px] font-semibold text-coral"
+                  >
+                    {saveError}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
             <Button type="submit" variant="dark" size="md" disabled={profileForm.formState.isSubmitting}>
               {profileForm.formState.isSubmitting ? t('info.saving') : t('info.save')}
             </Button>

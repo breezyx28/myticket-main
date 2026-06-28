@@ -120,20 +120,13 @@ export function createBasicRegistrationSchema(t: ValidationTFunction) {
         .boolean()
         .oneOf([true], t('auth.agreeTermsOfServiceRequired'))
         .required(t('auth.agreeTermsOfServiceRequired')),
-      role: yup
-        .string()
-        .oneOf(REGISTER_FORM_ROLES, t('auth.roleRequired'))
-        .required(t('auth.roleRequired')),
     })
     .strict();
 }
 
-export type BasicRegistrationSchema = yup.InferType<ReturnType<typeof createBasicRegistrationSchema>>;
-
-/** Form state allows empty role until the user picks one. */
-export type BasicRegistrationFormValues = Omit<BasicRegistrationSchema, 'role'> & {
-  role: RegisterFormRole | '';
-};
+export type BasicRegistrationFormValues = yup.InferType<
+  ReturnType<typeof createBasicRegistrationSchema>
+>;
 
 export function createForgotPasswordSchema(t: ValidationTFunction) {
   return yup

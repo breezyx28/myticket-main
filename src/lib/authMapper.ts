@@ -31,15 +31,24 @@ function pickRole(
   return prev ?? 'guest';
 }
 
+/** Read city id (or legacy name) for profile form selects from `GET /me`. */
+export function readCityValueFromUserMe(me: UserMe): string {
+  const cityId = me.city_id;
+  if (cityId != null && String(cityId).trim() !== '') return String(cityId);
+  if (typeof me.city === 'number' && Number.isFinite(me.city)) return String(me.city);
+  if (typeof me.city === 'string' && me.city.trim()) return me.city.trim();
+  return '';
+}
+
 /** Read region id for profile form selects from `GET /me`. */
 export function readSaudiRegionIdFromUserMe(me: UserMe): string {
-  const raw = me.saudi_region_id;
+  const raw = me.region_id ?? me.saudi_region_id;
   if (raw != null && String(raw).trim() !== '') return String(raw);
   if (typeof me.region === 'string' && me.region.trim()) return me.region.trim();
   return '';
 }
 
-/** `PATCH /me` expects `saudi_region_id`, not `region`. */
+/** Role-application PATCH bodies use `saudi_region_id`; `PATCH /me` uses `region_id`. */
 export function regionSelectValueToApiSaudiRegionId(
   region: string,
 ): number | string | null {
@@ -75,7 +84,7 @@ export function mapUserMeToMockUser(me: UserMe, prev?: MockUser | null): MockUse
     name,
     role,
     phone: me.phone ?? fallback?.phone ?? '',
-    city: typeof me['city'] === 'string' ? (me['city'] as string) : (fallback?.city ?? ''),
+    city: readCityValueFromUserMe(me) || (fallback?.city ?? ''),
     region: readSaudiRegionIdFromUserMe(me) || (fallback?.region ?? ''),
     bio: me.bio ?? fallback?.bio ?? '',
     profileImage: me.avatar_url ?? me.profile_image_url ?? fallback?.profileImage ?? '',
