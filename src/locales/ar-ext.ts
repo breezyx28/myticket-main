@@ -10,6 +10,7 @@ export const arExt = {
       titleLine3: 'الحية القادمة',
       subtitle: 'اعثر على تذاكر الحفلات والرياضة والكوميديا والمزيد في جميع أنحاء المملكة.',
       searchPlaceholder: 'ابحث عن فعاليات، فنانين، أماكن...',
+      searchLabel: 'ابحث عن فعاليات',
       search: 'بحث',
       signInPrompt: 'لديك حساب بالفعل؟',
     },

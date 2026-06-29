@@ -16,7 +16,12 @@ import { isOrganizerUser } from '@/lib/organizerPortal';
 import { isTalentUser } from '@/lib/talentPortal';
 import { isVendorUser } from '@/lib/vendorPortal';
 
-export function Navbar() {
+type NavbarProps = {
+  /** Landing hero: light text on dark background; recenters nav links. */
+  variant?: 'default' | 'hero';
+};
+
+export function Navbar({ variant = 'default' }: NavbarProps) {
   const { t } = useTranslation(['common', 'nav']);
   const { user, signOut, updatePreferences } = useAuth();
   const { items, unreadCount, markRead, markAllRead } = useNotifications();
@@ -85,51 +90,107 @@ export function Navbar() {
         ? '/vendor-portal'
         : '/profile';
 
+  const isHero = variant === 'hero';
+  const heroSolid = isHero && scrolled;
+
   return (
     <IconContext.Provider value={{ weight: 'fill' }}>
       <header
         className={cn(
-          'sticky z-50 w-full',
-          'transition-[top,padding-left,padding-right] duration-[580ms] ease-[cubic-bezier(0.33,1.45,0.48,1)]',
-          scrolled ? 'top-[25px] px-3 sm:px-5 md:px-8' : 'top-0 px-0'
+          'z-50 w-full',
+          isHero ? 'fixed inset-x-0 top-0' : 'sticky',
+          !isHero &&
+            'transition-[top,padding-left,padding-right] duration-[580ms] ease-[cubic-bezier(0.33,1.45,0.48,1)]',
+          !isHero && (scrolled ? 'top-[25px] px-3 sm:px-5 md:px-8' : 'top-0 px-0'),
+          isHero && !heroSolid && 'px-0',
+          isHero && heroSolid && 'top-[25px] px-3 sm:px-5 md:px-8',
         )}
       >
         <nav
           className={cn(
             'relative flex min-h-[60px] w-full flex-col overflow-visible',
             'transition-[border-radius,background-color,backdrop-filter,box-shadow,border-color] duration-[580ms] ease-[cubic-bezier(0.33,1.45,0.48,1)]',
-            scrolled
+            heroSolid || (!isHero && scrolled)
               ? 'rounded-2xl border border-ink-10/90 bg-white/75 shadow-[0_12px_40px_rgba(0,0,0,0.09)] backdrop-blur-xl backdrop-saturate-150 md:rounded-[1.35rem]'
-              : 'rounded-none border-b border-transparent bg-transparent shadow-none backdrop-blur-none'
+              : isHero
+                ? 'border-b border-white/10 bg-transparent shadow-none backdrop-blur-none'
+                : 'rounded-none border-b border-transparent bg-transparent shadow-none backdrop-blur-none',
           )}
         >
-          <div className="relative z-10 flex h-[60px] w-full items-center px-6 lg:px-8">
-            <Link to="/" className="me-12 flex flex-shrink-0 items-center gap-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-lemon">
+          <div
+            className={cn(
+              'relative z-10 h-[72px] w-full items-center px-6 lg:px-8',
+              isHero && !heroSolid
+                ? 'grid grid-cols-[auto_1fr_auto] gap-4 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]'
+                : 'flex',
+            )}
+          >
+            <Link
+              to="/"
+              className={cn(
+                'flex flex-shrink-0 items-center gap-2.5',
+                !isHero && 'me-12',
+                isHero && !heroSolid && 'justify-self-start',
+              )}
+            >
+              <div
+                className={cn(
+                  'flex h-9 w-9 items-center justify-center rounded-xl',
+                  heroSolid || !isHero ? 'bg-lemon' : 'bg-lemon',
+                )}
+              >
                 <Ticket size={18} className="text-ink" />
               </div>
-              <span className="text-[17px] font-extrabold tracking-tight text-ink">
-                My<span className="text-coral">Ticket</span>
+              <span
+                className={cn(
+                  'text-[17px] font-extrabold tracking-tight',
+                  heroSolid || !isHero ? 'text-ink' : 'text-white',
+                )}
+              >
+                My<span className={heroSolid || !isHero ? 'text-coral' : 'text-lemon'}>Ticket</span>
               </span>
             </Link>
 
-            <div className="hidden flex-1 items-center gap-8 md:flex">
+            <div
+              className={cn(
+                'hidden items-center gap-8 md:flex',
+                isHero && !heroSolid
+                  ? 'justify-self-center justify-center'
+                  : 'flex-1',
+                !isHero && 'flex-1',
+              )}
+            >
               {navLinks.map((link) => (
                 <Link
                   key={link.label}
                   to={link.to}
-                  className="text-[12px] font-bold text-ink-60 transition-colors hover:text-coral"
+                  className={cn(
+                    'text-[13px] font-semibold transition-colors',
+                    heroSolid || !isHero
+                      ? 'text-ink-60 hover:text-coral'
+                      : 'text-white/85 hover:text-white',
+                  )}
                 >
                   {link.label}
                 </Link>
               ))}
             </div>
 
-            <div className="ms-auto flex items-center gap-2">
+            <div
+              className={cn(
+                'flex items-center gap-2',
+                isHero && !heroSolid ? 'justify-self-end' : 'ms-auto',
+              )}
+            >
               <button
                 type="button"
                 onClick={() => navigate('/events')}
-                className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-ink-40 transition-colors hover:bg-ink-5 hover:text-ink"
+                className={cn(
+                  'flex h-9 w-9 cursor-pointer items-center justify-center rounded-full transition-colors',
+                  heroSolid || !isHero
+                    ? 'text-ink-40 hover:bg-ink-5 hover:text-ink'
+                    : 'text-white/80 hover:bg-white/10 hover:text-white',
+                )}
                 aria-label={t('nav:searchEvents')}
               >
                 <MagnifyingGlass size={18} />
@@ -138,7 +199,12 @@ export function Navbar() {
                 <button
                   type="button"
                   onClick={() => setNotifOpen((o) => !o)}
-                  className="relative flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-ink-40 transition-colors hover:bg-ink-5 hover:text-ink"
+                  className={cn(
+                    'relative flex h-9 w-9 cursor-pointer items-center justify-center rounded-full transition-colors',
+                    heroSolid || !isHero
+                      ? 'text-ink-40 hover:bg-ink-5 hover:text-ink'
+                      : 'text-white/80 hover:bg-white/10 hover:text-white',
+                  )}
                   aria-label={t('common:notifications')}
                   aria-expanded={notifOpen}
                 >
@@ -219,7 +285,12 @@ export function Navbar() {
                 type="button"
                 onClick={() => void toggleLanguage()}
                 disabled={langBusy}
-                className="flex h-9 min-w-9 cursor-pointer items-center justify-center gap-1 rounded-full px-2 text-ink-40 transition-colors hover:bg-ink-5 hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
+                className={cn(
+                  'flex h-9 min-w-9 cursor-pointer items-center justify-center gap-1 rounded-full px-2 transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+                  heroSolid || !isHero
+                    ? 'text-ink-40 hover:bg-ink-5 hover:text-ink'
+                    : 'text-white/80 hover:bg-white/10 hover:text-white',
+                )}
                 aria-label={
                   currentLanguage === 'ar'
                     ? t('nav:switchToEnglish')
@@ -236,7 +307,10 @@ export function Navbar() {
                 <div className="ms-1 hidden items-center gap-2 sm:flex">
                   <Link
                     to={profilePath}
-                    className="max-w-[140px] truncate text-[12px] font-bold text-ink hover:text-coral"
+                    className={cn(
+                      'max-w-[140px] truncate text-[12px] font-bold',
+                      heroSolid || !isHero ? 'text-ink hover:text-coral' : 'text-white hover:text-lemon',
+                    )}
                   >
                     {user.name}
                   </Link>
@@ -246,11 +320,26 @@ export function Navbar() {
                 </div>
               ) : (
                 <>
-                  <Link to="/register" className="ms-1 hidden text-[12px] font-bold text-ink-60 hover:text-coral sm:inline">
+                  <Link
+                    to="/register"
+                    className={cn(
+                      'ms-1 hidden text-[12px] font-semibold sm:inline',
+                      heroSolid || !isHero
+                        ? 'text-ink-60 hover:text-coral'
+                        : 'text-white/75 hover:text-white',
+                    )}
+                  >
                     {t('common:register')}
                   </Link>
                   <Link to="/login" className="ms-1 hidden sm:inline-flex">
-                    <span className="inline-flex h-8 items-center rounded-full bg-ink px-4 text-[12px] font-semibold text-white transition-colors hover:bg-ink-80">
+                    <span
+                      className={cn(
+                        'inline-flex h-9 items-center rounded-full px-5 text-[12px] font-semibold transition-colors',
+                        heroSolid || !isHero
+                          ? 'bg-ink text-white hover:bg-ink-80'
+                          : 'bg-white text-ink hover:bg-white/90',
+                      )}
+                    >
                       {t('common:signIn')}
                     </span>
                   </Link>
@@ -262,7 +351,12 @@ export function Navbar() {
                 aria-controls="mobile-nav"
                 aria-label={mobileOpen ? t('nav:closeMenu') : t('nav:openMenu')}
                 onClick={() => setMobileOpen(!mobileOpen)}
-                className="ms-1 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-ink transition-colors hover:bg-ink-5 md:hidden"
+                className={cn(
+                  'ms-1 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full transition-colors md:hidden',
+                  heroSolid || !isHero
+                    ? 'text-ink hover:bg-ink-5'
+                    : 'text-white hover:bg-white/10',
+                )}
               >
                 {mobileOpen ? <X size={20} /> : <Hamburger size={20} />}
               </button>
@@ -275,9 +369,9 @@ export function Navbar() {
               className={cn(
                 'absolute start-0 end-0 z-20 bg-white shadow-card-md md:hidden',
                 'top-[calc(100%+12px)]',
-                scrolled
+                heroSolid || (!isHero && scrolled)
                   ? 'rounded-2xl border border-t-0 border-ink-10 shadow-card-lg'
-                  : 'border-b border-ink-10'
+                  : 'border-b border-ink-10',
               )}
             >
               <div className="flex flex-col gap-4 p-6">

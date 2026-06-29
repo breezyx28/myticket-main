@@ -10,6 +10,7 @@ export const enExt = {
       titleLine3: 'live experience',
       subtitle: 'Find tickets to concerts, sports, comedy, and more across Saudi Arabia.',
       searchPlaceholder: 'Search events, artists, venues...',
+      searchLabel: 'Search events',
       search: 'Search',
       signInPrompt: 'Already have an account?',
     },
