@@ -13,6 +13,35 @@ export const enExt = {
       searchLabel: 'Search events',
       search: 'Search',
       signInPrompt: 'Already have an account?',
+      themes: {
+        tourism: {
+          eyebrow: 'Saudi tourism & heritage',
+          titleLine1: 'Explore the',
+          titleLine2: 'Kingdom’s iconic',
+          titleLine3: 'destinations',
+          subtitle:
+            'From AlUla to the Red Sea — find experiences, getaways, and cultural events across Saudi Arabia.',
+          searchPlaceholder: 'Search destinations, tours, experiences...',
+        },
+        festival: {
+          eyebrow: 'Festivals & celebrations',
+          titleLine1: 'Feel the energy',
+          titleLine2: 'of Saudi',
+          titleLine3: 'festivals',
+          subtitle:
+            'Seasonal festivals, food fairs, and city-wide celebrations — book tickets before they sell out.',
+          searchPlaceholder: 'Search festivals, seasons, events...',
+        },
+        concert: {
+          eyebrow: 'Live music & shows',
+          titleLine1: 'Your next',
+          titleLine2: 'unforgettable',
+          titleLine3: 'night out',
+          subtitle:
+            'Concerts, DJs, comedy, and sports — discover what’s on stage near you and secure your seats.',
+          searchPlaceholder: 'Search concerts, artists, venues...',
+        },
+      },
     },
     category: {
       eyebrow: 'Explore by interest',

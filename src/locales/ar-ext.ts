@@ -13,6 +13,35 @@ export const arExt = {
       searchLabel: 'ابحث عن فعاليات',
       search: 'بحث',
       signInPrompt: 'لديك حساب بالفعل؟',
+      themes: {
+        tourism: {
+          eyebrow: 'السياحة والتراث السعودي',
+          titleLine1: 'استكشف',
+          titleLine2: 'وجهات المملكة',
+          titleLine3: 'الأيقونية',
+          subtitle:
+            'من العلا إلى البحر الأحمر — اكتشف التجارب والرحلات والفعاليات الثقافية في أنحاء المملكة.',
+          searchPlaceholder: 'ابحث عن وجهات، جولات، تجارب...',
+        },
+        festival: {
+          eyebrow: 'المهرجانات والاحتفالات',
+          titleLine1: 'عِش حماس',
+          titleLine2: 'مهرجانات',
+          titleLine3: 'المملكة',
+          subtitle:
+            'موسميات، مهرجانات طعام، واحتفالات حضرية — احجز تذاكرك قبل نفادها.',
+          searchPlaceholder: 'ابحث عن مهرجانات، مواسم، فعاليات...',
+        },
+        concert: {
+          eyebrow: 'موسيقى حية وعروض',
+          titleLine1: 'ليلتك',
+          titleLine2: 'القادمة',
+          titleLine3: 'لا تُنسى',
+          subtitle:
+            'حفلات، دي جي، كوميديا، ورياضة — اكتشف ما يعرض قربك واحجز مقعدك.',
+          searchPlaceholder: 'ابحث عن حفلات، فنانين، أماكن...',
+        },
+      },
     },
     category: {
       eyebrow: 'استكشف حسب الاهتمام',
