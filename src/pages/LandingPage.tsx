@@ -7,7 +7,6 @@ import { RoleUpgradeBannersSection } from '@/components/sections/RoleUpgradeBann
 import { FeaturedSection } from '@/components/sections/FeaturedSection';
 import { UpcomingSection } from '@/components/sections/UpcomingSection';
 import { ArtistSection } from '@/components/sections/ArtistSection';
-import { StatsSection } from '@/components/sections/StatsSection';
 import { CTASection } from '@/components/sections/CTASection';
 import { TrustedBySection } from '@/components/sections/TrustedBySection';
 
@@ -24,7 +23,6 @@ export function LandingPage() {
         <FeaturedSection />
         <UpcomingSection />
         <ArtistSection />
-        <StatsSection />
         <CTASection />
       </main>
       <Footer />
