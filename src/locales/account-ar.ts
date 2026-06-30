@@ -171,6 +171,21 @@ export const accountAr = {
     },
     rolesUpgrade: {
       lead: 'اختر مسار المواهب أو المورد أو المنظم وأكمل التسجيل لفتح لوحة دورك.',
+      eyebrow: 'ترقية الدور',
+      pendingTitle: 'طلب {{role}} قيد المراجعة',
+      pendingBody:
+        'لقد قدّمت بالفعل طلب ترقية دور. سيقوم فريقنا بالموافقة أو الرفض قريباً — سنُعلمك عند اتخاذ القرار.',
+      rejectedTitle: 'لم تُقبل طلب {{role}}',
+      rejectedBody: 'يمكنك مراجعة الملاحظات أدناه وتحديث طلبك وإعادة الإرسال عندما تكون جاهزاً.',
+      rejectionReasonLabel: 'سبب الرفض',
+      rejectionFallback: 'يرجى مراجعة التفاصيل المُرسلة والمحاولة مرة أخرى.',
+      reapplyCta: 'تحديث وإعادة التقديم',
+      submittedAt: 'تاريخ الإرسال {{date}}',
+      roleLabels: {
+        organizer: 'منظم',
+        talent: 'موهبة',
+        vendor: 'مورد',
+      },
     },
     otherRoles: {
       title: 'طلبات أدوار أخرى',

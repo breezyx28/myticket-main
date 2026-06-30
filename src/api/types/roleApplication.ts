@@ -103,6 +103,8 @@ export interface UpdateOrganizerApplicationRequest {
   contact_email?: string;
   contact_phone?: string;
   location?: string;
+  saudi_region_id?: number;
+  city?: number;
   is_company?: boolean;
   company_name?: string;
   company_info?: string;

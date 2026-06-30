@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { AppLanguage } from '@/lib/language';
 import type { OrganizerOnboardingDraft } from '@/types/domain';
@@ -12,12 +12,12 @@ import { UploadTileInput } from '@/components/ui/form/UploadTileInput';
 import { Select, TextArea, TextInput } from '@/components/ui/form/inputs';
 import {
   canonicalPlaceName,
-  findRegionIdByCityName,
   getCitiesForRegionFlexible,
   getRegionsFlexible,
   resolveCitySelectValue,
 } from '@/lib/saudiLocations';
 import { pickLocalizedName } from '@/lib/localized';
+import type { SaudiRegionRef } from '@/api/types/reference';
 import { useGetSaudiRegionsQuery } from '@/api/endpoints';
 
 interface OrganizerStepsProps {
@@ -28,6 +28,19 @@ interface OrganizerStepsProps {
   onChange: (patch: Partial<OrganizerOnboardingDraft>) => void;
   deferProfileImageUpload?: boolean;
   onProfileImageFileChange?: (file: File | null) => void;
+}
+
+function buildLocationLabel(
+  regionId: string,
+  cityId: string,
+  apiRegions?: SaudiRegionRef[] | null,
+): string {
+  const regions = getRegionsFlexible(apiRegions);
+  const region = regions.find((item) => item.id === regionId);
+  const cities = getCitiesForRegionFlexible(regionId, apiRegions);
+  const city = cities.find((item) => String(item.id) === cityId);
+  if (!region || !city) return '';
+  return `${canonicalPlaceName(region)} · ${canonicalPlaceName(city)}`;
 }
 
 export function OrganizerSteps({
@@ -41,24 +54,15 @@ export function OrganizerSteps({
 }: OrganizerStepsProps) {
   const { t, i18n } = useTranslation('authPages');
   const language = (i18n.language === 'ar' ? 'ar' : 'en') as AppLanguage;
-  const [saudiRegionId, setSaudiRegionId] = useState('');
   const { data: regionsRes } = useGetSaudiRegionsQuery();
   const apiRegions = regionsRes?.data;
   const regions = getRegionsFlexible(apiRegions);
   const organizerCities = useMemo(
-    () => getCitiesForRegionFlexible(saudiRegionId, apiRegions),
-    [apiRegions, saudiRegionId],
+    () => getCitiesForRegionFlexible(draft.saudiRegionId ?? '', apiRegions),
+    [apiRegions, draft.saudiRegionId],
   );
-  const locationParts = draft.location.split(' · ');
-  const locationCity = locationParts[locationParts.length - 1]?.trim() ?? draft.location.trim();
+  const citySelectValue = resolveCitySelectValue(draft.city ?? '', organizerCities);
   const bioLen = draft.bio.trim().length;
-
-  useEffect(() => {
-    const matchId = findRegionIdByCityName(locationCity, apiRegions);
-    setSaudiRegionId(matchId);
-  }, [apiRegions, locationCity]);
-
-  const citySelectValue = resolveCitySelectValue(locationCity, organizerCities);
 
   function addSocialLink() {
     const value = socialInput.trim();
@@ -124,11 +128,10 @@ export function OrganizerSteps({
         </Field>
         <Field label={t('onboarding.shared.saudiRegion')}>
           <Select
-            value={saudiRegionId}
+            value={draft.saudiRegionId ?? ''}
             onChange={(e) => {
               const id = e.target.value;
-              setSaudiRegionId(id);
-              onChange({ location: '' });
+              onChange({ saudiRegionId: id, city: '', location: '' });
             }}
           >
             <option value="">{t('onboarding.shared.selectRegion')}</option>
@@ -143,18 +146,19 @@ export function OrganizerSteps({
           <Select
             value={citySelectValue}
             onChange={(e) => {
-              const region = regions.find((item) => item.id === saudiRegionId);
-              const regionName = region ? canonicalPlaceName(region) : '';
-              const cityName = e.target.value;
-              onChange({ location: regionName ? `${regionName} · ${cityName}` : cityName });
+              const cityId = e.target.value;
+              onChange({
+                city: cityId,
+                location: buildLocationLabel(draft.saudiRegionId, cityId, apiRegions),
+              });
             }}
-            disabled={!saudiRegionId}
+            disabled={!draft.saudiRegionId}
           >
             <option value="">
-              {saudiRegionId ? t('onboarding.shared.selectCity') : t('onboarding.shared.chooseRegionFirst')}
+              {draft.saudiRegionId ? t('onboarding.shared.selectCity') : t('onboarding.shared.chooseRegionFirst')}
             </option>
             {organizerCities.map((city) => (
-              <option key={city.id} value={canonicalPlaceName(city)}>
+              <option key={city.id} value={city.id}>
                 {pickLocalizedName(city, language)}
               </option>
             ))}
@@ -166,11 +170,18 @@ export function OrganizerSteps({
               title={t('onboarding.organizer.uploadOptionalDocument')}
               subtitle={t('onboarding.vendor.uploadSubtitle')}
               accept="image/*,.pdf,application/pdf"
-              onPick={(file) => onChange({ optionalDocument: `document:${file.name}` })}
+              onPick={(file) => {
+                const url = URL.createObjectURL(file);
+                onChange({ optionalDocument: `document:${file.name}|local:${url}` });
+              }}
             />
             {draft.optionalDocument ? (
               <div className="flex items-center justify-between rounded-lg border border-ink-10 bg-white px-3 py-2 text-[12px] text-ink-60">
-                <span className="truncate pr-2">{draft.optionalDocument}</span>
+                <span className="truncate pr-2">
+                  {draft.optionalDocument.startsWith('document:')
+                    ? draft.optionalDocument.slice(9).split('|local:')[0]
+                    : draft.optionalDocument}
+                </span>
                 <button
                   type="button"
                   className="font-semibold text-coral"

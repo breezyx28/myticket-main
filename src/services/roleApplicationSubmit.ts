@@ -114,6 +114,35 @@ export async function resolveTalentMediaUpload(
   return body;
 }
 
+export async function resolveOrganizerOptionalDocument(
+  value: string | undefined,
+  uploadFile: (file: File) => Promise<string>,
+): Promise<string | undefined> {
+  const hosted = httpLike(value);
+  if (hosted) return hosted;
+
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+
+  let rest = trimmed;
+  if (rest.toLowerCase().startsWith('document:')) {
+    rest = rest.slice(9).trim();
+  }
+
+  const localIdx = rest.indexOf('|local:');
+  if (localIdx < 0) return undefined;
+
+  const label = rest.slice(0, localIdx).trim() || 'organizer-document';
+  const localBlobUrl = rest.slice(localIdx + '|local:'.length).trim();
+  if (!localBlobUrl) return undefined;
+
+  const res = await fetch(localBlobUrl);
+  if (!res.ok) throw new Error('Could not read document from browser storage');
+  const blob = await res.blob();
+  const file = new File([blob], label, { type: blob.type || undefined });
+  return uploadFile(file);
+}
+
 // ponytail: dev-only — fails if draft media string parsing regresses
 if (import.meta.env.DEV) {
   const sample =
@@ -322,6 +351,7 @@ export interface OrganizerPipelineMutations {
   createOrganizerApplication: (body: CreateOrganizerApplicationRequest) => Promise<RoleApplicationSummary>;
   updateOrganizerApplication: (args: { id: Id; body: UpdateOrganizerApplicationRequest }) => Promise<RoleApplicationSummary>;
   addOrganizerSocialLink: (args: { id: Id; body: OrganizerSocialLinkUpload }) => Promise<unknown>;
+  uploadOrganizerApplicationFile: (file: File) => Promise<string>;
   submitOrganizerApplication: (args: { id: Id }) => Promise<RoleApplicationSummary>;
   resubmitOrganizerApplication: (args: { id: Id }) => Promise<RoleApplicationSummary>;
 }
@@ -333,6 +363,7 @@ export interface OrganizerPipelineInput {
   existingApplicationId?: Id | null;
   existingApiStatus?: string | null;
   existingSocialUrls?: Iterable<string>;
+  saudiRegions?: SaudiRegionRef[] | null;
 }
 
 export async function runOrganizerRoleApplicationPipeline(
@@ -367,6 +398,12 @@ export async function runOrganizerRoleApplicationPipeline(
     contact_email: email,
     contact_phone: phone || undefined,
     location: input.draft.location.trim() || undefined,
+    saudi_region_id: apiIntegerId(input.draft.saudiRegionId),
+    city: cityValueToApiId(
+      input.draft.saudiRegionId.trim(),
+      (input.draft.city ?? '').trim(),
+      input.saudiRegions,
+    ),
     is_company: input.draft.isCompany,
     company_name: input.draft.isCompany ? input.draft.companyName?.trim() || undefined : undefined,
     company_info: input.draft.isCompany ? input.draft.companyInfo?.trim() || undefined : undefined,
@@ -376,7 +413,10 @@ export async function runOrganizerRoleApplicationPipeline(
 
   const pic = httpLike(input.draft.profileImage);
   if (pic) patch.profile_image = pic;
-  const optDoc = httpLike(input.draft.optionalDocument);
+  const optDoc = await resolveOrganizerOptionalDocument(
+    input.draft.optionalDocument,
+    m.uploadOrganizerApplicationFile,
+  );
   if (optDoc) patch.optional_document = optDoc;
 
   let summary = await m.updateOrganizerApplication({ id, body: patch });

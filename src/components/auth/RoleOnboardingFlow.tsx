@@ -93,6 +93,8 @@ const EMPTY_ORGANIZER_DRAFT: OrganizerOnboardingDraft = {
   bio: '',
   email: '',
   contactPhone: '',
+  saudiRegionId: '',
+  city: '',
   location: '',
   socialLinks: [],
   optionalDocument: '',
@@ -204,7 +206,12 @@ export function RoleOnboardingFlow({ role }: RoleOnboardingFlowProps) {
       setWizardStep(stored.wizardStep);
       setTalentDraft(stored.talentDraft);
       setVendorDraft(stored.vendorDraft);
-      setOrganizerDraft(stored.organizerDraft);
+      setOrganizerDraft({
+        ...EMPTY_ORGANIZER_DRAFT,
+        ...stored.organizerDraft,
+        saudiRegionId: stored.organizerDraft.saudiRegionId ?? '',
+        city: stored.organizerDraft.city ?? '',
+      });
     }
     setDraftHydrated(true);
   }, [role]);
@@ -273,7 +280,12 @@ export function RoleOnboardingFlow({ role }: RoleOnboardingFlowProps) {
       if (wizardStep === 1) {
         return (
           organizerDraft.email.includes('@') &&
-          organizerDraft.location.trim().length >= 2
+          Boolean(organizerDraft.saudiRegionId) &&
+          isValidSaudiCityFlexible(
+            organizerDraft.saudiRegionId,
+            (organizerDraft.city ?? '').trim(),
+            apiSaudiRegions,
+          )
         );
       }
       if (wizardStep === 2) {
@@ -287,7 +299,7 @@ export function RoleOnboardingFlow({ role }: RoleOnboardingFlowProps) {
           (organizerDraft.companyInfo?.trim().length ?? 0) >= 10
         );
       }
-      return isOrganizerDraftReady(organizerDraft);
+      return isOrganizerDraftReady(organizerDraft, apiSaudiRegions);
     }
     return false;
   }, [apiSaudiRegions, organizerDraft, role, talentDraft, vendorDraft, wizardStep]);
@@ -349,6 +361,10 @@ export function RoleOnboardingFlow({ role }: RoleOnboardingFlowProps) {
           updateOrganizerApplication(args).unwrap(),
         addOrganizerSocialLink: (args: Parameters<typeof addOrganizerSocialLink>[0]) =>
           addOrganizerSocialLink(args).unwrap(),
+        uploadOrganizerApplicationFile: async (file: File) => {
+          const uploaded = await uploadFile({ file, context: 'talent_application' }).unwrap();
+          return uploaded.url;
+        },
         submitOrganizerApplication: (args: Parameters<typeof submitOrganizerApplication>[0]) =>
           submitOrganizerApplication(args).unwrap(),
         resubmitOrganizerApplication: (
@@ -411,6 +427,7 @@ export function RoleOnboardingFlow({ role }: RoleOnboardingFlowProps) {
             existingApiStatus:
               organizerSummary?.status != null ? String(organizerSummary.status) : null,
             existingSocialUrls: [],
+            saudiRegions: apiSaudiRegions,
           },
           organizerMutations,
         );

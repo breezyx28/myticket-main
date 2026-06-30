@@ -88,6 +88,8 @@ export function organizerDraftToPortalPatch(
     email: draft.email.trim() || undefined,
     contact_phone: draft.contactPhone.trim() || undefined,
     location: draft.location.trim() || undefined,
+    saudi_region_id: draft.saudiRegionId.trim() || undefined,
+    city: draft.city.trim() || undefined,
     is_company: draft.isCompany,
     owner_name: draft.ownerName.trim() || undefined,
     owner_info: draft.ownerInfo.trim() || undefined,

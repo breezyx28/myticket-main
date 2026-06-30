@@ -171,6 +171,22 @@ export const accountEn = {
     },
     rolesUpgrade: {
       lead: 'Choose talent, vendor, or organizer and finish onboarding to unlock your role dashboard.',
+      eyebrow: 'Role upgrade',
+      pendingTitle: '{{role}} application under review',
+      pendingBody:
+        'You have already submitted a role upgrade request. Our team will approve or reject it soon — you will be notified when a decision is made.',
+      rejectedTitle: '{{role}} application was not approved',
+      rejectedBody:
+        'You can review the feedback below, update your application, and submit again when you are ready.',
+      rejectionReasonLabel: 'Rejection reason',
+      rejectionFallback: 'Please review your submitted details and try again.',
+      reapplyCta: 'Update and re-apply',
+      submittedAt: 'Submitted {{date}}',
+      roleLabels: {
+        organizer: 'Organizer',
+        talent: 'Talent',
+        vendor: 'Vendor',
+      },
     },
     otherRoles: {
       title: 'Other role applications',

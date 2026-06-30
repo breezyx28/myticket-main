@@ -4,7 +4,8 @@ import type {
   TalentOnboardingDraft,
   VendorOnboardingDraft,
 } from '@/types/domain';
-import { isValidSaudiCity } from '@/lib/saudiLocations';
+import { isValidSaudiCity, isValidSaudiCityFlexible } from '@/lib/saudiLocations';
+import type { SaudiRegionRef } from '@/api/types/reference';
 
 export const TALENT_BIO_MIN_CHARS = 30;
 export const TALENT_BIO_MAX_CHARS = 500;
@@ -40,13 +41,19 @@ export function isVendorDraftReady(draft: VendorOnboardingDraft) {
   );
 }
 
-export function isOrganizerDraftReady(draft: OrganizerOnboardingDraft) {
+export function isOrganizerDraftReady(
+  draft: OrganizerOnboardingDraft,
+  apiRegions?: SaudiRegionRef[] | null,
+) {
+  const regionOk =
+    Boolean(draft.saudiRegionId) &&
+    isValidSaudiCityFlexible(draft.saudiRegionId, (draft.city ?? '').trim(), apiRegions);
   const coreValid =
     draft.displayName.trim().length >= 2 &&
     draft.bio.trim().length >= TALENT_BIO_MIN_CHARS &&
     draft.bio.trim().length <= TALENT_BIO_MAX_CHARS &&
     draft.email.includes('@') &&
-    draft.location.trim().length >= 2 &&
+    regionOk &&
     draft.ownerName.trim().length >= 2 &&
     draft.ownerInfo.trim().length >= 10;
 

@@ -6,7 +6,7 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import { AccountProfileAvatar } from '@/components/profile/AccountProfileAvatar';
-import { RoleUpgradeBannersSection } from '@/components/sections/RoleUpgradeBannersSection';
+import { ProfileRolesTab } from '@/components/profile/ProfileRolesTab';
 import { InlineNotice } from '@/components/ui/form/InlineNotice';
 import {
   cityValueToApiId,
@@ -781,9 +781,7 @@ export function ProfilePage() {
           </div>
         )}
 
-        {activeTab === 'roles' && (
-          <RoleUpgradeBannersSection variant="profile" />
-        )}
+        {activeTab === 'roles' && <ProfileRolesTab />}
 
         {activeTab === 'danger' && (
           <>

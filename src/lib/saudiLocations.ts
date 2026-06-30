@@ -65,8 +65,11 @@ export function placeMatchesName(
 }
 
 /** Match stored city (id or legacy name) to a select option value (city id). */
-export function resolveCitySelectValue(city: string, cities: SaudiCity[]): string {
-  const trimmed = city.trim();
+export function resolveCitySelectValue(
+  city: string | undefined | null,
+  cities: SaudiCity[],
+): string {
+  const trimmed = String(city ?? '').trim();
   if (!trimmed) return '';
   const byId = cities.find((c) => String(c.id) === trimmed);
   if (byId) return String(byId.id);

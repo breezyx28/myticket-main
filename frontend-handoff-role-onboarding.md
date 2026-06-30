@@ -213,6 +213,7 @@ Role-specific attachments (talent media/categories, vendor docs/gallery/categori
 
 - [ ] Send `Accept-Language` (`ar` / `en`) on API calls
 - [ ] Branch UI on `GET /me` → `user.role` (`guest` vs marketplace roles)
+- [ ] When `GET /me` includes `role_upgrade_request`, show pending/rejected status on Profile → Roles instead of upgrade banners (see `role_upgrade_request` in **API_REFERENCE** §10)
 - [ ] Handle 403 `role_upgrade_not_guest` on application mutations
 
 ### Direct register flow

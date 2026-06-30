@@ -59,6 +59,9 @@ export interface OrganizerOnboardingDraft {
   bio: string;
   email: string;
   contactPhone: string;
+  saudiRegionId: string;
+  city: string;
+  /** Human-readable "Region · City" for legacy display / portal patch. */
   location: string;
   socialLinks: string[];
   optionalDocument?: string;

@@ -1,5 +1,16 @@
 import type { Id, Iso8601 } from '@/api/types/common';
 
+/** Active role-upgrade application summary from `GET /me`. */
+export interface RoleUpgradeRequest {
+  application_id: Id;
+  target_role: 'organizer' | 'talent' | 'vendor' | string;
+  status: string;
+  submitted_at?: Iso8601 | null;
+  reviewed_at?: Iso8601 | null;
+  rejection_reason?: string | null;
+  is_pending_review?: boolean;
+}
+
 export interface UserMe {
   id: Id;
   email: string;
@@ -24,6 +35,18 @@ export interface UserMe {
   region?: string | null;
   /** Legacy alias; prefer `region_id` from `GET /me`. */
   saudi_region_id?: Id | number | null;
+  date_of_birth?: Iso8601 | null;
+  is_active?: boolean;
+  is_suspended?: boolean;
+  suspension_reason?: string | null;
+  suspension_is_permanent?: boolean;
+  suspended_at?: Iso8601 | null;
+  suspended_by?: Id | null;
+  last_login_at?: Iso8601 | null;
+  last_login_ip?: string | null;
+  deleted_at?: Iso8601 | null;
+  /** Present when the guest has an in-flight role-upgrade application. */
+  role_upgrade_request?: RoleUpgradeRequest | null;
   preferences?: NotificationPreferences;
   created_at?: Iso8601;
   updated_at?: Iso8601;

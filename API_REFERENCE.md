@@ -516,6 +516,58 @@ Auth: bearer for everything below.
 - Hook: `useGetMeQuery()`.
 - Response `200`: `UserMe` (see [`src/api/types/user.ts`](src/api/types/user.ts)).
 
+**Example `200`**
+
+```json
+{
+  "data": {
+    "id": 8,
+    "email": "guest@myticket.com",
+    "phone": "+9665562224698",
+    "full_name": "Guest user",
+    "display_name": "Guest user",
+    "profile_image_url": "https://myticket-api.kat-jr.com/storage/users/profile-images/8/example.png",
+    "bio": "…",
+    "role": "guest",
+    "region_id": null,
+    "city_id": null,
+    "date_of_birth": null,
+    "email_verified_at": null,
+    "phone_verified_at": null,
+    "is_active": true,
+    "is_suspended": false,
+    "suspension_reason": null,
+    "suspension_is_permanent": false,
+    "suspended_at": null,
+    "suspended_by": null,
+    "last_login_at": null,
+    "last_login_ip": null,
+    "created_at": "2026-06-22T17:02:18.000000Z",
+    "updated_at": "2026-06-30T20:23:35.000000Z",
+    "deleted_at": null,
+    "avatar_url": "https://myticket-api.kat-jr.com/storage/users/profile-images/8/example.png",
+    "role_upgrade_request": {
+      "application_id": 3,
+      "target_role": "organizer",
+      "status": "submitted",
+      "submitted_at": "2026-06-30T16:15:53+00:00",
+      "reviewed_at": null,
+      "rejection_reason": null,
+      "is_pending_review": true
+    }
+  }
+}
+```
+
+`role_upgrade_request` is present when the user has an active guest role-upgrade application. The profile **Roles** tab uses it to show a pending/rejected status panel instead of upgrade banners. Omitted or `null` when no application is in flight.
+
+| Field | Notes |
+|-------|-------|
+| `region_id`, `city_id` | Integer ids from `GET /reference/saudi-regions` |
+| `role_upgrade_request.target_role` | `organizer` \| `talent` \| `vendor` |
+| `role_upgrade_request.status` | e.g. `draft`, `submitted`, `rejected` |
+| `role_upgrade_request.is_pending_review` | `true` while awaiting admin decision |
+
 ### `PATCH /me`
 
 - Hook: `useUpdateMeMutation()`. Schema: `updateProfileSchema`.
