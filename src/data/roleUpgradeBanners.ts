@@ -19,7 +19,7 @@ export const roleUpgradeBanners: RoleUpgradeBanner[] = [
     badgeClass: 'bg-white/20 text-white',
     ctaClass: 'bg-white text-ink',
     image3d: '/assets/3d/concert-ticket.png',
-    imageClass: 'h-[135%] max-w-none -bottom-[22%] -end-[4%]',
+    imageClass: 'h-[108%] max-w-none -bottom-[14%] -end-[2%]',
   },
   {
     id: 'vendor',
@@ -29,7 +29,7 @@ export const roleUpgradeBanners: RoleUpgradeBanner[] = [
     badgeClass: 'bg-ink/10 text-ink',
     ctaClass: 'bg-ink text-white',
     image3d: '/assets/3d/light.png',
-    imageClass: 'h-[125%] max-w-none -bottom-[12%] -end-[2%]',
+    imageClass: 'h-[100%] max-w-none -bottom-[6%] end-0',
   },
   {
     id: 'talent',
@@ -39,6 +39,6 @@ export const roleUpgradeBanners: RoleUpgradeBanner[] = [
     badgeClass: 'bg-white/15 text-white',
     ctaClass: 'bg-mint-light text-ink',
     image3d: '/assets/3d/mic.png',
-    imageClass: 'h-[130%] max-w-none -bottom-[18%] -end-[6%]',
+    imageClass: 'h-[105%] max-w-none -bottom-[10%] -end-[3%]',
   },
 ];

@@ -20,6 +20,7 @@ export const ar = {
       previousSlide: 'الشريحة السابقة',
       nextSlide: 'الشريحة التالية',
     },
+    charCounter: '{{current}} / {{max}} (الحد الأدنى {{min}})',
     apiErrors: {
       generic: 'حدث خطأ ما. يرجى المحاولة مرة أخرى.',
       invalidCredentials: 'بيانات الدخول غير صحيحة. يرجى المحاولة مرة أخرى.',

@@ -1,4 +1,5 @@
 import { ArrowUpRight, Compass, MapPin, Star } from '@phosphor-icons/react';
+import { useTranslation } from 'react-i18next';
 import type { TourismAdCarouselItem } from '@/api/types/tourismAd';
 import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
 import { cn } from '@/lib/utils';
@@ -10,17 +11,23 @@ interface TourismAdCardProps {
   onClick?: () => void;
 }
 
-const IMAGE_MASK =
+const IMAGE_MASK_LTR =
   'radial-gradient(ellipse 120% 160% at -12% 50%, transparent 0%, transparent 32%, rgba(0,0,0,0.45) 48%, rgba(0,0,0,0.88) 62%, #000 76%)';
 
-const imageMaskStyle = {
-  WebkitMaskImage: IMAGE_MASK,
-  maskImage: IMAGE_MASK,
-  WebkitMaskSize: '100% 100%',
-  maskSize: '100% 100%',
-  WebkitMaskRepeat: 'no-repeat',
-  maskRepeat: 'no-repeat',
-} as const;
+const IMAGE_MASK_RTL =
+  'radial-gradient(ellipse 120% 160% at 112% 50%, transparent 0%, transparent 32%, rgba(0,0,0,0.45) 48%, rgba(0,0,0,0.88) 62%, #000 76%)';
+
+function imageMaskStyle(isRtl: boolean) {
+  const mask = isRtl ? IMAGE_MASK_RTL : IMAGE_MASK_LTR;
+  return {
+    WebkitMaskImage: mask,
+    maskImage: mask,
+    WebkitMaskSize: '100% 100%',
+    maskSize: '100% 100%',
+    WebkitMaskRepeat: 'no-repeat',
+    maskRepeat: 'no-repeat',
+  } as const;
+}
 
 export function TourismAdCard({
   ad,
@@ -28,6 +35,8 @@ export function TourismAdCard({
   index = 0,
   onClick,
 }: TourismAdCardProps) {
+  const { t, i18n } = useTranslation('landing');
+  const isRtl = i18n.dir() === 'rtl';
   const reduceMotion = usePrefersReducedMotion();
   const cover = ad.cover_image_url || ad.gallery_urls[0] || '';
   const primaryService = ad.services?.[0];
@@ -37,7 +46,7 @@ export function TourismAdCard({
       type="button"
       onClick={onClick}
       className={cn(
-        'group flex h-[240px] w-[min(92vw,600px)] shrink-0 overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-ink-80 to-ink-90 text-left text-white sm:h-[260px] sm:w-[min(90vw,640px)]',
+        'group flex h-[240px] w-[min(92vw,600px)] shrink-0 overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-ink-80 to-ink-90 text-start text-white sm:h-[260px] sm:w-[min(90vw,640px)]',
         reduceMotion ? '' : 'transition-transform duration-300 hover:-translate-y-0.5',
         'focus:outline-none focus-visible:ring-2 focus-visible:ring-coral focus-visible:ring-offset-2',
         className,
@@ -46,7 +55,7 @@ export function TourismAdCard({
     >
       <div
         className={cn(
-          'flex h-full w-fit min-w-[clamp(9.5rem,34%,13.5rem)] max-w-[clamp(13rem,62%,24rem)] shrink-0 flex-col justify-between p-5 sm:p-6',
+          'flex h-full w-fit min-w-[clamp(10rem,38%,14rem)] max-w-[clamp(14rem,68%,26rem)] shrink-0 flex-col justify-between p-5 sm:p-6',
         )}
       >
         <div className="min-w-0">
@@ -54,12 +63,12 @@ export function TourismAdCard({
             {ad.is_pinned ? (
               <>
                 <Star size={12} weight="fill" />
-                Featured
+                {t('tourismAds.featuredBadge')}
               </>
             ) : (
               <>
                 <Compass size={12} weight="fill" />
-                Destination
+                {t('tourismAds.destinationBadge')}
               </>
             )}
           </span>
@@ -79,21 +88,22 @@ export function TourismAdCard({
         </div>
 
         <span className="mt-3 inline-flex w-fit items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-ink transition-opacity group-hover:opacity-90">
-          <ArrowUpRight size={14} weight="bold" />
-          Explore destination
+          {t('tourismAds.exploreCta')}
+          <ArrowUpRight size={14} weight="bold" className="rtl:-scale-x-100" />
         </span>
       </div>
 
-      <div className="relative min-w-[38%] flex-1 overflow-hidden" aria-hidden>
+      <div className="relative min-w-[30%] max-w-[42%] flex-1 overflow-hidden" aria-hidden>
         {cover ? (
           <img
             src={cover}
             alt=""
             className={cn(
-              'absolute inset-y-0 end-0 h-full w-[118%] max-w-none origin-[center_right] object-cover',
+              'absolute inset-y-0 end-0 h-full w-[102%] max-w-none object-cover',
+              isRtl ? 'origin-[center_left]' : 'origin-[center_right]',
               reduceMotion ? '' : 'transition-transform duration-500 group-hover:scale-[1.04]',
             )}
-            style={imageMaskStyle}
+            style={imageMaskStyle(isRtl)}
             loading="lazy"
           />
         ) : (

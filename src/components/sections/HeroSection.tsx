@@ -6,6 +6,7 @@ import { ArrowRight, MagnifyingGlass } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/Button';
 import { Marquee } from '@/components/ui/Marquee';
 import { HERO_SLIDES, type HeroSlideTheme } from '@/data/heroBackgrounds';
+import { preloadHeroImages } from '@/lib/preloadHeroImages';
 import { PARTNER_LOGOS } from '@/data/partners';
 
 const SLIDE_MS = 6000;
@@ -28,10 +29,7 @@ function HeroBackground({ slideIndex }: { slideIndex: number }) {
   const slide = HERO_SLIDES[slideIndex] ?? HERO_SLIDES[0];
 
   useEffect(() => {
-    for (const s of HERO_SLIDES) {
-      const img = new Image();
-      img.src = s.src;
-    }
+    preloadHeroImages();
   }, []);
 
   return (
@@ -49,14 +47,17 @@ function HeroBackground({ slideIndex }: { slideIndex: number }) {
             src={slide.src}
             alt=""
             className="h-full w-full object-cover"
+            loading="eager"
+            decoding="async"
+            fetchPriority="high"
             initial={{ scale: 1.12, filter: 'blur(8px)' }}
             animate={{ scale: 1, filter: 'blur(0px)' }}
             transition={{ duration: FOCUS_SEC, ease: EASE_OUT }}
           />
         </motion.div>
       </AnimatePresence>
-      <div className="pointer-events-none absolute inset-0 z-[2] bg-gradient-to-b from-ink/85 via-ink/70 to-ink/90 sm:from-ink/80 sm:via-ink/65 sm:to-ink/85" />
-      <div className="pointer-events-none absolute inset-0 z-[2] bg-gradient-to-r from-ink/80 via-ink/50 to-ink/35 sm:from-ink/75 sm:via-ink/45 sm:to-ink/30" />
+      <div className="pointer-events-none absolute inset-0 z-[2] bg-gradient-to-b from-ink/75 via-ink/58 to-ink/80 sm:from-ink/70 sm:via-ink/52 sm:to-ink/75" />
+      <div className="pointer-events-none absolute inset-0 z-[2] bg-gradient-to-r from-ink/68 via-ink/42 to-ink/28 sm:from-ink/62 sm:via-ink/36 sm:to-ink/22" />
     </div>
   );
 }
@@ -119,6 +120,7 @@ function HeroThemeContent({
           variant="primary"
           size="md"
           icon={ArrowRight}
+          iconRtlFlip
           className="w-full flex-shrink-0 rounded-xl sm:w-auto sm:rounded-full"
         >
           {t('hero.search')}

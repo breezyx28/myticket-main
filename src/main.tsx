@@ -6,16 +6,21 @@ import { BrowserRouter } from 'react-router-dom';
 import '@emran-alhaddad/saudi-riyal-font/index.css';
 import './index.css';
 import { App } from './App';
+import { ScrollToTop } from '@/components/layout/ScrollToTop';
+import { preloadHeroImages } from '@/lib/preloadHeroImages';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { NotificationProvider } from '@/contexts/NotificationContext';
 import i18n from '@/i18n';
 import { store } from '@/store';
+
+preloadHeroImages();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ReduxProvider store={store}>
       <I18nextProvider i18n={i18n}>
         <BrowserRouter>
+          <ScrollToTop />
           <AuthProvider>
             <NotificationProvider>
               <App />

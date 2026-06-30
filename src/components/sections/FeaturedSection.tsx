@@ -1,14 +1,22 @@
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { EventCard } from '@/components/cards/EventCard';
 import { Carousel } from '@/components/ui/Carousel';
-import { useGetFeaturedEventsQuery } from '@/api/endpoints';
-import { eventListItemToCardProps } from '@/lib/eventMappers';
+import { useGetFeaturedEventsQuery, useGetEventCategoriesQuery } from '@/api/endpoints';
+import { buildCategoryLabelMap, eventListItemToCardProps } from '@/lib/eventMappers';
+import type { AppLanguage } from '@/lib/language';
 
 export function FeaturedSection() {
-  const { t } = useTranslation('landing');
+  const { t, i18n } = useTranslation('landing');
+  const language = (i18n.language === 'ar' ? 'ar' : 'en') as AppLanguage;
   const navigate = useNavigate();
   const { data: paginated, isFetching, isError } = useGetFeaturedEventsQuery({ per_page: 8 });
+  const { data: categoriesData } = useGetEventCategoriesQuery();
+  const categoryById = useMemo(
+    () => buildCategoryLabelMap(categoriesData?.data ?? [], language),
+    [categoriesData, language],
+  );
   const events = paginated?.data ?? [];
 
   if (!isFetching && (isError || events.length === 0)) {
@@ -24,7 +32,7 @@ export function FeaturedSection() {
           viewAllHref="/events?featured=true"
         >
           {events.map((e) => {
-            const props = eventListItemToCardProps(e);
+            const props = eventListItemToCardProps(e, { language, categoryById });
             return (
               <div key={props.eventId} className="flex-shrink-0">
                 <EventCard

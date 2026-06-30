@@ -231,6 +231,8 @@ export const commerceEn = {
     salesEnded: 'Ticket sales ended',
     salesNotStartedHint: 'Ticket sales are not open yet. Check back when sales begin.',
     salesEndedHint: 'The ticket sales window for this event has closed.',
+    eventEnded: 'Event ended',
+    eventEndedHint: 'This event has already taken place. Tickets are no longer available.',
     checkAuctionResale: 'Check auction for resale',
     viewResaleAuction: 'View resale auction',
     reminder: 'Reminder',

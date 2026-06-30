@@ -24,7 +24,8 @@ function TourismAdSkeleton({ index }: { index: number }) {
 }
 
 export function TourismAdsSection() {
-  const { t } = useTranslation('landing');
+  const { t, i18n } = useTranslation('landing');
+  const isRtl = i18n.dir() === 'rtl';
   const navigate = useNavigate();
   const { user } = useAuth();
   const { data: ads = [], isFetching, isError } = useGetTourismAdsCarouselQuery();
@@ -126,7 +127,7 @@ export function TourismAdsSection() {
                     : 'cursor-not-allowed opacity-35',
                 )}
               >
-                <CaretLeft size={18} weight="bold" />
+                {isRtl ? <CaretRight size={18} weight="bold" /> : <CaretLeft size={18} weight="bold" />}
               </button>
               <button
                 type="button"
@@ -140,7 +141,7 @@ export function TourismAdsSection() {
                     : 'cursor-not-allowed opacity-35',
                 )}
               >
-                <CaretRight size={18} weight="bold" />
+                {isRtl ? <CaretLeft size={18} weight="bold" /> : <CaretRight size={18} weight="bold" />}
               </button>
             </div>
           </motion.div>
@@ -175,13 +176,15 @@ export function TourismAdsSection() {
             opts={{
               align: 'start',
               containScroll: 'trimSnaps',
-              dragFree: true,
+              dragFree: false,
+              slidesToScroll: 1,
+              direction: isRtl ? 'rtl' : 'ltr',
             }}
             className="-mx-1"
           >
-            <CarouselContent className="-ml-0 gap-4 px-1 pb-1">
+            <CarouselContent className="-ms-4">
               {ads.map((ad, index) => (
-                <CarouselItem key={String(ad.id)} className="basis-auto pl-0">
+                <CarouselItem key={String(ad.id)} className="basis-auto ps-4">
                   <TourismAdCard
                     ad={ad}
                     index={index}

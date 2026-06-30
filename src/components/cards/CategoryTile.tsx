@@ -1,4 +1,5 @@
 import type { Icon } from '@phosphor-icons/react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { CategoryIcon } from '@/components/category/CategoryIcon';
 import { cn } from '@/lib/utils';
@@ -35,9 +36,10 @@ export function CategoryTile({
   onClick,
   to,
 }: CategoryTileProps) {
+  const { t } = useTranslation('landing');
   const s = sizeMap[size];
   const className = cn(
-    'rounded-3xl flex flex-col justify-between text-left cursor-pointer',
+    'rounded-3xl flex flex-col justify-between text-start cursor-pointer',
     'transition-all duration-150 hover:scale-[1.04] active:scale-[0.97]',
     'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ink',
     'no-underline',
@@ -49,7 +51,9 @@ export function CategoryTile({
       <div>
         <span className="font-bold text-[14px] leading-tight block">{label}</span>
         {count !== undefined && (
-          <span className="text-[11px] opacity-60 mt-0.5 block">{count.toLocaleString()} events</span>
+          <span className="text-[11px] opacity-60 mt-0.5 block">
+            {t('category.eventsCount', { count: count.toLocaleString() })}
+          </span>
         )}
       </div>
       {iconKey != null && iconKey !== '' ? (

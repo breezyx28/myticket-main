@@ -26,28 +26,26 @@ import {
   AvatarImage,
 } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNotifications } from '@/contexts/NotificationContext';
 import { formatAttendingLabel } from '@/lib/attendingFormat';
 import {
   useGetEventBySlugQuery,
   useGetEventTicketTypesQuery,
-  useJoinWaitlistMutation,
   useListAuctionsQuery,
   useListEventsQuery,
   useListMyRatingsQuery,
   useListMyTicketsQuery,
-  useListMyWaitlistQuery,
   useSubmitRatingMutation,
 } from '@/api/endpoints';
 import type { EventListQuery } from '@/api/types/event';
 import {
-  eventHasPrimaryInventory,
   formatEventLocation,
+  eventHasPrimaryInventory,
+  getTicketPurchaseBlockReason,
   getTicketSalesPhaseFromDetail,
-  isEventSoldOut,
   mergeEventTicketTypes,
   eventListItemPublicPathSegment,
   eventListItemToCardProps,
+  type TicketPurchaseBlockReason,
 } from '@/lib/eventMappers';
 import { formatTicketRemainingLabel } from '@/lib/ticketTypeFromApi';
 import { apiAuctionToMockAuctionListing } from '@/lib/auctionMappers';
@@ -57,6 +55,38 @@ import type { AppLanguage } from '@/lib/language';
 import { cn } from '@/lib/utils';
 import { canBrowseMarketplace } from '@/lib/marketplaceAccess';
 import type { UseEmblaCarouselType } from 'embla-carousel-react';
+
+function TicketPurchaseAlert({ reason }: { reason: TicketPurchaseBlockReason }) {
+  const { t } = useTranslation('eventDetail');
+  const copy = {
+    event_ended: { title: t('eventEnded'), body: t('eventEndedHint'), className: 'border-ink-15 bg-ink-5 text-ink' },
+    sales_not_started: {
+      title: t('salesNotStarted'),
+      body: t('salesNotStartedHint'),
+      className: 'border-ink-15 bg-ink-5 text-ink',
+    },
+    sales_ended: {
+      title: t('salesEnded'),
+      body: t('salesEndedHint'),
+      className: 'border-amber-200 bg-amber-50 text-ink',
+    },
+    sold_out: {
+      title: t('soldOut'),
+      body: t('soldOutSidebar'),
+      className: 'border-coral/30 bg-coral/10 text-ink',
+    },
+  }[reason];
+
+  return (
+    <div
+      role="alert"
+      className={cn('mt-4 rounded-2xl border px-4 py-4', copy.className)}
+    >
+      <p className="text-[14px] font-extrabold">{copy.title}</p>
+      <p className="mt-1.5 text-[13px] leading-relaxed text-ink-60">{copy.body}</p>
+    </div>
+  );
+}
 
 function EventCoverSlider({ slides }: { slides: string[] }) {
   const { t } = useTranslation('eventDetail');
@@ -113,54 +143,6 @@ function EventCoverSlider({ slides }: { slides: string[] }) {
         </div>
       )}
     </div>
-  );
-}
-
-type EventWaitlistCtaProps = {
-  joinedFromApi: boolean;
-  eventSlugForApi: string;
-  joiningWaitlist: boolean;
-  joinWaitlist: ReturnType<typeof useJoinWaitlistMutation>[0];
-  onJoined: () => void;
-};
-
-function EventWaitlistCta({
-  joinedFromApi,
-  eventSlugForApi,
-  joiningWaitlist,
-  joinWaitlist,
-  onJoined,
-}: EventWaitlistCtaProps) {
-  const { t } = useTranslation('eventDetail');
-  const [optimisticJoined, setOptimisticJoined] = useState(false);
-  const waitlistJoined = optimisticJoined || joinedFromApi;
-
-  async function onJoinWaitlist() {
-    if (waitlistJoined || joiningWaitlist) return;
-    try {
-      await joinWaitlist({ slug: eventSlugForApi }).unwrap();
-      setOptimisticJoined(true);
-      onJoined();
-    } catch {
-      /* keep button live so the user can retry */
-    }
-  }
-
-  return (
-    <>
-      {waitlistJoined ? (
-        <p className="text-center text-[12px] text-ink-60">{t('waitlistJoined')}</p>
-      ) : (
-        <button
-          type="button"
-          onClick={() => void onJoinWaitlist()}
-          disabled={joiningWaitlist}
-          className="flex h-12 w-full items-center justify-center rounded-full border-2 border-ink bg-white text-[14px] font-semibold text-ink hover:bg-ink-5 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {joiningWaitlist ? t('joining') : t('joinWaitlist')}
-        </button>
-      )}
-    </>
   );
 }
 
@@ -274,7 +256,6 @@ export function EventDetailPage() {
   const navigate = useNavigate();
   const slugParam = (eventId ?? '').trim();
   const { user } = useAuth();
-  const { pushNotification } = useNotifications();
   const showMarketplaceLinks = canBrowseMarketplace(user);
 
   const {
@@ -297,18 +278,6 @@ export function EventDetailPage() {
   );
   const rated = (myRatingsData?.data ?? []).length > 0;
   const [submitRating, { isLoading: rateSubmitting }] = useSubmitRatingMutation();
-
-  const { data: myWaitlist } = useListMyWaitlistQuery(undefined, { skip: !user });
-  const myWaitlistEntries = useMemo(() => {
-    if (!myWaitlist) return [];
-    if (Array.isArray(myWaitlist)) return myWaitlist;
-    return Array.isArray(myWaitlist.data) ? myWaitlist.data : [];
-  }, [myWaitlist]);
-  const waitlistJoinedFromApi = useMemo(() => {
-    if (!detail) return false;
-    return myWaitlistEntries.some((e) => String(e.event_id) === String(detail.id));
-  }, [detail, myWaitlistEntries]);
-  const [joinWaitlistMutation, { isLoading: joiningWaitlist }] = useJoinWaitlistMutation();
 
   const event: MockEvent | null | undefined = useMemo(() => {
     if (!slugParam) return null;
@@ -432,9 +401,13 @@ export function EventDetailPage() {
   const boughtLabel = formatAttendingLabel(ticketsBoughtCount);
   const showTicketsBoughtRow = ticketsBoughtCount > 0 || avatars.length > 0;
   const locationLabel = formatEventLocation(event);
-  const soldOut = isEventSoldOut(event.ticketsLeft);
-  const hasInventory = eventHasPrimaryInventory(event.ticketsLeft);
-  const canBuyTickets = hasInventory && salesPhase === 'open';
+  const purchaseBlock = getTicketPurchaseBlockReason({
+    dateEnd: event.dateEnd,
+    ticketsLeft: event.ticketsLeft,
+    salesPhase,
+  });
+  const soldOut = purchaseBlock === 'sold_out';
+  const canBuyTickets = purchaseBlock === null;
   const mapEmbedUrl = buildMapEmbedUrl(event);
   const mapOpenUrl = buildMapOpenUrl(event);
   const org = event.organizer;
@@ -538,7 +511,7 @@ export function EventDetailPage() {
                     label={soldOut ? t('soldOut') : t('leftNow', { count: event.ticketsLeft })}
                     variant={soldOut ? 'danger' : 'success'}
                   />
-                ) : hasInventory ? (
+                ) : eventHasPrimaryInventory(event.ticketsLeft) ? (
                   <Badge label={t('ticketsAvailable')} variant="success" />
                 ) : null}
               </div>
@@ -903,127 +876,78 @@ export function EventDetailPage() {
               <TicketIcon size={22} weight="fill" className="text-coral" />
               {t('tickets')}
             </h2>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              {soldOut ? (
-                <Badge label={t('noSeats')} variant="danger" className="text-[11px] font-bold uppercase tracking-wide" />
-              ) : event.layoutType === 'free' ? (
-                <Badge label={t('freeSeating')} variant="success" className="text-[11px] font-bold uppercase tracking-wide" />
-              ) : (
-                <Badge label={t('assignedSeats')} variant="default" className="text-[11px] font-bold uppercase tracking-wide" />
-              )}
-            </div>
-            <p className="mt-2 text-[12px] text-ink-40">
-              {soldOut
-                ? t('soldOutSidebar')
-                : event.layoutType === 'seated'
-                  ? t('seatedHint')
-                  : t('freeHint')}
-            </p>
-            {event.ticketTypes.length > 0 && (
-              <p className="mt-1 font-mono text-[13px] font-bold text-ink">
-                {event.priceMin === event.priceMax
-                  ? t('fromPrice', { price: formatCurrency(event.priceMin, language) })
-                  : t('priceRange', {
-                      min: formatCurrency(event.priceMin, language),
-                      max: formatCurrency(event.priceMax, language),
-                    })}
-              </p>
-            )}
-            <ul className="mt-4 space-y-3">
-              {event.ticketTypes.map((tt) => (
-                <li
-                  key={tt.id}
-                  className="flex items-center justify-between rounded-xl border border-ink-10 px-4 py-3"
-                >
-                  <div>
-                    <p className="font-semibold text-ink">{tt.name}</p>
-                    <p className="text-[12px] text-ink-40">
-                      {formatTicketRemainingLabel(tt.remaining, ticketAvailabilityLabels, language)}
-                    </p>
-                  </div>
-                  <span className="font-mono text-[15px] font-bold text-ink">
-                    {formatCurrency(tt.price, language)}
-                  </span>
-                </li>
-              ))}
-            </ul>
             {canBuyTickets ? (
-              <Link
-                to={
-                  event.layoutType === 'seated'
-                    ? `/checkout/${event.id}/seats`
-                    : `/checkout/${event.id}`
-                }
-                state={
-                  event.layoutType === 'free'
-                    ? {
-                        selectedTicketTypeId: event.ticketTypes[0]?.id,
-                        generalAdmissionQuantity: 1,
-                      }
-                    : undefined
-                }
-                className="mt-6 flex h-12 w-full items-center justify-center rounded-full bg-ink text-[14px] font-semibold text-white transition-colors hover:bg-ink-80 active:scale-[0.96]"
-              >
-                {event.layoutType === 'seated' ? t('chooseSeats') : t('continueCheckout')}
-              </Link>
-            ) : hasInventory ? (
-              <div className="mt-6 space-y-2">
-                <p className="text-center text-[13px] font-semibold text-ink-60">
-                  {salesPhase === 'not_started' ? t('salesNotStartedHint') : t('salesEndedHint')}
+              <>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {event.layoutType === 'free' ? (
+                    <Badge label={t('freeSeating')} variant="success" className="text-[11px] font-bold uppercase tracking-wide" />
+                  ) : (
+                    <Badge label={t('assignedSeats')} variant="default" className="text-[11px] font-bold uppercase tracking-wide" />
+                  )}
+                </div>
+                <p className="mt-2 text-[12px] text-ink-40">
+                  {event.layoutType === 'seated' ? t('seatedHint') : t('freeHint')}
                 </p>
-                <button
-                  type="button"
-                  disabled
-                  aria-disabled
-                  className="flex h-12 w-full cursor-not-allowed items-center justify-center rounded-full bg-ink-10 text-[14px] font-semibold text-ink-40"
+                {event.ticketTypes.length > 0 && (
+                  <p className="mt-1 font-mono text-[13px] font-bold text-ink">
+                    {event.priceMin === event.priceMax
+                      ? t('fromPrice', { price: formatCurrency(event.priceMin, language) })
+                      : t('priceRange', {
+                          min: formatCurrency(event.priceMin, language),
+                          max: formatCurrency(event.priceMax, language),
+                        })}
+                  </p>
+                )}
+                <ul className="mt-4 space-y-3">
+                  {event.ticketTypes.map((tt) => (
+                    <li
+                      key={tt.id}
+                      className="flex items-center justify-between rounded-xl border border-ink-10 px-4 py-3"
+                    >
+                      <div>
+                        <p className="font-semibold text-ink">{tt.name}</p>
+                        <p className="text-[12px] text-ink-40">
+                          {formatTicketRemainingLabel(tt.remaining, ticketAvailabilityLabels, language)}
+                        </p>
+                      </div>
+                      <span className="font-mono text-[15px] font-bold text-ink">
+                        {formatCurrency(tt.price, language)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  to={
+                    event.layoutType === 'seated'
+                      ? `/checkout/${event.id}/seats`
+                      : `/checkout/${event.id}`
+                  }
+                  state={
+                    event.layoutType === 'free'
+                      ? {
+                          selectedTicketTypeId: event.ticketTypes[0]?.id,
+                          generalAdmissionQuantity: 1,
+                        }
+                      : undefined
+                  }
+                  className="mt-6 flex h-12 w-full items-center justify-center rounded-full bg-ink text-[14px] font-semibold text-white transition-colors hover:bg-ink-80 active:scale-[0.96]"
                 >
-                  {salesPhase === 'not_started'
-                    ? t('salesNotStarted')
-                    : event.layoutType === 'seated'
-                      ? t('chooseSeats')
-                      : t('continueCheckout')}
-                </button>
-              </div>
-            ) : (
-              <div className="mt-6 space-y-3">
-                <p className="text-center text-[13px] font-semibold text-coral">{t('soldOut')}</p>
-                {detail ? (
-                  <EventWaitlistCta
-                    key={String(detail.id)}
-                    joinedFromApi={waitlistJoinedFromApi}
-                    eventSlugForApi={String(detail.slug ?? slugParam)}
-                    joiningWaitlist={joiningWaitlist}
-                    joinWaitlist={joinWaitlistMutation}
-                    onJoined={() => {
-                      pushNotification({
-                        title: t('waitlistNotifTitle'),
-                        body: t('waitlistNotifBody', { title: event.title }),
-                        kind: 'waitlist',
-                        href: `/events/${encodeURIComponent(String(detail.slug ?? slugParam))}`,
-                      });
-                    }}
-                  />
-                ) : null}
+                  {event.layoutType === 'seated' ? t('chooseSeats') : t('continueCheckout')}
+                </Link>
                 <Link
                   to={`/auction/events/${event.id}`}
-                  className="flex h-11 w-full items-center justify-center rounded-full bg-ink-5 text-[13px] font-semibold text-ink hover:bg-ink-10"
+                  className="mt-3 flex h-11 w-full items-center justify-center rounded-full border border-ink-10 bg-white text-[13px] font-semibold text-ink hover:bg-ink-5"
                 >
-                  {t('checkAuctionResale')}
+                  {t('viewResaleAuction')}
                 </Link>
-              </div>
-            )}
-            {canBuyTickets && (
-              <Link
-                to={`/auction/events/${event.id}`}
-                className="mt-3 flex h-11 w-full items-center justify-center rounded-full border border-ink-10 bg-white text-[13px] font-semibold text-ink hover:bg-ink-5"
-              >
-                {t('viewResaleAuction')}
-              </Link>
-            )}
-            <div className="mt-4 rounded-xl border border-ink-10 bg-ink-5/50 p-3">
-              <p className="text-[11px] uppercase tracking-[0.12em] text-ink-40">{t('reminder')}</p>
-              <p className="mt-1 text-[12px] text-ink-60">{t('reminderBody')}</p>
-            </div>
+                <div className="mt-4 rounded-xl border border-ink-10 bg-ink-5/50 p-3">
+                  <p className="text-[11px] uppercase tracking-[0.12em] text-ink-40">{t('reminder')}</p>
+                  <p className="mt-1 text-[12px] text-ink-60">{t('reminderBody')}</p>
+                </div>
+              </>
+            ) : purchaseBlock ? (
+              <TicketPurchaseAlert reason={purchaseBlock} />
+            ) : null}
           </div>
         </aside>
       </div>

@@ -4,7 +4,92 @@ import { resolvePublicStorageUrl } from '@/lib/organizerMedia';
 import { priceFromTicketApi, remainingFromTicketApiRow } from '@/lib/ticketTypeFromApi';
 import { languageToLocale, type AppLanguage } from '@/lib/language';
 import { pickLocalizedName } from '@/lib/localized';
+import type { EventCategoryRef } from '@/api/types/reference';
 import type { LayoutType, MockEvent, OrganizerSummary } from '@/types/domain';
+
+type LocalizedRef = {
+  name?: string | null;
+  name_en?: string | null;
+  name_ar?: string | null;
+};
+
+export type EventListCardMapperOptions = {
+  language?: AppLanguage;
+  categoryById?: Map<string, string>;
+};
+
+/** Map category id / slug / English name → localized label for event list cards. */
+export function buildCategoryLabelMap(
+  categories: EventCategoryRef[],
+  language: AppLanguage,
+): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const cat of categories) {
+    const label = pickLocalizedName({ name: cat.name, name_ar: cat.name_ar }, language);
+    if (!label) continue;
+    map.set(String(cat.id), label);
+    if (cat.slug) map.set(cat.slug.toLowerCase(), label);
+    if (cat.name) map.set(cat.name.trim().toLowerCase(), label);
+  }
+  return map;
+}
+
+function localizedFromNestedRef(value: unknown, language: AppLanguage): string | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const label = pickLocalizedName(value as LocalizedRef, language);
+  return label || null;
+}
+
+function listItemCategoryLabel(
+  e: EventListItem,
+  language: AppLanguage,
+  categoryById?: Map<string, string>,
+): string | null {
+  const r = e as Record<string, unknown>;
+
+  for (const key of ['event_category', 'category_relationship', 'category_data']) {
+    const nested = localizedFromNestedRef(r[key], language);
+    if (nested) return nested;
+  }
+
+  if (r.category && typeof r.category === 'object' && !Array.isArray(r.category)) {
+    const nested = localizedFromNestedRef(r.category, language);
+    if (nested) return nested;
+  }
+
+  if (e.category_id != null && categoryById) {
+    const fromId = categoryById.get(String(e.category_id));
+    if (fromId) return fromId;
+  }
+
+  const raw =
+    (typeof e.category_name === 'string' && e.category_name.trim() ? e.category_name.trim() : null) ??
+    (typeof e.category === 'string' && e.category.trim() ? e.category.trim() : null) ??
+    (typeof r.category === 'string' && r.category.trim() ? r.category.trim() : null);
+
+  if (!raw) return null;
+  if (categoryById) {
+    const fromMap = categoryById.get(raw.toLowerCase());
+    if (fromMap) return fromMap;
+  }
+  return raw;
+}
+
+function listItemPlaceLabel(
+  e: EventListItem,
+  language: AppLanguage,
+  field: 'city' | 'venue',
+): string {
+  const r = e as Record<string, unknown>;
+  const nestedKey = field === 'city' ? 'city_ref' : 'venue_ref';
+  const nested = localizedFromNestedRef(r[nestedKey], language);
+  if (nested) return nested;
+
+  if (field === 'city') {
+    return e.city ?? e.city_name ?? (typeof r.city === 'string' ? r.city : '') ?? '';
+  }
+  return e.venue ?? e.venue_name ?? (typeof r.venue === 'string' ? r.venue : '') ?? '';
+}
 
 /**
  * Maps API `layout_type` onto the binary `MockEvent.layoutType`.
@@ -228,6 +313,34 @@ export function getTicketSalesPhaseFromDetail(
   return getEventSalesPhase(start, end, now);
 }
 
+export type TicketPurchaseBlockReason =
+  | 'event_ended'
+  | 'sales_not_started'
+  | 'sales_ended'
+  | 'sold_out';
+
+/** True when the event end time is in the past. */
+export function isEventPastByEndDate(dateEnd: string, now: Date = new Date()): boolean {
+  const ms = parseApiDateTimeMs(dateEnd);
+  if (!Number.isFinite(ms)) return false;
+  return now.getTime() > ms;
+}
+
+/** Why primary ticket purchase is unavailable; `null` means the user can buy. */
+export function getTicketPurchaseBlockReason(input: {
+  dateEnd: string;
+  ticketsLeft: number | null;
+  salesPhase: EventSalesPhase;
+  now?: Date;
+}): TicketPurchaseBlockReason | null {
+  const { dateEnd, ticketsLeft, salesPhase, now } = input;
+  if (isEventPastByEndDate(dateEnd, now)) return 'event_ended';
+  if (salesPhase === 'not_started') return 'sales_not_started';
+  if (salesPhase === 'ended') return 'sales_ended';
+  if (isEventSoldOut(ticketsLeft)) return 'sold_out';
+  return null;
+}
+
 export function isEventSalesOpen(salesStartsAt: string, salesEndsAt: string, now?: Date): boolean {
   return getEventSalesPhase(salesStartsAt, salesEndsAt, now) === 'open';
 }
@@ -359,15 +472,20 @@ function listItemPriceFrom(e: EventListItem): number {
  * `detailPathSegment` / `eventListItemPublicPathSegment` for `/events/:slug`
  * navigation — never rely on `slug ?? code` alone (empty string is not nullish).
  */
-export function eventListItemToCardProps(e: EventListItem): EventCardProps {
+export function eventListItemToCardProps(
+  e: EventListItem,
+  options: EventListCardMapperOptions = {},
+): EventCardProps {
+  const language = options.language ?? 'en';
   const r = e as Record<string, unknown>;
   const startAt = e.date_start ?? e.starts_at ?? (typeof r.starts_at === 'string' ? r.starts_at : '') ?? '';
-  const { date, time } = formatCardDateTime(startAt);
+  const { date, time } = formatCardDateTime(startAt, language);
   const priceFrom = listItemPriceFrom(e);
   const detailPathSegment = eventListItemPublicPathSegment(e);
-  const categoryLabel = e.category ?? e.category_name ?? (typeof r.category === 'string' ? r.category : null) ?? 'Event';
-  const venueLabel = e.venue ?? e.venue_name ?? (typeof r.venue === 'string' ? r.venue : '') ?? '';
-  const cityLabel = e.city ?? e.city_name ?? (typeof r.city === 'string' ? r.city : '') ?? '';
+  const categoryLabel =
+    listItemCategoryLabel(e, language, options.categoryById) ?? 'Event';
+  const venueLabel = listItemPlaceLabel(e, language, 'venue');
+  const cityLabel = listItemPlaceLabel(e, language, 'city');
   const featured = typeof e.featured === 'boolean' ? e.featured : Boolean(e.is_featured ?? r.is_featured ?? r.featured);
   const cover =
     (typeof e.cover_image_url === 'string' && e.cover_image_url.trim() !== '' ? e.cover_image_url : null) ??

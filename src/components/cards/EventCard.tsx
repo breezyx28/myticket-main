@@ -113,7 +113,7 @@ export function EventCard({
   onClick,
   className,
 }: EventCardProps) {
-  const { t } = useTranslation(['common', 'events']);
+  const { t } = useTranslation(['common', 'events', 'eventDetail']);
   const reduceMotion = usePrefersReducedMotion();
   const dialogTitleId = useId();
 
@@ -276,6 +276,12 @@ export function EventCard({
 
   const priceAmount = formatSaudiRiyalAmountLatin(priceFrom);
 
+  const categoryBadge = useMemo(() => {
+    const raw = category?.trim() ?? '';
+    if (!raw || /^event$/i.test(raw)) return t('eventDetail:genericCategory');
+    return category;
+  }, [category, t]);
+
   return (
     <>
       <motion.div
@@ -302,7 +308,7 @@ export function EventCard({
             )}
             <div className="absolute start-2.5 top-2.5 z-10 flex flex-wrap gap-1.5">
               <span className="rounded-full border border-white/50 bg-white/40 px-2.5 py-0.5 text-[10px] font-bold text-ink shadow-sm backdrop-blur-md backdrop-saturate-150">
-                {category}
+                {categoryBadge}
               </span>
               {isFeatured && (
                 <span className="rounded-full border border-lemon/60 bg-lemon/45 px-2.5 py-0.5 text-[10px] font-bold text-ink shadow-sm backdrop-blur-md">
@@ -440,9 +446,9 @@ export function EventCard({
                 )}
               >
                 <Calendar size={11} weight="bold" className="shrink-0" />
-                <span className="line-clamp-1 min-w-0">
+                <Ltr className="line-clamp-1 min-w-0">
                   {date} · {time}
-                </span>
+                </Ltr>
               </div>
               <div
                 className={cn(

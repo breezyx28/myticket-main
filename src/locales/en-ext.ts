@@ -46,6 +46,7 @@ export const enExt = {
     category: {
       eyebrow: 'Explore by interest',
       title: 'What are you into?',
+      eventsCount: '{{count}} events',
     },
     featured: {
       overline: "Don't miss out",
@@ -99,6 +100,9 @@ export const enExt = {
       emptyTitle: 'No destinations live yet',
       emptyBody:
         'Be the first to showcase your location. Submit your tourism ad for admin review and appear in this carousel once approved.',
+      featuredBadge: 'Featured',
+      destinationBadge: 'Destination',
+      exploreCta: 'Explore destination',
     },
     carousel: {
       viewAll: 'View All',

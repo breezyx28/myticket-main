@@ -2,9 +2,10 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { EventCard } from '@/components/cards/EventCard';
-import { useListEventsQuery } from '@/api/endpoints';
+import { useListEventsQuery, useGetEventCategoriesQuery } from '@/api/endpoints';
 import type { EventListQuery } from '@/api/types/event';
-import { eventListItemToCardProps } from '@/lib/eventMappers';
+import { buildCategoryLabelMap, eventListItemToCardProps } from '@/lib/eventMappers';
+import type { AppLanguage } from '@/lib/language';
 import { cn } from '@/lib/utils';
 
 const dateFilters = ['All', 'Today', 'This Week', 'This Month', 'Weekend'] as const;
@@ -56,9 +57,15 @@ const filterLabelKeys: Record<DateFilter, string> = {
 };
 
 export function UpcomingSection() {
-  const { t } = useTranslation('landing');
+  const { t, i18n } = useTranslation('landing');
+  const language = (i18n.language === 'ar' ? 'ar' : 'en') as AppLanguage;
   const navigate = useNavigate();
   const [activeFilter, setActiveFilter] = useState<DateFilter>('All');
+  const { data: categoriesData } = useGetEventCategoriesQuery();
+  const categoryById = useMemo(
+    () => buildCategoryLabelMap(categoriesData?.data ?? [], language),
+    [categoriesData, language],
+  );
 
   const query = useMemo<EventListQuery>(() => {
     const range = dateRangeForFilter(activeFilter);
@@ -113,7 +120,7 @@ export function UpcomingSection() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {events.map((e) => {
-              const props = eventListItemToCardProps(e);
+              const props = eventListItemToCardProps(e, { language, categoryById });
               return (
                 <EventCard
                   key={e.id}

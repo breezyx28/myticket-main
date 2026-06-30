@@ -46,6 +46,7 @@ export const arExt = {
     category: {
       eyebrow: 'استكشف حسب الاهتمام',
       title: 'ما الذي يهمك؟',
+      eventsCount: '{{count}} فعالية',
     },
     featured: {
       overline: 'لا تفوّت الفرصة',
@@ -98,6 +99,9 @@ export const arExt = {
       emptyTitle: 'لا توجد وجهات منشورة بعد',
       emptyBody:
         'كن أول من يعرض موقعه. قدّم إعلانك السياحي للمراجعة وستظهر في هذا العرض بعد الموافقة.',
+      featuredBadge: 'مميز',
+      destinationBadge: 'وجهة',
+      exploreCta: 'استكشف الوجهة',
     },
     carousel: {
       viewAll: 'عرض الكل',

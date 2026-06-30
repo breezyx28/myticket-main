@@ -231,6 +231,8 @@ export const commerceAr = {
     salesEnded: 'انتهت مبيعات التذاكر',
     salesNotStartedHint: 'مبيعات التذاكر لم تبدأ بعد. عد عند بدء فترة البيع.',
     salesEndedHint: 'انتهت فترة مبيعات التذاكر لهذه الفعالية.',
+    eventEnded: 'انتهت الفعالية',
+    eventEndedHint: 'انتهت هذه الفعالية بالفعل. لم يعد شراء التذاكر متاحاً.',
     checkAuctionResale: 'تحقق من المزاد لإعادة البيع',
     viewResaleAuction: 'عرض مزاد إعادة البيع',
     reminder: 'تذكير',

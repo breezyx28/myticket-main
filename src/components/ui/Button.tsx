@@ -79,6 +79,8 @@ function Button({
   loading = false,
   loadingText,
   icon: Icon,
+  iconRtlFlip = false,
+  iconClassName,
   disabled,
   children,
   ...props
@@ -90,6 +92,9 @@ function Button({
     loading?: boolean
     loadingText?: string
     icon?: React.ComponentType<any>
+    /** Mirror directional icons (e.g. arrows) in RTL. */
+    iconRtlFlip?: boolean
+    iconClassName?: string
   }) {
   const Comp = asChild ? Slot.Root : "button"
   const normalizedVariant = normalizeVariant(variant)
@@ -122,7 +127,13 @@ function Button({
       ) : (
         <>
           <span>{children}</span>
-          {Icon ? <Icon size={16} weight="bold" className="shrink-0" /> : null}
+          {Icon ? (
+            <Icon
+              size={16}
+              weight="bold"
+              className={cn('shrink-0', iconRtlFlip && 'rtl:-scale-x-100', iconClassName)}
+            />
+          ) : null}
         </>
       )}
     </Comp>

@@ -20,6 +20,7 @@ export const en = {
       previousSlide: 'Previous slide',
       nextSlide: 'Next slide',
     },
+    charCounter: '{{current}} / {{max}} (min {{min}})',
     apiErrors: {
       generic: 'Something went wrong. Please try again.',
       invalidCredentials: 'Invalid credentials. Please try again.',

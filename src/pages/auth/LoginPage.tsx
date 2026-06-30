@@ -18,7 +18,7 @@ export function LoginPage() {
   const { t } = useTranslation('authPages');
   const { t: tValidation, i18n } = useTranslation('validation');
   const loginSchema = useMemo(() => createLoginSchema(tValidation), [tValidation, i18n.language]);
-  const { signIn, signInWithOtp, signInWithOAuth, user } = useAuth();
+  const { signIn, signInWithOtp, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const fromRaw = (location.state as { from?: { pathname: string } } | null)?.from?.pathname;
@@ -29,7 +29,6 @@ export function LoginPage() {
 
   const [error, setError] = useState<string | null>(null);
   const [challengeToken, setChallengeToken] = useState<string | null>(null);
-  const [oauthLoading, setOauthLoading] = useState(false);
 
   const form = useForm({
     resolver: yupResolver(loginSchema),
@@ -74,26 +73,13 @@ export function LoginPage() {
     }
   });
 
-  async function onGoogle() {
-    setError(null);
-    setOauthLoading(true);
-    try {
-      await signInWithOAuth('google');
-      // Navigation happens via window.location, so we don't navigate here.
-    } catch (e) {
-      setError(authErrorMessage(e, t('login.googleFailed')));
-    } finally {
-      setOauthLoading(false);
-    }
-  }
+  const submitDisabled = isSubmitting;
 
   function resetTwoFactorStep() {
     setChallengeToken(null);
     setError(null);
     form.setValue('otp', '');
   }
-
-  const submitDisabled = isSubmitting || oauthLoading;
 
   if (user) {
     return <Navigate to={from} replace />;
@@ -206,31 +192,6 @@ export function LoginPage() {
           </>
         )}
       </form>
-
-      {!challengeToken && (
-        <>
-          <div className="relative my-8">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-ink-10" />
-            </div>
-            <div className="relative flex justify-center">
-              <span className="bg-white px-3 text-[12px] font-medium text-ink-40">{t('login.or')}</span>
-            </div>
-          </div>
-
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            className="w-full border-ink-20"
-            onClick={onGoogle}
-            loading={oauthLoading}
-            disabled={submitDisabled}
-          >
-            {t('login.continueGoogle')}
-          </Button>
-        </>
-      )}
     </FormSectionCard>
   );
 }
