@@ -7,6 +7,11 @@ export function shouldShowRoleUpgradeStatus(request: RoleUpgradeRequest | null |
   return ['submitted', 'rejected', 'draft', 'changes_requested'].includes(status);
 }
 
+export function isRoleUpgradeAwaitingReview(request: RoleUpgradeRequest): boolean {
+  if (request.is_pending_review) return true;
+  return String(request.status ?? '').toLowerCase() === 'submitted';
+}
+
 export function isRoleUpgradePending(request: RoleUpgradeRequest): boolean {
   if (request.is_pending_review) return true;
   const status = String(request.status ?? '').toLowerCase();
@@ -24,3 +29,5 @@ export function roleUpgradeApplyPath(targetRole: string): string {
   }
   return '/profile';
 }
+
+export const PROFILE_ROLES_TAB_PATH = '/profile?tab=roles';

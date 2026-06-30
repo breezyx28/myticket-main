@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, Navigate } from 'react-router-dom';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { Controller, useForm, type Resolver } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { Button } from '@/components/ui/Button';
@@ -82,6 +82,19 @@ function formatRelativeSeenAt(iso?: string | null, emDash = '—'): string {
 
 type ProfileTab = 'info' | 'preferences' | 'cards' | 'security' | 'roles' | 'danger';
 
+const PROFILE_TABS: readonly ProfileTab[] = [
+  'info',
+  'preferences',
+  'cards',
+  'security',
+  'roles',
+  'danger',
+];
+
+function isProfileTab(value: string): value is ProfileTab {
+  return (PROFILE_TABS as readonly string[]).includes(value);
+}
+
 type DeleteAccountFormValues = {
   confirmation: string;
   reason: string;
@@ -144,6 +157,13 @@ export function ProfilePage() {
   const apiSaudiRegions = saudiRegionsRes?.data;
 
   const [activeTab, setActiveTab] = useState<ProfileTab>('info');
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab && isProfileTab(tab)) setActiveTab(tab);
+  }, [searchParams]);
+
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);

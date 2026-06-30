@@ -10,8 +10,13 @@ import {
   Storefront,
 } from '@phosphor-icons/react';
 import type { Icon } from '@phosphor-icons/react';
+import { useGetMeQuery } from '@/api/endpoints';
 import { useAuth } from '@/contexts/AuthContext';
 import { roleUpgradeBanners, type RoleUpgradeBanner } from '@/data/roleUpgradeBanners';
+import {
+  isRoleUpgradeAwaitingReview,
+  PROFILE_ROLES_TAB_PATH,
+} from '@/lib/roleUpgradeRequest';
 import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
 import { cn } from '@/lib/utils';
 import {
@@ -142,6 +147,7 @@ export function RoleUpgradeBannersSection({ variant = 'landing' }: RoleUpgradeBa
   const isRtl = i18n.dir() === 'rtl';
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { data: me } = useGetMeQuery(undefined, { skip: !user });
 
   const [api, setApi] = useState<CarouselApi>();
   const [canScrollPrev, setCanScrollPrev] = useState(false);
@@ -184,6 +190,11 @@ export function RoleUpgradeBannersSection({ variant = 'landing' }: RoleUpgradeBa
     }
     if (!isProfile && user.role !== 'guest') {
       navigate('/profile');
+      return;
+    }
+    const request = me?.role_upgrade_request;
+    if (request && isRoleUpgradeAwaitingReview(request)) {
+      navigate(PROFILE_ROLES_TAB_PATH);
       return;
     }
     navigate(route);
