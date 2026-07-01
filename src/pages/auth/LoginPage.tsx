@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -33,6 +33,13 @@ export function LoginPage() {
     null,
   );
   const [challengeToken, setChallengeToken] = useState<string | null>(null);
+  const [loginSuccess, setLoginSuccess] = useState(false);
+
+  useEffect(() => {
+    if (!loginSuccess) return;
+    const id = window.setTimeout(() => navigate(from, { replace: true }), 1600);
+    return () => window.clearTimeout(id);
+  }, [from, loginSuccess, navigate]);
 
   const form = useForm({
     resolver: yupResolver(loginSchema),
@@ -60,7 +67,7 @@ export function LoginPage() {
       } else {
         await signIn((values.email ?? '').trim(), values.password);
       }
-      navigate(from, { replace: true });
+      setLoginSuccess(true);
     } catch (e) {
       if (isNonGuestRoleError(e)) {
         setRolePortalBlock({ role: e.role, portalUrl: e.portalUrl });
@@ -86,7 +93,7 @@ export function LoginPage() {
     form.setValue('otp', '');
   }
 
-  if (user) {
+  if (user && !loginSuccess) {
     return <Navigate to={from} replace />;
   }
 
@@ -111,6 +118,12 @@ export function LoginPage() {
         </InlineNotice>
       ) : null}
 
+      {loginSuccess ? (
+        <InlineNotice variant="success" title={t('login.successTitle')} className="mt-4">
+          <p className="text-[13px] leading-relaxed text-ink-70">{t('login.successBody')}</p>
+        </InlineNotice>
+      ) : null}
+
       {rolePortalBlock ? (
         <RolePortalLoginNotice
           role={rolePortalBlock.role}
@@ -128,6 +141,7 @@ export function LoginPage() {
         </div>
       )}
 
+      {!loginSuccess ? (
       <form onSubmit={onSubmit} className="mt-6 space-y-4" noValidate>
         {!challengeToken ? (
           <>
@@ -205,6 +219,7 @@ export function LoginPage() {
           </>
         )}
       </form>
+      ) : null}
     </FormSectionCard>
   );
 }

@@ -134,6 +134,8 @@ export const arExt = {
       verifyAndSignIn: 'تحقق وسجّل الدخول',
       or: 'أو',
       continueGoogle: 'المتابعة مع Google',
+      successTitle: 'تم تسجيل الدخول بنجاح',
+      successBody: 'مرحبًا بعودتك. جارٍ تحويلك الآن…',
       rolePortal: {
         title: 'بيانات الدخول هذه لحساب {{role}}',
         body: 'هذا الموقع مخصّص لمشتري التذاكر (حسابات الضيف). سجّل الدخول على بوابة {{role}} للوصول إلى لوحتك.',

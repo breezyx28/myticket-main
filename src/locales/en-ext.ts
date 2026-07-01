@@ -135,6 +135,8 @@ export const enExt = {
       verifyAndSignIn: 'Verify and sign in',
       or: 'or',
       continueGoogle: 'Continue with Google',
+      successTitle: 'Signed in successfully',
+      successBody: 'Welcome back. Redirecting you now…',
       rolePortal: {
         title: 'These credentials are for a {{role}} account',
         body: 'This website is for ticket buyers (guest accounts). Sign in on the {{role}} portal to open your dashboard.',
