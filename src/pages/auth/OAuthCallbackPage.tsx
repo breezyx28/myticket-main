@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/ui/Button';
 import { OAUTH_REDIRECT_KEY } from '@/api/authToken';
 import { useAuth } from '@/contexts/AuthContext';
+import { RolePortalLoginNotice } from '@/components/auth/RolePortalLoginNotice';
 import { authErrorMessage, isNonGuestRoleError } from '@/lib/authErrors';
 import { getSafeRedirectPath } from '@/lib/navigation';
 import { FormSectionCard } from '@/components/ui/form/FormSectionCard';
@@ -25,6 +26,9 @@ export function OAuthCallbackPage() {
     if (!provider || !code) return t('oauth.missingCode');
     return null;
   });
+  const [rolePortalBlock, setRolePortalBlock] = useState<{ role: string; portalUrl: string } | null>(
+    null,
+  );
 
   useEffect(() => {
     if (ranRef.current) return;
@@ -44,30 +48,35 @@ export function OAuthCallbackPage() {
       })
       .catch((e) => {
         if (isNonGuestRoleError(e)) {
-          setError(e.message);
+          setRolePortalBlock({ role: e.role, portalUrl: e.portalUrl });
+          setError(null);
           return;
         }
         setError(authErrorMessage(e, t('oauth.completeFailed')));
       });
   }, [code, completeOAuthCallback, error, navigate, provider, state, t]);
 
+  const showFailure = Boolean(error || rolePortalBlock);
+
   return (
     <FormSectionCard
       eyebrow={t('oauth.eyebrow')}
       title={
-        error
+        showFailure
           ? t('oauth.titleFailed')
           : t('oauth.titleFinishing', { provider: provider ?? 'OAuth' })
       }
-      description={
-        error ? t('oauth.descFailed') : t('oauth.descVerifying')
-      }
+      description={showFailure ? t('oauth.descFailed') : t('oauth.descVerifying')}
     >
-      {error ? (
+      {error || rolePortalBlock ? (
         <div className="space-y-4">
-          <InlineNotice variant="warning" title={t('oauth.errorTitle')}>
-            <p className="text-[13px] text-ink-60">{error}</p>
-          </InlineNotice>
+          {rolePortalBlock ? (
+            <RolePortalLoginNotice role={rolePortalBlock.role} portalUrl={rolePortalBlock.portalUrl} />
+          ) : (
+            <InlineNotice variant="warning" title={t('oauth.errorTitle')}>
+              <p className="text-[13px] text-ink-60">{error}</p>
+            </InlineNotice>
+          )}
           <div className="flex flex-col gap-2 sm:flex-row">
             <Link to="/login" className="flex-1">
               <Button type="button" variant="dark" size="md" className="w-full">

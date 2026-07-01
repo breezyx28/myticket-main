@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
+import { RolePortalLoginNotice } from '@/components/auth/RolePortalLoginNotice';
 import { authErrorMessage, isEmailVerificationRequiredError, isNonGuestRoleError, isTwoFactorRequiredError } from '@/lib/authErrors';
 import { getSafeRedirectPath } from '@/lib/navigation';
 import { FormSectionCard } from '@/components/ui/form/FormSectionCard';
@@ -28,6 +29,9 @@ export function LoginPage() {
   const registerState = { from: { pathname: from } };
 
   const [error, setError] = useState<string | null>(null);
+  const [rolePortalBlock, setRolePortalBlock] = useState<{ role: string; portalUrl: string } | null>(
+    null,
+  );
   const [challengeToken, setChallengeToken] = useState<string | null>(null);
 
   const form = useForm({
@@ -44,6 +48,7 @@ export function LoginPage() {
 
   const onSubmit = handleSubmit(async (values) => {
     setError(null);
+    setRolePortalBlock(null);
     try {
       if (challengeToken) {
         const otp = (values.otp ?? '').trim();
@@ -58,7 +63,7 @@ export function LoginPage() {
       navigate(from, { replace: true });
     } catch (e) {
       if (isNonGuestRoleError(e)) {
-        setError(e.message);
+        setRolePortalBlock({ role: e.role, portalUrl: e.portalUrl });
         return;
       }
       if (isEmailVerificationRequiredError(e)) {
@@ -104,6 +109,14 @@ export function LoginPage() {
         <InlineNotice variant="info" title={t('register.verificationReminder')} className="mt-4">
           <p className="text-[13px] leading-relaxed text-ink-70">{verificationNotice}</p>
         </InlineNotice>
+      ) : null}
+
+      {rolePortalBlock ? (
+        <RolePortalLoginNotice
+          role={rolePortalBlock.role}
+          portalUrl={rolePortalBlock.portalUrl}
+          className="mt-4"
+        />
       ) : null}
 
       {error && (

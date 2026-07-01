@@ -135,6 +135,11 @@ export const enExt = {
       verifyAndSignIn: 'Verify and sign in',
       or: 'or',
       continueGoogle: 'Continue with Google',
+      rolePortal: {
+        title: 'These credentials are for a {{role}} account',
+        body: 'This website is for ticket buyers (guest accounts). Sign in on the {{role}} portal to open your dashboard.',
+        cta: 'Go to {{role}} login',
+      },
     },
     forgot: {
       sendFailed: 'Could not send the reset email. Please try again.',
