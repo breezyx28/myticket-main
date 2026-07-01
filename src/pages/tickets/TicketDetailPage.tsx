@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
 import { Star, DownloadSimple } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/Button';
 import { TicketDetailActions } from '@/components/tickets/TicketDetailActions';
@@ -345,13 +345,16 @@ export function TicketDetailPage() {
           <div className="mt-6 space-y-3">
             {ticket.status === 'active' && (
               <div className="rounded-xl border border-sky/30 bg-sky/10 px-4 py-3.5 text-[13px] leading-relaxed text-ink-60">
-                Reminders are typically sent <strong className="text-ink">24h</strong> and{' '}
-                <strong className="text-ink">1h</strong> before doors (channels configured by admin).
+                <Trans
+                  i18nKey="detail.remindersBanner"
+                  ns="tickets"
+                  components={{ strong: <strong className="text-ink" /> }}
+                />
               </div>
             )}
             {walletHint && (
               <div className="rounded-xl border border-sky/30 bg-sky/10 px-4 py-3.5 text-[13px] text-ink">
-                Would open Apple Wallet / Google Wallet with a pass for this ticket (demo).
+                {t('detail.walletDemoHint')}
               </div>
             )}
             {cancelSummary && (

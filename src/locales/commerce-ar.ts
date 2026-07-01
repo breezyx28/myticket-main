@@ -335,6 +335,10 @@ export const commerceAr = {
       dropToAuction: 'عرض في المزاد',
       addToWallet: 'إضافة للمحفظة',
       inactiveTicketHint: 'الإجراءات الأساسية للتذاكر النشطة. يمكن إلغاء قوائم المزاد أعلاه.',
+      remindersBanner:
+        'تُرسل التذكيرات عادةً قبل <strong>24 ساعة</strong> و<strong>ساعة واحدة</strong> من موعد الدخول (القنوات يحددها المسؤول).',
+      walletDemoHint:
+        'سيفتح Apple Wallet / Google Wallet بتذكرة مرور لهذه التذكرة (عرض تجريبي).',
       ticketCodeUnavailable:
         'رمز التذكرة غير متاح بعد. افتح هذه الصفحة بعد تأكيد الطلب، أو راجع تذاكري.',
       qrManualHint: 'رمز إدخال يدوي إذا لم يقرأ الماسح QR',

@@ -336,6 +336,10 @@ export const commerceEn = {
       addToWallet: 'Add to Wallet',
       inactiveTicketHint:
         'Primary actions apply to active tickets. Auction listings can be cancelled above.',
+      remindersBanner:
+        'Reminders are typically sent <strong>24h</strong> and <strong>1h</strong> before doors (channels configured by admin).',
+      walletDemoHint:
+        'Would open Apple Wallet / Google Wallet with a pass for this ticket (demo).',
       ticketCodeUnavailable:
         'Ticket code is not available yet. Open this page again after your order is confirmed, or check My Tickets.',
       qrManualHint: 'Manual entry code if the scanner cannot read the QR',
